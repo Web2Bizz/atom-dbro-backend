@@ -45,6 +45,7 @@
     "pg": "^8.11.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.0",
+    "drizzle-kit": "^0.20.0",
     "swagger-ui-express": "^5.0.0"
   },
   "devDependencies": {
@@ -55,7 +56,6 @@
     "@types/node": "^20.19.25",
     "@types/passport-jwt": "^3.0.9",
     "@types/pg": "^8.10.0",
-    "drizzle-kit": "^0.20.0",
     "iconv-lite": "^0.7.0",
     "prettier": "^3.0.0",
     "ts-node": "^10.9.1",
