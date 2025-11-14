@@ -32,7 +32,7 @@ POSTGRES_PORT=5432
 
 # Приложение
 APP_PORT=3000
-PORT=3000
+# PORT автоматически устанавливается из APP_PORT в docker-compose.yml
 
 # JWT
 JWT_SECRET=your-secret-key-change-in-production
@@ -108,8 +108,45 @@ docker-compose logs -f postgres
 
 #### Проверить доступность API:
 
-- Приложение: http://localhost:3000
+- Приложение: http://localhost:3000 (или http://<IP_СЕРВЕРА>:3000 для доступа извне)
 - Swagger документация: http://localhost:3000/api
+
+**✅ Приложение настроено для доступа извне** - порт проброшен на все интерфейсы (0.0.0.0), поэтому сервис доступен не только с localhost, но и по IP-адресу сервера из внешней сети.
+
+#### Проверка внешнего доступа:
+
+1. **Узнайте IP-адрес сервера:**
+```bash
+# Linux/Mac
+hostname -I
+# или
+ip addr show
+
+# Windows
+ipconfig
+```
+
+2. **Проверьте доступность извне:**
+   - С другого компьютера в той же сети: `http://<IP_СЕРВЕРА>:3000`
+   - Или используйте curl: `curl http://<IP_СЕРВЕРА>:3000`
+
+3. **Настройка Firewall (если приложение недоступно):**
+
+   **Linux (ufw):**
+   ```bash
+   sudo ufw allow 3000/tcp
+   sudo ufw reload
+   ```
+
+   **Linux (firewalld):**
+   ```bash
+   sudo firewall-cmd --permanent --add-port=3000/tcp
+   sudo firewall-cmd --reload
+   ```
+
+   **Windows Firewall:**
+   - Откройте "Брандмауэр Защитника Windows"
+   - Создайте правило для входящих подключений на порт 3000
 
 ### 6. Остановка и удаление
 

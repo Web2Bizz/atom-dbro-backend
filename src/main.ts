@@ -28,10 +28,10 @@ async function bootstrap() {
     SwaggerModule.setup('api', app, document);
     console.log('Swagger configured');
 
-    const port = process.env.PORT || 3001;
-    await app.listen(port);
-    console.log(`🚀 Application is running on: http://localhost:${port}`);
-    console.log(`📚 Swagger API docs: http://localhost:${port}/api`);
+    const port = process.env.PORT || 3000;
+    await app.listen(port, '0.0.0.0');
+    console.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
+    console.log(`📚 Swagger API docs: http://0.0.0.0:${port}/api`);
   } catch (error) {
     console.error('❌ Error starting application:', error);
     process.exit(1);
