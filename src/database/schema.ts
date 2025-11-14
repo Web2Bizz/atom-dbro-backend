@@ -38,7 +38,7 @@ export const users = pgTable('users', {
 // Виды помощи
 export const helpTypes = pgTable('help_types', {
   id: serial('id').primaryKey(),
-  name: varchar('name', { length: 255 }).notNull(),
+  name: varchar('name', { length: 255 }).notNull().unique(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });

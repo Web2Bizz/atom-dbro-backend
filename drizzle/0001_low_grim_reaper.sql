@@ -1,0 +1,1 @@
+ALTER TABLE "help_types" ADD CONSTRAINT "help_types_name_unique" UNIQUE("name");

@@ -21,7 +21,7 @@ export class HelpTypeController {
   @Post()
   @ApiOperation({ summary: 'Создать вид помощи' })
   @ApiResponse({ status: 201, description: 'Вид помощи успешно создан' })
-  @ApiResponse({ status: 400, description: 'Неверные данные' })
+  @ApiResponse({ status: 400, description: 'Вид помощи с таким названием уже существует' })
   create(@Body() createHelpTypeDto: CreateHelpTypeDto) {
     return this.helpTypeService.create(createHelpTypeDto);
   }
@@ -44,6 +44,7 @@ export class HelpTypeController {
   @Patch(':id')
   @ApiOperation({ summary: 'Обновить вид помощи' })
   @ApiResponse({ status: 200, description: 'Вид помощи обновлен' })
+  @ApiResponse({ status: 400, description: 'Вид помощи с таким названием уже существует' })
   @ApiResponse({ status: 404, description: 'Вид помощи не найден' })
   update(
     @Param('id', ParseIntPipe) id: number,

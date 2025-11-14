@@ -1,8 +1,8 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { helpTypes } from '../database/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and, ne } from 'drizzle-orm';
 import { CreateHelpTypeDto } from './dto/create-help-type.dto';
 import { UpdateHelpTypeDto } from './dto/update-help-type.dto';
 
@@ -14,6 +14,15 @@ export class HelpTypeService {
   ) {}
 
   async create(createHelpTypeDto: CreateHelpTypeDto) {
+    // Проверяем уникальность названия
+    const [existingHelpType] = await this.db
+      .select()
+      .from(helpTypes)
+      .where(eq(helpTypes.name, createHelpTypeDto.name));
+    if (existingHelpType) {
+      throw new BadRequestException('Вид помощи с таким названием уже существует');
+    }
+
     const [helpType] = await this.db
       .insert(helpTypes)
       .values(createHelpTypeDto)
@@ -37,6 +46,20 @@ export class HelpTypeService {
   }
 
   async update(id: number, updateHelpTypeDto: UpdateHelpTypeDto) {
+    // Если обновляется название, проверяем уникальность
+    if (updateHelpTypeDto.name) {
+      const [existingHelpType] = await this.db
+        .select()
+        .from(helpTypes)
+        .where(and(
+          eq(helpTypes.name, updateHelpTypeDto.name),
+          ne(helpTypes.id, id)
+        ));
+      if (existingHelpType) {
+        throw new BadRequestException('Вид помощи с таким названием уже существует');
+      }
+    }
+
     const [helpType] = await this.db
       .update(helpTypes)
       .set({ ...updateHelpTypeDto, updatedAt: new Date() })
