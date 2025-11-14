@@ -5,7 +5,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-COPY . .
+COPY tsconfig.json ./
+COPY nest-cli.json ./
+COPY drizzle.config.ts ./
+COPY src ./src
 RUN npm run build
 
 FROM node:20-alpine AS production
