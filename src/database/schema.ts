@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, decimal, integer, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, decimal, integer, timestamp, text, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // Регионы
@@ -50,6 +50,13 @@ export const organizations = pgTable('organizations', {
   cityId: integer('city_id').references(() => cities.id).notNull(),
   latitude: decimal('latitude', { precision: 10, scale: 8 }),
   longitude: decimal('longitude', { precision: 11, scale: 8 }),
+  summary: text('summary'),
+  mission: text('mission'),
+  description: text('description'),
+  goals: jsonb('goals').$type<string[]>(),
+  needs: jsonb('needs').$type<string[]>(),
+  address: text('address'),
+  contacts: jsonb('contacts').$type<Array<{ name: string; value: string }>>(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });

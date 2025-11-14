@@ -52,6 +52,13 @@ export class OrganizationService {
         cityId: createOrganizationDto.cityId,
         latitude: latitude,
         longitude: longitude,
+        summary: createOrganizationDto.summary,
+        mission: createOrganizationDto.mission,
+        description: createOrganizationDto.description,
+        goals: createOrganizationDto.goals,
+        needs: createOrganizationDto.needs,
+        address: createOrganizationDto.address,
+        contacts: createOrganizationDto.contacts,
       })
       .returning();
 
@@ -72,6 +79,13 @@ export class OrganizationService {
         cityId: organizations.cityId,
         latitude: organizations.latitude,
         longitude: organizations.longitude,
+        summary: organizations.summary,
+        mission: organizations.mission,
+        description: organizations.description,
+        goals: organizations.goals,
+        needs: organizations.needs,
+        address: organizations.address,
+        contacts: organizations.contacts,
         createdAt: organizations.createdAt,
         updatedAt: organizations.updatedAt,
         cityName: cities.name,
@@ -87,6 +101,13 @@ export class OrganizationService {
       cityId: org.cityId,
       latitude: org.latitude,
       longitude: org.longitude,
+      summary: org.summary,
+      mission: org.mission,
+      description: org.description,
+      goals: org.goals,
+      needs: org.needs,
+      address: org.address,
+      contacts: org.contacts,
       createdAt: org.createdAt,
       updatedAt: org.updatedAt,
       city: org.cityName ? {
@@ -106,6 +127,13 @@ export class OrganizationService {
         cityId: organizations.cityId,
         latitude: organizations.latitude,
         longitude: organizations.longitude,
+        summary: organizations.summary,
+        mission: organizations.mission,
+        description: organizations.description,
+        goals: organizations.goals,
+        needs: organizations.needs,
+        address: organizations.address,
+        contacts: organizations.contacts,
         createdAt: organizations.createdAt,
         updatedAt: organizations.updatedAt,
         cityName: cities.name,
@@ -125,6 +153,13 @@ export class OrganizationService {
       cityId: orgData.cityId,
       latitude: orgData.latitude,
       longitude: orgData.longitude,
+      summary: orgData.summary,
+      mission: orgData.mission,
+      description: orgData.description,
+      goals: orgData.goals,
+      needs: orgData.needs,
+      address: orgData.address,
+      contacts: orgData.contacts,
       createdAt: orgData.createdAt,
       updatedAt: orgData.updatedAt,
       city: orgData.cityName ? {
@@ -193,6 +228,13 @@ export class OrganizationService {
       updateData.latitude = updateOrganizationDto.latitude.toString();
     if (updateOrganizationDto.longitude !== undefined)
       updateData.longitude = updateOrganizationDto.longitude.toString();
+    if (updateOrganizationDto.summary !== undefined) updateData.summary = updateOrganizationDto.summary;
+    if (updateOrganizationDto.mission !== undefined) updateData.mission = updateOrganizationDto.mission;
+    if (updateOrganizationDto.description !== undefined) updateData.description = updateOrganizationDto.description;
+    if (updateOrganizationDto.goals !== undefined) updateData.goals = updateOrganizationDto.goals;
+    if (updateOrganizationDto.needs !== undefined) updateData.needs = updateOrganizationDto.needs;
+    if (updateOrganizationDto.address !== undefined) updateData.address = updateOrganizationDto.address;
+    if (updateOrganizationDto.contacts !== undefined) updateData.contacts = updateOrganizationDto.contacts;
 
     const [organization] = await this.db
       .update(organizations)
