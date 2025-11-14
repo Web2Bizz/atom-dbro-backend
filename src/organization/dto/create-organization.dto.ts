@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsNumber, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, MaxLength, IsInt, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateOrganizationDto {
@@ -9,14 +9,21 @@ export class CreateOrganizationDto {
   @MaxLength(255)
   name: string;
 
-  @ApiProperty({ description: 'Широта', example: '55.7558' })
-  @IsNumber()
+  @ApiProperty({ description: 'ID города', example: 1 })
+  @IsInt()
   @Type(() => Number)
-  latitude: number;
+  cityId: number;
 
-  @ApiProperty({ description: 'Долгота', example: '37.6173' })
+  @ApiProperty({ description: 'Широта (опционально, если не указана, будет взята из города)', example: '55.7558', required: false })
   @IsNumber()
   @Type(() => Number)
-  longitude: number;
+  @IsOptional()
+  latitude?: number;
+
+  @ApiProperty({ description: 'Долгота (опционально, если не указана, будет взята из города)', example: '37.6173', required: false })
+  @IsNumber()
+  @Type(() => Number)
+  @IsOptional()
+  longitude?: number;
 }
 

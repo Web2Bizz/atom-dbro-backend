@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   ParseIntPipe,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { OrganizationService } from './organization.service';
@@ -14,9 +15,13 @@ import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { AddOwnerDto } from './dto/add-owner.dto';
 import { AddHelpTypeDto } from './dto/add-help-type.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('Организации')
+@ApiBearerAuth()
 @Controller('organizations')
+@UseGuards(JwtAuthGuard)
 export class OrganizationController {
   constructor(private readonly organizationService: OrganizationService) {}
 
@@ -24,13 +29,18 @@ export class OrganizationController {
   @ApiOperation({ summary: 'Создать организацию' })
   @ApiResponse({ status: 201, description: 'Организация успешно создана' })
   @ApiResponse({ status: 400, description: 'Неверные данные' })
-  create(@Body() createOrganizationDto: CreateOrganizationDto) {
-    return this.organizationService.create(createOrganizationDto);
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
+  create(
+    @Body() createOrganizationDto: CreateOrganizationDto,
+    @CurrentUser() user: { userId: number; email: string },
+  ) {
+    return this.organizationService.create(createOrganizationDto, user.userId);
   }
 
   @Get()
   @ApiOperation({ summary: 'Получить все организации' })
   @ApiResponse({ status: 200, description: 'Список организаций' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findAll() {
     return this.organizationService.findAll();
   }
@@ -39,6 +49,7 @@ export class OrganizationController {
   @ApiOperation({ summary: 'Получить организацию по ID' })
   @ApiResponse({ status: 200, description: 'Организация найдена' })
   @ApiResponse({ status: 404, description: 'Организация не найдена' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.organizationService.findOne(id);
   }
@@ -47,6 +58,7 @@ export class OrganizationController {
   @ApiOperation({ summary: 'Обновить организацию' })
   @ApiResponse({ status: 200, description: 'Организация обновлена' })
   @ApiResponse({ status: 404, description: 'Организация не найдена' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateOrganizationDto: UpdateOrganizationDto,
@@ -58,6 +70,7 @@ export class OrganizationController {
   @ApiOperation({ summary: 'Удалить организацию' })
   @ApiResponse({ status: 200, description: 'Организация удалена' })
   @ApiResponse({ status: 404, description: 'Организация не найдена' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.organizationService.remove(id);
   }
@@ -67,6 +80,7 @@ export class OrganizationController {
   @ApiResponse({ status: 201, description: 'Владелец успешно добавлен' })
   @ApiResponse({ status: 404, description: 'Организация или пользователь не найдены' })
   @ApiResponse({ status: 409, description: 'Пользователь уже является владельцем организации' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   addOwner(
     @Param('id', ParseIntPipe) organizationId: number,
     @Body() addOwnerDto: AddOwnerDto,
@@ -78,6 +92,7 @@ export class OrganizationController {
   @ApiOperation({ summary: 'Удалить владельца организации' })
   @ApiResponse({ status: 200, description: 'Владелец успешно удален' })
   @ApiResponse({ status: 404, description: 'Связь не найдена' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   removeOwner(
     @Param('id', ParseIntPipe) organizationId: number,
     @Param('userId', ParseIntPipe) userId: number,
@@ -90,6 +105,7 @@ export class OrganizationController {
   @ApiResponse({ status: 201, description: 'Вид помощи успешно добавлен' })
   @ApiResponse({ status: 404, description: 'Организация или вид помощи не найдены' })
   @ApiResponse({ status: 409, description: 'Вид помощи уже добавлен к организации' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   addHelpType(
     @Param('id', ParseIntPipe) organizationId: number,
     @Body() addHelpTypeDto: AddHelpTypeDto,
@@ -101,6 +117,7 @@ export class OrganizationController {
   @ApiOperation({ summary: 'Удалить вид помощи организации' })
   @ApiResponse({ status: 200, description: 'Вид помощи успешно удален' })
   @ApiResponse({ status: 404, description: 'Связь не найдена' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   removeHelpType(
     @Param('id', ParseIntPipe) organizationId: number,
     @Param('helpTypeId', ParseIntPipe) helpTypeId: number,

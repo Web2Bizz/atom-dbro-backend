@@ -17,7 +17,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
+    networks:
+      - atom-internal-network
   app:
     build:
       context: .
@@ -35,7 +36,16 @@ services:
     volumes:
       - ./src:/app/src
       - ./package.json:/app/package.json
+    networks:
+      - atom-external-network
+      - atom-internal-network
 
 volumes:
   postgres_data:
 
+networks:
+  atom-external-network:
+    external: true
+  atom-internal-network:
+    driver: bridge
+  

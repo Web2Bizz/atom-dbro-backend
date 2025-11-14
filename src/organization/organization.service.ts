@@ -7,6 +7,7 @@ import {
   organizationHelpTypes,
   users,
   helpTypes,
+  cities,
 } from '../database/schema';
 import { eq, and } from 'drizzle-orm';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
@@ -19,30 +20,120 @@ export class OrganizationService {
     private db: NodePgDatabase,
   ) {}
 
-  async create(createOrganizationDto: CreateOrganizationDto) {
+  async create(createOrganizationDto: CreateOrganizationDto, userId: number) {
+    // Проверяем существование города
+    const [city] = await this.db
+      .select()
+      .from(cities)
+      .where(eq(cities.id, createOrganizationDto.cityId));
+    if (!city) {
+      throw new NotFoundException(`Город с ID ${createOrganizationDto.cityId} не найден`);
+    }
+
+    // Проверяем существование пользователя
+    const [user] = await this.db.select().from(users).where(eq(users.id, userId));
+    if (!user) {
+      throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
+    }
+
+    // Используем координаты из города, если не указаны
+    const latitude = createOrganizationDto.latitude !== undefined
+      ? createOrganizationDto.latitude.toString()
+      : city.latitude;
+    const longitude = createOrganizationDto.longitude !== undefined
+      ? createOrganizationDto.longitude.toString()
+      : city.longitude;
+
+    // Создаем организацию
     const [organization] = await this.db
       .insert(organizations)
       .values({
         name: createOrganizationDto.name,
-        latitude: createOrganizationDto.latitude.toString(),
-        longitude: createOrganizationDto.longitude.toString(),
+        cityId: createOrganizationDto.cityId,
+        latitude: latitude,
+        longitude: longitude,
       })
       .returning();
+
+    // Автоматически назначаем создателя как владельца
+    await this.db.insert(organizationOwners).values({
+      organizationId: organization.id,
+      userId: userId,
+    });
+
     return organization;
   }
 
   async findAll() {
-    return this.db.select().from(organizations);
+    const orgs = await this.db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        cityId: organizations.cityId,
+        latitude: organizations.latitude,
+        longitude: organizations.longitude,
+        createdAt: organizations.createdAt,
+        updatedAt: organizations.updatedAt,
+        cityName: cities.name,
+        cityLatitude: cities.latitude,
+        cityLongitude: cities.longitude,
+      })
+      .from(organizations)
+      .leftJoin(cities, eq(organizations.cityId, cities.id));
+
+    return orgs.map(org => ({
+      id: org.id,
+      name: org.name,
+      cityId: org.cityId,
+      latitude: org.latitude,
+      longitude: org.longitude,
+      createdAt: org.createdAt,
+      updatedAt: org.updatedAt,
+      city: org.cityName ? {
+        id: org.cityId,
+        name: org.cityName,
+        latitude: org.cityLatitude,
+        longitude: org.cityLongitude,
+      } : null,
+    }));
   }
 
   async findOne(id: number) {
-    const [organization] = await this.db
-      .select()
+    const [orgData] = await this.db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        cityId: organizations.cityId,
+        latitude: organizations.latitude,
+        longitude: organizations.longitude,
+        createdAt: organizations.createdAt,
+        updatedAt: organizations.updatedAt,
+        cityName: cities.name,
+        cityLatitude: cities.latitude,
+        cityLongitude: cities.longitude,
+      })
       .from(organizations)
+      .leftJoin(cities, eq(organizations.cityId, cities.id))
       .where(eq(organizations.id, id));
-    if (!organization) {
+    if (!orgData) {
       throw new NotFoundException(`Организация с ID ${id} не найдена`);
     }
+
+    const organization = {
+      id: orgData.id,
+      name: orgData.name,
+      cityId: orgData.cityId,
+      latitude: orgData.latitude,
+      longitude: orgData.longitude,
+      createdAt: orgData.createdAt,
+      updatedAt: orgData.updatedAt,
+      city: orgData.cityName ? {
+        id: orgData.cityId,
+        name: orgData.cityName,
+        latitude: orgData.cityLatitude,
+        longitude: orgData.cityLongitude,
+      } : null,
+    };
 
     // Получаем владельцев
     const owners = await this.db
@@ -75,8 +166,29 @@ export class OrganizationService {
   }
 
   async update(id: number, updateOrganizationDto: UpdateOrganizationDto) {
+    // Проверяем существование организации
+    const [existingOrg] = await this.db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, id));
+    if (!existingOrg) {
+      throw new NotFoundException(`Организация с ID ${id} не найдена`);
+    }
+
+    // Если обновляется cityId, проверяем существование города
+    if (updateOrganizationDto.cityId) {
+      const [city] = await this.db
+        .select()
+        .from(cities)
+        .where(eq(cities.id, updateOrganizationDto.cityId));
+      if (!city) {
+        throw new NotFoundException(`Город с ID ${updateOrganizationDto.cityId} не найден`);
+      }
+    }
+
     const updateData: any = { updatedAt: new Date() };
     if (updateOrganizationDto.name) updateData.name = updateOrganizationDto.name;
+    if (updateOrganizationDto.cityId !== undefined) updateData.cityId = updateOrganizationDto.cityId;
     if (updateOrganizationDto.latitude !== undefined)
       updateData.latitude = updateOrganizationDto.latitude.toString();
     if (updateOrganizationDto.longitude !== undefined)

@@ -45,8 +45,9 @@ export const helpTypes = pgTable('help_types', {
 export const organizations = pgTable('organizations', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
-  latitude: decimal('latitude', { precision: 10, scale: 8 }).notNull(),
-  longitude: decimal('longitude', { precision: 11, scale: 8 }).notNull(),
+  cityId: integer('city_id').references(() => cities.id).notNull(),
+  latitude: decimal('latitude', { precision: 10, scale: 8 }),
+  longitude: decimal('longitude', { precision: 11, scale: 8 }),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -80,6 +81,7 @@ export const citiesRelations = relations(cities, ({ one, many }) => ({
     references: [regions.id],
   }),
   users: many(users),
+  organizations: many(organizations),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -94,7 +96,11 @@ export const helpTypesRelations = relations(helpTypes, ({ many }) => ({
   organizations: many(organizationHelpTypes),
 }));
 
-export const organizationsRelations = relations(organizations, ({ many }) => ({
+export const organizationsRelations = relations(organizations, ({ one, many }) => ({
+  city: one(cities, {
+    fields: [organizations.cityId],
+    references: [cities.id],
+  }),
   owners: many(organizationOwners),
   helpTypes: many(organizationHelpTypes),
 }));

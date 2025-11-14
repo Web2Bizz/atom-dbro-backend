@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsNumber, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsNumber, MaxLength, IsInt } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateOrganizationDto {
@@ -8,6 +8,12 @@ export class UpdateOrganizationDto {
   @IsOptional()
   @MaxLength(255)
   name?: string;
+
+  @ApiProperty({ description: 'ID города', example: 1, required: false })
+  @IsInt()
+  @Type(() => Number)
+  @IsOptional()
+  cityId?: number;
 
   @ApiProperty({ description: 'Широта', example: '55.7558', required: false })
   @IsNumber()
