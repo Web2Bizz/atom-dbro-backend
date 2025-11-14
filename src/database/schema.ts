@@ -29,6 +29,8 @@ export const users = pgTable('users', {
   email: varchar('email', { length: 255 }).notNull().unique(),
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
   cityId: integer('city_id').references(() => cities.id),
+  level: integer('level').default(1).notNull(),
+  experience: integer('experience').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });

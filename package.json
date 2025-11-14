@@ -10,7 +10,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "db:generate": "drizzle-kit generate",
+    "db:generate": "drizzle-kit generate:pg",
     "db:migrate": "drizzle-kit push:pg",
     "db:studio": "drizzle-kit studio",
     "import:cities": "ts-node src/scripts/import-cities.ts"

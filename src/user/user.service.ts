@@ -1,7 +1,7 @@
 import { Injectable, Inject, NotFoundException, ConflictException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { users, cities } from '../database/schema';
+import { users, cities, regions } from '../database/schema';
 import { eq } from 'drizzle-orm';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -47,6 +47,8 @@ export class UserService {
         email: createUserDto.email,
         passwordHash,
         cityId: createUserDto.cityId,
+        level: 1,
+        experience: 0,
       })
       .returning();
     return user;
@@ -60,16 +62,22 @@ export class UserService {
         lastName: users.lastName,
         middleName: users.middleName,
         email: users.email,
-        cityId: users.cityId,
+        level: users.level,
+        experience: users.experience,
         city: {
           id: cities.id,
           name: cities.name,
+        },
+        region: {
+          id: regions.id,
+          name: regions.name,
         },
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
       })
       .from(users)
-      .leftJoin(cities, eq(users.cityId, cities.id));
+      .leftJoin(cities, eq(users.cityId, cities.id))
+      .leftJoin(regions, eq(cities.regionId, regions.id));
   }
 
   async findOne(id: number) {
@@ -80,16 +88,22 @@ export class UserService {
         lastName: users.lastName,
         middleName: users.middleName,
         email: users.email,
-        cityId: users.cityId,
+        level: users.level,
+        experience: users.experience,
         city: {
           id: cities.id,
           name: cities.name,
+        },
+        region: {
+          id: regions.id,
+          name: regions.name,
         },
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
       })
       .from(users)
       .leftJoin(cities, eq(users.cityId, cities.id))
+      .leftJoin(regions, eq(cities.regionId, regions.id))
       .where(eq(users.id, id));
     if (!user) {
       throw new NotFoundException(`Пользователь с ID ${id} не найден`);
@@ -126,13 +140,39 @@ export class UserService {
       }
     }
 
+    // Исключаем experience и level из обновления (они обновляются только через ExperienceService)
+    const { experience, level, ...updateData } = updateUserDto as any;
+
     const [user] = await this.db
       .update(users)
-      .set({ ...updateUserDto, updatedAt: new Date() })
+      .set({ ...updateData, updatedAt: new Date() })
       .where(eq(users.id, id))
       .returning();
     if (!user) {
       throw new NotFoundException(`Пользователь с ID ${id} не найден`);
+    }
+    return user;
+  }
+
+  /**
+   * Приватный метод для обновления опыта и автоматического пересчета уровня.
+   * Используется только внутри ExperienceService.
+   * @param userId ID пользователя
+   * @param newExperience Новое значение опыта
+   * @param calculatedLevel Рассчитанный уровень на основе опыта
+   */
+  async updateExperienceAndLevel(userId: number, newExperience: number, calculatedLevel: number) {
+    const [user] = await this.db
+      .update(users)
+      .set({
+        experience: newExperience,
+        level: calculatedLevel,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    if (!user) {
+      throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
     }
     return user;
   }

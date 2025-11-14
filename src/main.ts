@@ -9,6 +9,9 @@ async function bootstrap() {
     const app = await NestFactory.create(AppModule);
     console.log('App created successfully');
 
+    // Устанавливаем глобальный префикс для версионирования API
+    app.setGlobalPrefix('api/v1');
+
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -32,6 +35,7 @@ async function bootstrap() {
     await app.listen(port, '0.0.0.0');
     console.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
     console.log(`📚 Swagger API docs: http://0.0.0.0:${port}/api`);
+    console.log(`🌐 API endpoints: http://0.0.0.0:${port}/api/v1`);
   } catch (error) {
     console.error('❌ Error starting application:', error);
     process.exit(1);

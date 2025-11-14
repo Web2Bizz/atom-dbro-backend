@@ -1,0 +1,13 @@
+{
+  "version": "5",
+  "dialect": "pg",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1763150536224,
+      "tag": "0000_bouncy_longshot",
+      "breakpoints": true
+    }
+  ]
+}

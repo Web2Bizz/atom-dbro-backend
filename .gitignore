@@ -24,4 +24,5 @@ lerna-debug.log*
 .tmp
 
 # Drizzle
-drizzle
+# Игнорируем только временные файлы, но коммитим миграции
+drizzle/.kit

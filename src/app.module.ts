@@ -7,6 +7,7 @@ import { UserModule } from './user/user.module';
 import { HelpTypeModule } from './help-type/help-type.module';
 import { OrganizationModule } from './organization/organization.module';
 import { AuthModule } from './auth/auth.module';
+import { ExperienceModule } from './experience/experience.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -21,6 +22,7 @@ import { AppController } from './app.controller';
     HelpTypeModule,
     OrganizationModule,
     AuthModule,
+    ExperienceModule,
   ],
   controllers: [AppController],
 })
