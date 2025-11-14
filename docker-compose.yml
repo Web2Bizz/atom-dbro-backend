@@ -46,7 +46,7 @@ volumes:
 
 networks:
   atom-external-network:
-    external: true
+    driver: bridge
   atom-internal-network:
     driver: bridge
   
