@@ -19,6 +19,9 @@ COPY package*.json ./
 RUN npm ci --only=production
 
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/drizzle.config.ts ./
+COPY --from=builder /app/tsconfig.json ./
+COPY --from=builder /app/src/database/schema.ts ./src/database/schema.ts
 
 EXPOSE 3000
 
