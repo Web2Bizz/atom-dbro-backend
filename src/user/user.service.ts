@@ -6,12 +6,14 @@ import { eq } from 'drizzle-orm';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { AvatarService } from '../avatar/avatar.service';
 
 @Injectable()
 export class UserService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private db: NodePgDatabase,
+    private avatarService: AvatarService,
   ) {}
 
   async create(createUserDto: CreateUserDto) {
@@ -27,6 +29,15 @@ export class UserService {
     // Хешируем пароль
     const passwordHash = await bcrypt.hash(createUserDto.password, 10);
 
+    // Генерируем аватарку
+    let avatarUrls: Record<number, string> | undefined;
+    try {
+      avatarUrls = await this.avatarService.generateAvatar();
+    } catch (error) {
+      console.error('Failed to generate avatar, continuing without avatar:', error);
+      // Продолжаем создание пользователя даже если аватарка не сгенерировалась
+    }
+
     const [user] = await this.db
       .insert(users)
       .values({
@@ -35,6 +46,7 @@ export class UserService {
         middleName: createUserDto.middleName,
         email: createUserDto.email,
         passwordHash,
+        avatarUrls,
         level: 1,
         experience: 0,
       })
@@ -50,6 +62,7 @@ export class UserService {
         lastName: users.lastName,
         middleName: users.middleName,
         email: users.email,
+        avatarUrls: users.avatarUrls,
         level: users.level,
         experience: users.experience,
         createdAt: users.createdAt,
@@ -66,6 +79,7 @@ export class UserService {
         lastName: users.lastName,
         middleName: users.middleName,
         email: users.email,
+        avatarUrls: users.avatarUrls,
         level: users.level,
         experience: users.experience,
         createdAt: users.createdAt,
@@ -101,9 +115,23 @@ export class UserService {
     // Исключаем experience и level из обновления (они обновляются только через ExperienceService)
     const { experience, level, ...updateData } = updateUserDto as any;
 
+    // Генерируем новую аватарку при обновлении
+    let avatarUrls: Record<number, string> | undefined;
+    try {
+      avatarUrls = await this.avatarService.generateAvatar();
+    } catch (error) {
+      console.error('Failed to generate avatar, continuing without avatar update:', error);
+      // Продолжаем обновление даже если аватарка не сгенерировалась
+    }
+
+    const updateValues: any = { ...updateData, updatedAt: new Date() };
+    if (avatarUrls) {
+      updateValues.avatarUrls = avatarUrls;
+    }
+
     const [user] = await this.db
       .update(users)
-      .set({ ...updateData, updatedAt: new Date() })
+      .set(updateValues)
       .where(eq(users.id, id))
       .returning();
     if (!user) {

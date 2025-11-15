@@ -28,6 +28,7 @@ export const users = pgTable('users', {
   middleName: varchar('middle_name', { length: 255 }),
   email: varchar('email', { length: 255 }).notNull().unique(),
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+  avatarUrls: jsonb('avatar_urls').$type<Record<number, string>>(),
   level: integer('level').default(1).notNull(),
   experience: integer('experience').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
