@@ -37,6 +37,7 @@ services:
     volumes:
       - ./src:/app/src
       - ./package.json:/app/package.json
+      - ./drizzle:/app/drizzle
     networks:
       - atom-external-network
       - atom-internal-network

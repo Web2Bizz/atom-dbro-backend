@@ -9,6 +9,7 @@ COPY tsconfig.json ./
 COPY nest-cli.json ./
 COPY drizzle.config.ts ./
 COPY src ./src
+COPY drizzle ./drizzle
 RUN npm run build
 
 FROM node:20-alpine AS production
@@ -22,6 +23,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/drizzle.config.ts ./
 COPY --from=builder /app/tsconfig.json ./
 COPY --from=builder /app/src/database/schema.ts ./src/database/schema.ts
+COPY --from=builder /app/drizzle ./drizzle
 
 EXPOSE 3000
 
