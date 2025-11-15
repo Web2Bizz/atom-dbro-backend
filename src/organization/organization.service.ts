@@ -325,7 +325,27 @@ export class OrganizationService {
       }
       updateData.organizationTypeId = updateOrganizationDto.organizationTypeId;
     }
-    if (updateOrganizationDto.gallery !== undefined) updateData.gallery = updateOrganizationDto.gallery;
+
+    // Обработка галереи: сравниваем старую и новую, удаляем неиспользуемые файлы из S3
+    if (updateOrganizationDto.gallery !== undefined) {
+      const oldGallery = existingOrg.gallery || [];
+      const newGallery = updateOrganizationDto.gallery || [];
+
+      // Находим файлы, которые были удалены (есть в старой галерее, но нет в новой)
+      const filesToDelete = oldGallery.filter((fileName) => !newGallery.includes(fileName));
+
+      // Удаляем неиспользуемые файлы из S3
+      if (filesToDelete.length > 0) {
+        try {
+          await this.s3Service.deleteFiles(filesToDelete);
+        } catch (error) {
+          // Логируем ошибку, но не прерываем обновление организации
+          console.error(`Ошибка при удалении файлов из S3: ${error}`);
+        }
+      }
+
+      updateData.gallery = newGallery;
+    }
 
     const [organization] = await this.db
       .update(organizations)
@@ -473,33 +493,6 @@ export class OrganizationService {
     // Получаем текущую галерею или создаем пустой массив
     const currentGallery = organization.gallery || [];
     const updatedGallery = [...currentGallery, ...imageFileNames];
-
-    // Обновляем галерею
-    const [updated] = await this.db
-      .update(organizations)
-      .set({
-        gallery: updatedGallery,
-        updatedAt: new Date(),
-      })
-      .where(eq(organizations.id, organizationId))
-      .returning();
-
-    return updated;
-  }
-
-  async removeImageFromGallery(organizationId: number, imageFileName: string) {
-    // Проверяем существование организации
-    const [organization] = await this.db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.id, organizationId));
-    if (!organization) {
-      throw new NotFoundException(`Организация с ID ${organizationId} не найдена`);
-    }
-
-    // Получаем текущую галерею
-    const currentGallery = organization.gallery || [];
-    const updatedGallery = currentGallery.filter((fileName) => fileName !== imageFileName);
 
     // Обновляем галерею
     const [updated] = await this.db

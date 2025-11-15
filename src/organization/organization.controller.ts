@@ -209,18 +209,6 @@ export class OrganizationController {
     return this.organizationService.addImagesToGallery(organizationId, imageFileNames);
   }
 
-  @Delete(':id/gallery')
-  @ApiOperation({ summary: 'Удалить изображение из галереи организации' })
-  @ApiResponse({ status: 200, description: 'Изображение успешно удалено' })
-  @ApiResponse({ status: 404, description: 'Организация не найдена' })
-  @ApiResponse({ status: 401, description: 'Не авторизован' })
-  removeImage(
-    @Param('id', ParseIntPipe) organizationId: number,
-    @Body('fileName') fileName: string,
-  ) {
-    return this.organizationService.removeImageFromGallery(organizationId, fileName);
-  }
-
   @Get(':id/gallery/:fileName')
   @ApiOperation({ summary: 'Получить изображение из галереи организации (шлюз)' })
   @ApiResponse({ status: 200, description: 'Изображение найдено', content: { 'image/*': {} } })

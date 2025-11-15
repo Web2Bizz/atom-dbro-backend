@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -199,6 +199,30 @@ export class S3Service {
       body: buffer,
       contentType,
     };
+  }
+
+  /**
+   * Удаляет файл из S3 хранилища
+   * @param fileName - имя файла (ключ в S3)
+   */
+  async deleteFile(fileName: string): Promise<void> {
+    const command = new DeleteObjectCommand({
+      Bucket: this.bucketName,
+      Key: fileName,
+    });
+
+    await this.s3Client.send(command);
+  }
+
+  /**
+   * Удаляет несколько файлов из S3 хранилища
+   * @param fileNames - массив имен файлов (ключи в S3)
+   */
+  async deleteFiles(fileNames: string[]): Promise<void> {
+    if (!fileNames || fileNames.length === 0) return;
+    
+    const deletePromises = fileNames.map((fileName) => this.deleteFile(fileName));
+    await Promise.all(deletePromises);
   }
 
   /**
