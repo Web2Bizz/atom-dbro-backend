@@ -114,7 +114,7 @@ export const quests = pgTable('quests', {
   description: text('description'),
   status: varchar('status', { length: 20 }).notNull().default('active'), // 'active' | 'completed' | 'archived'
   experienceReward: integer('experience_reward').default(0).notNull(),
-  achievementId: integer('achievement_id').references(() => achievements.id).notNull(),
+  achievementId: integer('achievement_id').references(() => achievements.id),
   ownerId: integer('owner_id').references(() => users.id).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),

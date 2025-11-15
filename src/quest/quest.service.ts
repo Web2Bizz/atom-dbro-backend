@@ -28,23 +28,29 @@ export class QuestService {
       throw new ForbiddenException('Для создания квеста требуется уровень 5 или выше');
     }
 
-    // Создаем достижение с автоматической установкой rarity = 'private'
-    // questId будет установлен после создания квеста
-    const achievementResult = await this.db
-      .insert(achievements)
-      .values({
-        title: createQuestDto.achievement.title,
-        description: createQuestDto.achievement.description,
-        icon: createQuestDto.achievement.icon,
-        rarity: 'private', // Всегда 'private' для достижений, создаваемых с квестами
-      })
-      .returning();
-    const achievement = Array.isArray(achievementResult) ? achievementResult[0] : achievementResult;
-    if (!achievement) {
-      throw new Error('Не удалось создать достижение');
+    let achievementId: number | undefined = undefined;
+
+    // Создаем достижение только если оно указано
+    if (createQuestDto.achievement) {
+      // Создаем достижение с автоматической установкой rarity = 'private'
+      // questId будет установлен после создания квеста
+      const achievementResult = await this.db
+        .insert(achievements)
+        .values({
+          title: createQuestDto.achievement.title,
+          description: createQuestDto.achievement.description,
+          icon: createQuestDto.achievement.icon,
+          rarity: 'private', // Всегда 'private' для достижений, создаваемых с квестами
+        })
+        .returning();
+      const achievement = Array.isArray(achievementResult) ? achievementResult[0] : achievementResult;
+      if (!achievement) {
+        throw new Error('Не удалось создать достижение');
+      }
+      achievementId = achievement.id;
     }
 
-    // Создаем квест с привязкой к достижению и владельцем
+    // Создаем квест с привязкой к достижению (если указано) и владельцем
     const questResult = await this.db
       .insert(quests)
       .values({
@@ -52,7 +58,7 @@ export class QuestService {
         description: createQuestDto.description,
         status: createQuestDto.status || 'active',
         experienceReward: createQuestDto.experienceReward || 0,
-        achievementId: achievement.id,
+        achievementId: achievementId,
         ownerId: userId,
       })
       .returning();
@@ -61,14 +67,16 @@ export class QuestService {
       throw new Error('Не удалось создать квест');
     }
 
-    // Обновляем достижение с questId (так как rarity = 'private')
-    await this.db
-      .update(achievements)
-      .set({ questId: quest.id })
-      .where(eq(achievements.id, achievement.id));
+    // Обновляем достижение с questId (если достижение было создано)
+    if (achievementId) {
+      await this.db
+        .update(achievements)
+        .set({ questId: quest.id })
+        .where(eq(achievements.id, achievementId));
+    }
 
-    // Возвращаем квест с информацией о достижении
-    const [questWithAchievement] = await this.db
+    // Возвращаем квест с информацией о достижении (если есть)
+    const query = this.db
       .select({
         id: quests.id,
         title: quests.title,
@@ -95,9 +103,11 @@ export class QuestService {
         },
       })
       .from(quests)
-      .innerJoin(achievements, eq(quests.achievementId, achievements.id))
+      .leftJoin(achievements, eq(quests.achievementId, achievements.id))
       .innerJoin(users, eq(quests.ownerId, users.id))
       .where(eq(quests.id, quest.id));
+    
+    const [questWithAchievement] = await query;
 
     // Автоматически присоединяем создателя к квесту
     const userQuestResult = await this.db
@@ -161,7 +171,7 @@ export class QuestService {
           },
         })
         .from(quests)
-        .innerJoin(achievements, eq(quests.achievementId, achievements.id))
+        .leftJoin(achievements, eq(quests.achievementId, achievements.id))
         .innerJoin(users, eq(quests.ownerId, users.id));
     } catch (error: any) {
       console.error('Ошибка в findAll:', error);
@@ -205,7 +215,7 @@ export class QuestService {
         },
       })
       .from(quests)
-      .innerJoin(achievements, eq(quests.achievementId, achievements.id))
+      .leftJoin(achievements, eq(quests.achievementId, achievements.id))
       .innerJoin(users, eq(quests.ownerId, users.id));
     
     if (status) {
@@ -242,7 +252,7 @@ export class QuestService {
         },
       })
       .from(quests)
-      .innerJoin(achievements, eq(quests.achievementId, achievements.id))
+      .leftJoin(achievements, eq(quests.achievementId, achievements.id))
       .innerJoin(users, eq(quests.ownerId, users.id))
       .where(eq(quests.id, id));
     if (!quest) {
@@ -560,7 +570,7 @@ export class QuestService {
       })
       .from(userQuests)
       .innerJoin(quests, eq(userQuests.questId, quests.id))
-      .innerJoin(achievements, eq(quests.achievementId, achievements.id))
+      .leftJoin(achievements, eq(quests.achievementId, achievements.id))
       .where(eq(userQuests.userId, userId));
   }
 
@@ -602,7 +612,7 @@ export class QuestService {
         },
       })
       .from(quests)
-      .innerJoin(achievements, eq(quests.achievementId, achievements.id))
+      .leftJoin(achievements, eq(quests.achievementId, achievements.id))
       .innerJoin(users, eq(quests.ownerId, users.id))
       .where(eq(quests.status, 'active'));
 

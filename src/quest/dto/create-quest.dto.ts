@@ -52,11 +52,12 @@ export class CreateQuestDto {
 
   @ApiProperty({ 
     description: 'Данные для создания достижения, которое будет присвоено при завершении квеста. Достижение автоматически получит rarity = "private" и будет привязано к квесту.',
-    type: CreateAchievementForQuestDto
+    type: CreateAchievementForQuestDto,
+    required: false
   })
   @ValidateNested()
   @Type(() => CreateAchievementForQuestDto)
-  @IsNotEmpty()
-  achievement: CreateAchievementForQuestDto;
+  @IsOptional()
+  achievement?: CreateAchievementForQuestDto;
 }
 
