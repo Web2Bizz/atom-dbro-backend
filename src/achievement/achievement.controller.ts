@@ -8,7 +8,7 @@ import {
   Delete,
   ParseIntPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { AchievementService } from './achievement.service';
 import { CreateAchievementDto, createAchievementSchema, CreateAchievementDtoClass } from './dto/create-achievement.dto';
 import { UpdateAchievementDto, updateAchievementSchema, UpdateAchievementDtoClass } from './dto/update-achievement.dto';
@@ -23,6 +23,7 @@ export class AchievementController {
   @ApiBearerAuth()
   @ZodValidation(createAchievementSchema)
   @ApiOperation({ summary: 'Создать достижение' })
+  @ApiBody({ type: CreateAchievementDtoClass })
   @ApiResponse({ status: 201, description: 'Достижение успешно создано', type: CreateAchievementDtoClass })
   @ApiResponse({ status: 409, description: 'Достижение с таким названием уже существует' })
   create(@Body() createAchievementDto: CreateAchievementDto) {
@@ -48,6 +49,7 @@ export class AchievementController {
   @ApiBearerAuth()
   @ZodValidation(updateAchievementSchema)
   @ApiOperation({ summary: 'Обновить достижение' })
+  @ApiBody({ type: UpdateAchievementDtoClass })
   @ApiResponse({ status: 200, description: 'Достижение обновлено', type: UpdateAchievementDtoClass })
   @ApiResponse({ status: 404, description: 'Достижение не найдено' })
   @ApiResponse({ status: 409, description: 'Достижение с таким названием уже существует' })

@@ -8,7 +8,7 @@ import {
   Delete,
   ParseIntPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { RegionService } from './region.service';
 import { CreateRegionDto, createRegionSchema, CreateRegionDtoClass } from './dto/create-region.dto';
 import { UpdateRegionDto, updateRegionSchema, UpdateRegionDtoClass } from './dto/update-region.dto';
@@ -23,6 +23,7 @@ export class RegionController {
   @Post()
   @ZodValidation(createRegionSchema)
   @ApiOperation({ summary: 'Создать регион' })
+  @ApiBody({ type: CreateRegionDtoClass })
   @ApiResponse({ status: 201, description: 'Регион успешно создан', type: CreateRegionDtoClass })
   @ApiResponse({ status: 400, description: 'Неверные данные' })
   create(@Body() createRegionDto: CreateRegionDto) {
@@ -58,6 +59,7 @@ export class RegionController {
   @Patch(':id')
   @ZodValidation(updateRegionSchema)
   @ApiOperation({ summary: 'Обновить регион' })
+  @ApiBody({ type: UpdateRegionDtoClass })
   @ApiResponse({ status: 200, description: 'Регион обновлен', type: UpdateRegionDtoClass })
   @ApiResponse({ status: 404, description: 'Регион не найден' })
   update(

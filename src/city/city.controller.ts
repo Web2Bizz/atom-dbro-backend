@@ -9,7 +9,7 @@ import {
   ParseIntPipe,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { CityService } from './city.service';
 import { CreateCityDto, createCitySchema, CreateCityDtoClass } from './dto/create-city.dto';
 import { UpdateCityDto, updateCitySchema, UpdateCityDtoClass } from './dto/update-city.dto';
@@ -24,6 +24,7 @@ export class CityController {
   @Post()
   @ZodValidation(createCitySchema)
   @ApiOperation({ summary: 'Создать город' })
+  @ApiBody({ type: CreateCityDtoClass })
   @ApiResponse({ status: 201, description: 'Город успешно создан', type: CreateCityDtoClass })
   @ApiResponse({ status: 400, description: 'Неверные данные' })
   @ApiResponse({ status: 404, description: 'Регион не найден' })
@@ -53,6 +54,7 @@ export class CityController {
   @Patch(':id')
   @ZodValidation(updateCitySchema)
   @ApiOperation({ summary: 'Обновить город' })
+  @ApiBody({ type: UpdateCityDtoClass })
   @ApiResponse({ status: 200, description: 'Город обновлен', type: UpdateCityDtoClass })
   @ApiResponse({ status: 404, description: 'Город не найден' })
   update(

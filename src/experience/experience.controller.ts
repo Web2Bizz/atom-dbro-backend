@@ -1,5 +1,5 @@
 import { Controller, Patch, Param, Body, ParseIntPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { ExperienceService } from './experience.service';
 import { AddExperienceDto, addExperienceSchema, AddExperienceDtoClass } from './dto/add-experience.dto';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
@@ -13,6 +13,7 @@ export class ExperienceController {
   @ApiBearerAuth()
   @ZodValidation(addExperienceSchema)
   @ApiOperation({ summary: 'Добавить опыт пользователю' })
+  @ApiBody({ type: AddExperienceDtoClass })
   @ApiResponse({
     status: 200,
     description: 'Опыт успешно добавлен, уровень обновлен',

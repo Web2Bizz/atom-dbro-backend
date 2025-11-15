@@ -8,7 +8,7 @@ import {
   Delete,
   ParseIntPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { HelpTypeService } from './help-type.service';
 import { CreateHelpTypeDto, createHelpTypeSchema, CreateHelpTypeDtoClass } from './dto/create-help-type.dto';
 import { UpdateHelpTypeDto, updateHelpTypeSchema, UpdateHelpTypeDtoClass } from './dto/update-help-type.dto';
@@ -22,6 +22,7 @@ export class HelpTypeController {
   @Post()
   @ZodValidation(createHelpTypeSchema)
   @ApiOperation({ summary: 'Создать вид помощи' })
+  @ApiBody({ type: CreateHelpTypeDtoClass })
   @ApiResponse({ status: 201, description: 'Вид помощи успешно создан', type: CreateHelpTypeDtoClass })
   @ApiResponse({ status: 400, description: 'Вид помощи с таким названием уже существует' })
   create(@Body() createHelpTypeDto: CreateHelpTypeDto) {
@@ -46,6 +47,7 @@ export class HelpTypeController {
   @Patch(':id')
   @ZodValidation(updateHelpTypeSchema)
   @ApiOperation({ summary: 'Обновить вид помощи' })
+  @ApiBody({ type: UpdateHelpTypeDtoClass })
   @ApiResponse({ status: 200, description: 'Вид помощи обновлен', type: UpdateHelpTypeDtoClass })
   @ApiResponse({ status: 400, description: 'Вид помощи с таким названием уже существует' })
   @ApiResponse({ status: 404, description: 'Вид помощи не найден' })

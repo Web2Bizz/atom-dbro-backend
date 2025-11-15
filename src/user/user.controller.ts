@@ -8,7 +8,7 @@ import {
   Delete,
   ParseIntPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { CreateUserDto, createUserSchema, CreateUserDtoClass } from './dto/create-user.dto';
 import { UpdateUserDto, updateUserSchema, UpdateUserDtoClass } from './dto/update-user.dto';
@@ -22,6 +22,7 @@ export class UserController {
   @Post()
   @ZodValidation(createUserSchema)
   @ApiOperation({ summary: 'Создать пользователя' })
+  @ApiBody({ type: CreateUserDtoClass })
   @ApiResponse({ status: 201, description: 'Пользователь успешно создан', type: CreateUserDtoClass })
   @ApiResponse({ status: 400, description: 'Неверные данные' })
   @ApiResponse({ status: 409, description: 'Пользователь с таким email уже существует' })
@@ -47,6 +48,7 @@ export class UserController {
   @Patch(':id')
   @ZodValidation(updateUserSchema)
   @ApiOperation({ summary: 'Обновить пользователя' })
+  @ApiBody({ type: UpdateUserDtoClass })
   @ApiResponse({ status: 200, description: 'Пользователь обновлен', type: UpdateUserDtoClass })
   @ApiResponse({ status: 404, description: 'Пользователь не найден' })
   @ApiResponse({ status: 409, description: 'Пользователь с таким email уже существует' })

@@ -13,7 +13,7 @@ import {
   UnauthorizedException,
   Sse,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { Observable } from 'rxjs';
 import { QuestService } from './quest.service';
 import { QuestEventsService } from './quest.events';
@@ -36,6 +36,7 @@ export class QuestController {
   @ApiBearerAuth()
   @ZodValidation(createQuestSchema)
   @ApiOperation({ summary: 'Создать квест' })
+  @ApiBody({ type: CreateQuestDtoClass })
   @ApiResponse({ status: 201, description: 'Квест успешно создан', type: CreateQuestDtoClass })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 403, description: 'Недостаточный уровень для создания квеста (требуется уровень 5+)' })
@@ -86,6 +87,7 @@ export class QuestController {
   @ApiBearerAuth()
   @ZodValidation(updateQuestSchema)
   @ApiOperation({ summary: 'Обновить квест' })
+  @ApiBody({ type: UpdateQuestDtoClass })
   @ApiResponse({ status: 200, description: 'Квест обновлен', type: UpdateQuestDtoClass })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 404, description: 'Квест не найден' })
