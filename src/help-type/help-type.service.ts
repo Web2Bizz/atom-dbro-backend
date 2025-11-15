@@ -60,9 +60,15 @@ export class HelpTypeService {
       }
     }
 
+    // Строим объект обновления, исключая undefined значения
+    const updateData: any = { updatedAt: new Date() };
+    if (updateHelpTypeDto.name !== undefined) {
+      updateData.name = updateHelpTypeDto.name;
+    }
+
     const [helpType] = await this.db
       .update(helpTypes)
-      .set({ ...updateHelpTypeDto, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(helpTypes.id, id))
       .returning();
     if (!helpType) {
