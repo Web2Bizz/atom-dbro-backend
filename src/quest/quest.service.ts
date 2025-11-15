@@ -101,35 +101,48 @@ export class QuestService {
   }
 
   async findAll() {
-    return this.db
-      .select({
-        id: quests.id,
-        title: quests.title,
-        description: quests.description,
-        status: quests.status,
-        experienceReward: quests.experienceReward,
-        achievementId: quests.achievementId,
-        ownerId: quests.ownerId,
-        createdAt: quests.createdAt,
-        updatedAt: quests.updatedAt,
-        achievement: {
-          id: achievements.id,
-          title: achievements.title,
-          description: achievements.description,
-          icon: achievements.icon,
-          rarity: achievements.rarity,
-          questId: achievements.questId,
-        },
-        owner: {
-          id: users.id,
-          firstName: users.firstName,
-          lastName: users.lastName,
-          email: users.email,
-        },
-      })
-      .from(quests)
-      .innerJoin(achievements, eq(quests.achievementId, achievements.id))
-      .innerJoin(users, eq(quests.ownerId, users.id));
+    try {
+      return await this.db
+        .select({
+          id: quests.id,
+          title: quests.title,
+          description: quests.description,
+          status: quests.status,
+          experienceReward: quests.experienceReward,
+          achievementId: quests.achievementId,
+          ownerId: quests.ownerId,
+          createdAt: quests.createdAt,
+          updatedAt: quests.updatedAt,
+          achievement: {
+            id: achievements.id,
+            title: achievements.title,
+            description: achievements.description,
+            icon: achievements.icon,
+            rarity: achievements.rarity,
+            questId: achievements.questId,
+          },
+          owner: {
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            email: users.email,
+          },
+        })
+        .from(quests)
+        .innerJoin(achievements, eq(quests.achievementId, achievements.id))
+        .innerJoin(users, eq(quests.ownerId, users.id));
+    } catch (error: any) {
+      console.error('Ошибка в findAll:', error);
+      console.error('Детали ошибки:', {
+        message: error?.message,
+        code: error?.code,
+        detail: error?.detail,
+        hint: error?.hint,
+        where: error?.where,
+        stack: error?.stack,
+      });
+      throw error;
+    }
   }
 
   async findByStatus(status?: 'active' | 'archived' | 'completed') {

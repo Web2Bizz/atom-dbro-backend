@@ -50,6 +50,13 @@
       "when": 1763200000000,
       "tag": "0006_fix_quest_types",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1763201000000,
+      "tag": "0007_fix_achievements_quest_id",
+      "breakpoints": true
     }
   ]
 }
