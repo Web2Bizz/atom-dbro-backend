@@ -12,6 +12,8 @@ import { ExperienceModule } from './experience/experience.module';
 import { AchievementModule } from './achievement/achievement.module';
 import { QuestModule } from './quest/quest.module';
 import { UploadModule } from './upload/upload.module';
+import { CategoryModule } from './category/category.module';
+import { QuestUpdateModule } from './quest-update/quest-update.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -33,6 +35,8 @@ import { AppController } from './app.controller';
     AchievementModule,
     QuestModule,
     UploadModule,
+    CategoryModule,
+    QuestUpdateModule,
   ],
   controllers: [AppController],
 })

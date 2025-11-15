@@ -59,23 +59,23 @@ export class QuestController {
     description: 'ID города для фильтрации' 
   })
   @ApiQuery({ 
-    name: 'helpTypeId', 
+    name: 'categoryId', 
     required: false, 
     type: Number,
-    description: 'ID типа помощи для фильтрации' 
+    description: 'ID категории для фильтрации' 
   })
   @ApiResponse({ status: 200, description: 'Список квестов' })
   findAll(
     @Query('cityId') cityId?: string,
-    @Query('helpTypeId') helpTypeId?: string,
+    @Query('categoryId') categoryId?: string,
   ) {
     const cityIdNum = cityId ? parseInt(cityId, 10) : undefined;
-    const helpTypeIdNum = helpTypeId ? parseInt(helpTypeId, 10) : undefined;
-    return this.questService.findAll(cityIdNum, helpTypeIdNum);
+    const categoryIdNum = categoryId ? parseInt(categoryId, 10) : undefined;
+    return this.questService.findAll(cityIdNum, categoryIdNum);
   }
 
   @Get('filter')
-  @ApiOperation({ summary: 'Получить квесты с фильтрацией по статусу, городу и типу помощи' })
+  @ApiOperation({ summary: 'Получить квесты с фильтрацией по статусу, городу и категории' })
   @ApiQuery({ 
     name: 'status', 
     required: false, 
@@ -89,24 +89,24 @@ export class QuestController {
     description: 'ID города для фильтрации' 
   })
   @ApiQuery({ 
-    name: 'helpTypeId', 
+    name: 'categoryId', 
     required: false, 
     type: Number,
-    description: 'ID типа помощи для фильтрации' 
+    description: 'ID категории для фильтрации' 
   })
   @ApiResponse({ status: 200, description: 'Список квестов с примененными фильтрами' })
   filter(
     @Query('status') status?: 'active' | 'archived' | 'completed',
     @Query('cityId') cityId?: string,
-    @Query('helpTypeId') helpTypeId?: string,
+    @Query('categoryId') categoryId?: string,
   ) {
     // Валидация статуса
     if (status && !['active', 'archived', 'completed'].includes(status)) {
       throw new BadRequestException('Недопустимый статус. Допустимые значения: active, archived, completed');
     }
     const cityIdNum = cityId ? parseInt(cityId, 10) : undefined;
-    const helpTypeIdNum = helpTypeId ? parseInt(helpTypeId, 10) : undefined;
-    return this.questService.findByStatus(status, cityIdNum, helpTypeIdNum);
+    const categoryIdNum = categoryId ? parseInt(categoryId, 10) : undefined;
+    return this.questService.findByStatus(status, cityIdNum, categoryIdNum);
   }
 
   @Get(':id')

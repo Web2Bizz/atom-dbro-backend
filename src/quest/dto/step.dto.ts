@@ -25,7 +25,7 @@ export class StepDtoClass {
   @ApiProperty({ description: 'Прогресс выполнения этапа (0-100)', example: 0, minimum: 0, maximum: 100 })
   progress: number;
 
-  @ApiProperty({ description: 'Требование этапа (объект)', example: { minItems: 10 }, required: false })
+  @ApiProperty({ description: 'Требование этапа (объект)', example: { value: 10 }, required: false })
   requirement?: any;
 
   @ApiProperty({ description: 'Дедлайн этапа', example: '2024-12-31T23:59:59Z', required: false })

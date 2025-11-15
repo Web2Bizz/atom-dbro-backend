@@ -1,0 +1,101 @@
+import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
+import { DATABASE_CONNECTION } from '../database/database.module';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { questUpdates, quests } from '../database/schema';
+import { eq } from 'drizzle-orm';
+import { CreateQuestUpdateDto } from './dto/create-quest-update.dto';
+import { UpdateQuestUpdateDto } from './dto/update-quest-update.dto';
+
+@Injectable()
+export class QuestUpdateService {
+  constructor(
+    @Inject(DATABASE_CONNECTION)
+    private db: NodePgDatabase,
+  ) {}
+
+  async create(createQuestUpdateDto: CreateQuestUpdateDto) {
+    // Проверяем существование квеста
+    const [quest] = await this.db
+      .select()
+      .from(quests)
+      .where(eq(quests.id, createQuestUpdateDto.questId));
+    if (!quest) {
+      throw new NotFoundException(`Квест с ID ${createQuestUpdateDto.questId} не найден`);
+    }
+
+    // Валидация фотографий (максимум 5 элементов)
+    if (createQuestUpdateDto.photos && createQuestUpdateDto.photos.length > 5) {
+      throw new BadRequestException('Максимум 5 фотографий');
+    }
+
+    const [questUpdate] = await this.db
+      .insert(questUpdates)
+      .values({
+        questId: createQuestUpdateDto.questId,
+        title: createQuestUpdateDto.title,
+        text: createQuestUpdateDto.text,
+        photos: createQuestUpdateDto.photos || [],
+      })
+      .returning();
+    return questUpdate;
+  }
+
+  async findAll(questId?: number) {
+    let query = this.db.select().from(questUpdates);
+    if (questId) {
+      query = query.where(eq(questUpdates.questId, questId)) as any;
+    }
+    return query;
+  }
+
+  async findOne(id: number) {
+    const [questUpdate] = await this.db
+      .select()
+      .from(questUpdates)
+      .where(eq(questUpdates.id, id));
+    if (!questUpdate) {
+      throw new NotFoundException(`Обновление квеста с ID ${id} не найдено`);
+    }
+    return questUpdate;
+  }
+
+  async update(id: number, updateQuestUpdateDto: UpdateQuestUpdateDto) {
+    // Если обновляется questId, проверяем существование квеста
+    if (updateQuestUpdateDto.questId !== undefined) {
+      const [quest] = await this.db
+        .select()
+        .from(quests)
+        .where(eq(quests.id, updateQuestUpdateDto.questId));
+      if (!quest) {
+        throw new NotFoundException(`Квест с ID ${updateQuestUpdateDto.questId} не найден`);
+      }
+    }
+
+    // Валидация фотографий (максимум 5 элементов)
+    if (updateQuestUpdateDto.photos && updateQuestUpdateDto.photos.length > 5) {
+      throw new BadRequestException('Максимум 5 фотографий');
+    }
+
+    const [questUpdate] = await this.db
+      .update(questUpdates)
+      .set({ ...updateQuestUpdateDto, updatedAt: new Date() })
+      .where(eq(questUpdates.id, id))
+      .returning();
+    if (!questUpdate) {
+      throw new NotFoundException(`Обновление квеста с ID ${id} не найдено`);
+    }
+    return questUpdate;
+  }
+
+  async remove(id: number) {
+    const [questUpdate] = await this.db
+      .delete(questUpdates)
+      .where(eq(questUpdates.id, id))
+      .returning();
+    if (!questUpdate) {
+      throw new NotFoundException(`Обновление квеста с ID ${id} не найдено`);
+    }
+    return questUpdate;
+  }
+}
+

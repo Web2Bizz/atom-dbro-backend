@@ -1,7 +1,7 @@
 import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { quests, userQuests, users, achievements, userAchievements, cities, helpTypes, questHelpTypes } from '../database/schema';
+import { quests, userQuests, users, achievements, userAchievements, cities, organizationTypes, categories, questCategories } from '../database/schema';
 import { eq, and, ne, inArray } from 'drizzle-orm';
 import { CreateQuestDto } from './dto/create-quest.dto';
 import { UpdateQuestDto } from './dto/update-quest.dto';
@@ -50,25 +50,34 @@ export class QuestService {
       achievementId = achievement.id;
     }
 
-    // Проверяем существование города, если указан
-    if (createQuestDto.cityId) {
-      const [city] = await this.db
+    // Проверяем существование города (теперь обязателен)
+    const [city] = await this.db
+      .select()
+      .from(cities)
+      .where(eq(cities.id, createQuestDto.cityId));
+    if (!city) {
+      throw new NotFoundException(`Город с ID ${createQuestDto.cityId} не найден`);
+    }
+
+    // Проверяем существование типа организации, если указан
+    if (createQuestDto.organizationTypeId) {
+      const [orgType] = await this.db
         .select()
-        .from(cities)
-        .where(eq(cities.id, createQuestDto.cityId));
-      if (!city) {
-        throw new NotFoundException(`Город с ID ${createQuestDto.cityId} не найден`);
+        .from(organizationTypes)
+        .where(eq(organizationTypes.id, createQuestDto.organizationTypeId));
+      if (!orgType) {
+        throw new NotFoundException(`Тип организации с ID ${createQuestDto.organizationTypeId} не найден`);
       }
     }
 
-    // Проверяем существование типов помощи, если указаны
-    if (createQuestDto.helpTypeIds && createQuestDto.helpTypeIds.length > 0) {
-      const existingHelpTypes = await this.db
+    // Проверяем существование категорий, если указаны
+    if (createQuestDto.categoryIds && createQuestDto.categoryIds.length > 0) {
+      const existingCategories = await this.db
         .select()
-        .from(helpTypes)
-        .where(inArray(helpTypes.id, createQuestDto.helpTypeIds));
-      if (existingHelpTypes.length !== createQuestDto.helpTypeIds.length) {
-        throw new NotFoundException('Один или несколько типов помощи не найдены');
+        .from(categories)
+        .where(inArray(categories.id, createQuestDto.categoryIds));
+      if (existingCategories.length !== createQuestDto.categoryIds.length) {
+        throw new NotFoundException('Одна или несколько категорий не найдены');
       }
     }
 
@@ -76,6 +85,14 @@ export class QuestService {
     if (createQuestDto.gallery && createQuestDto.gallery.length > 10) {
       throw new BadRequestException('Галерея не может содержать более 10 изображений');
     }
+
+    // Преобразуем координаты в строки для decimal полей
+    const latitude = createQuestDto.latitude !== undefined
+      ? createQuestDto.latitude.toString()
+      : city.latitude;
+    const longitude = createQuestDto.longitude !== undefined
+      ? createQuestDto.longitude.toString()
+      : city.longitude;
 
     // Создаем квест с привязкой к достижению (если указано) и владельцем
     const questResult = await this.db
@@ -88,6 +105,11 @@ export class QuestService {
         achievementId: achievementId,
         ownerId: userId,
         cityId: createQuestDto.cityId,
+        organizationTypeId: createQuestDto.organizationTypeId,
+        latitude: latitude,
+        longitude: longitude,
+        address: createQuestDto.address,
+        contacts: createQuestDto.contacts,
         coverImage: createQuestDto.coverImage,
         gallery: createQuestDto.gallery,
         steps: createQuestDto.steps,
@@ -106,19 +128,19 @@ export class QuestService {
         .where(eq(achievements.id, achievementId));
     }
 
-    // Связываем квест с типами помощи, если указаны
-    if (createQuestDto.helpTypeIds && createQuestDto.helpTypeIds.length > 0) {
+    // Связываем квест с категориями, если указаны
+    if (createQuestDto.categoryIds && createQuestDto.categoryIds.length > 0) {
       await this.db
-        .insert(questHelpTypes)
+        .insert(questCategories)
         .values(
-          createQuestDto.helpTypeIds.map(helpTypeId => ({
+          createQuestDto.categoryIds.map(categoryId => ({
             questId: quest.id,
-            helpTypeId,
+            categoryId,
           }))
         );
     }
 
-    // Возвращаем квест с информацией о достижении (если есть), городе и типах помощи
+    // Возвращаем квест с информацией о достижении (если есть), городе, типе организации и категориях
     const query = this.db
       .select({
         id: quests.id,
@@ -129,6 +151,11 @@ export class QuestService {
         achievementId: quests.achievementId,
         ownerId: quests.ownerId,
         cityId: quests.cityId,
+        organizationTypeId: quests.organizationTypeId,
+        latitude: quests.latitude,
+        longitude: quests.longitude,
+        address: quests.address,
+        contacts: quests.contacts,
         coverImage: quests.coverImage,
         gallery: quests.gallery,
         steps: quests.steps,
@@ -152,28 +179,33 @@ export class QuestService {
           id: cities.id,
           name: cities.name,
         },
+        organizationType: {
+          id: organizationTypes.id,
+          name: organizationTypes.name,
+        },
       })
       .from(quests)
       .leftJoin(achievements, eq(quests.achievementId, achievements.id))
       .innerJoin(users, eq(quests.ownerId, users.id))
       .leftJoin(cities, eq(quests.cityId, cities.id))
+      .leftJoin(organizationTypes, eq(quests.organizationTypeId, organizationTypes.id))
       .where(eq(quests.id, quest.id));
     
     const [questWithAchievement] = await query;
 
-    // Получаем типы помощи для квеста
-    const questHelpTypesData = await this.db
+    // Получаем категории для квеста
+    const questCategoriesData = await this.db
       .select({
-        id: helpTypes.id,
-        name: helpTypes.name,
+        id: categories.id,
+        name: categories.name,
       })
-      .from(questHelpTypes)
-      .innerJoin(helpTypes, eq(questHelpTypes.helpTypeId, helpTypes.id))
-      .where(eq(questHelpTypes.questId, quest.id));
+      .from(questCategories)
+      .innerJoin(categories, eq(questCategories.categoryId, categories.id))
+      .where(eq(questCategories.questId, quest.id));
 
     const questWithAllData = {
       ...questWithAchievement,
-      helpTypes: questHelpTypesData,
+      categories: questCategoriesData,
     };
 
     // Автоматически присоединяем создателя к квесту
@@ -209,7 +241,7 @@ export class QuestService {
     return questWithAllData;
   }
 
-  async findAll(cityId?: number, helpTypeId?: number) {
+  async findAll(cityId?: number, categoryId?: number) {
     try {
       let query = this.db
         .select({
@@ -221,6 +253,11 @@ export class QuestService {
           achievementId: quests.achievementId,
           ownerId: quests.ownerId,
           cityId: quests.cityId,
+          organizationTypeId: quests.organizationTypeId,
+          latitude: quests.latitude,
+          longitude: quests.longitude,
+          address: quests.address,
+          contacts: quests.contacts,
           coverImage: quests.coverImage,
           gallery: quests.gallery,
           steps: quests.steps,
@@ -244,20 +281,25 @@ export class QuestService {
             id: cities.id,
             name: cities.name,
           },
+          organizationType: {
+            id: organizationTypes.id,
+            name: organizationTypes.name,
+          },
         })
         .from(quests)
         .leftJoin(achievements, eq(quests.achievementId, achievements.id))
         .innerJoin(users, eq(quests.ownerId, users.id))
-        .leftJoin(cities, eq(quests.cityId, cities.id));
+        .leftJoin(cities, eq(quests.cityId, cities.id))
+        .leftJoin(organizationTypes, eq(quests.organizationTypeId, organizationTypes.id));
 
       // Применяем фильтры
       const conditions = [];
       if (cityId) {
         conditions.push(eq(quests.cityId, cityId));
       }
-      if (helpTypeId) {
-        query = query.innerJoin(questHelpTypes, eq(quests.id, questHelpTypes.questId)) as any;
-        conditions.push(eq(questHelpTypes.helpTypeId, helpTypeId));
+      if (categoryId) {
+        query = query.innerJoin(questCategories, eq(quests.id, questCategories.questId)) as any;
+        conditions.push(eq(questCategories.categoryId, categoryId));
       }
       if (conditions.length > 0) {
         query = query.where(conditions.length === 1 ? conditions[0] : and(...conditions)) as any;
@@ -265,35 +307,35 @@ export class QuestService {
 
       const questsList = await query;
 
-      // Получаем типы помощи для всех квестов
+      // Получаем категории для всех квестов
       const questIds = questsList.map(q => q.id);
-      const allHelpTypes = questIds.length > 0
+      const allCategories = questIds.length > 0
         ? await this.db
             .select({
-              questId: questHelpTypes.questId,
-              id: helpTypes.id,
-              name: helpTypes.name,
+              questId: questCategories.questId,
+              id: categories.id,
+              name: categories.name,
             })
-            .from(questHelpTypes)
-            .innerJoin(helpTypes, eq(questHelpTypes.helpTypeId, helpTypes.id))
-            .where(inArray(questHelpTypes.questId, questIds))
+            .from(questCategories)
+            .innerJoin(categories, eq(questCategories.categoryId, categories.id))
+            .where(inArray(questCategories.questId, questIds))
         : [];
 
-      // Группируем типы помощи по questId
-      const helpTypesByQuestId = new Map<number, Array<{ id: number; name: string }>>();
-      for (const helpType of allHelpTypes) {
-        if (!helpTypesByQuestId.has(helpType.questId)) {
-          helpTypesByQuestId.set(helpType.questId, []);
+      // Группируем категории по questId
+      const categoriesByQuestId = new Map<number, Array<{ id: number; name: string }>>();
+      for (const category of allCategories) {
+        if (!categoriesByQuestId.has(category.questId)) {
+          categoriesByQuestId.set(category.questId, []);
         }
-        helpTypesByQuestId.get(helpType.questId)!.push({
-          id: helpType.id,
-          name: helpType.name,
+        categoriesByQuestId.get(category.questId)!.push({
+          id: category.id,
+          name: category.name,
         });
       }
 
       return questsList.map(quest => ({
         ...quest,
-        helpTypes: helpTypesByQuestId.get(quest.id) || [],
+        categories: categoriesByQuestId.get(quest.id) || [],
       }));
     } catch (error: any) {
       console.error('Ошибка в findAll:', error);
@@ -309,7 +351,7 @@ export class QuestService {
     }
   }
 
-  async findByStatus(status?: 'active' | 'archived' | 'completed', cityId?: number, helpTypeId?: number) {
+  async findByStatus(status?: 'active' | 'archived' | 'completed', cityId?: number, categoryId?: number) {
     let baseQuery = this.db
       .select({
         id: quests.id,
@@ -349,9 +391,9 @@ export class QuestService {
     if (cityId) {
       conditions.push(eq(quests.cityId, cityId));
     }
-    if (helpTypeId) {
-      baseQuery = baseQuery.innerJoin(questHelpTypes, eq(quests.id, questHelpTypes.questId)) as any;
-      conditions.push(eq(questHelpTypes.helpTypeId, helpTypeId));
+    if (categoryId) {
+      baseQuery = baseQuery.innerJoin(questCategories, eq(quests.id, questCategories.questId)) as any;
+      conditions.push(eq(questCategories.categoryId, categoryId));
     }
     if (conditions.length > 0) {
       baseQuery = baseQuery.where(conditions.length === 1 ? conditions[0] : and(...conditions)) as any;
@@ -359,35 +401,35 @@ export class QuestService {
 
     const questsList = await baseQuery;
 
-    // Получаем типы помощи для всех квестов
+    // Получаем категории для всех квестов
     const questIds = questsList.map(q => q.id);
-    const allHelpTypes = questIds.length > 0
+    const allCategories = questIds.length > 0
       ? await this.db
           .select({
-            questId: questHelpTypes.questId,
-            id: helpTypes.id,
-            name: helpTypes.name,
+            questId: questCategories.questId,
+            id: categories.id,
+            name: categories.name,
           })
-          .from(questHelpTypes)
-          .innerJoin(helpTypes, eq(questHelpTypes.helpTypeId, helpTypes.id))
-          .where(inArray(questHelpTypes.questId, questIds))
+          .from(questCategories)
+          .innerJoin(categories, eq(questCategories.categoryId, categories.id))
+          .where(inArray(questCategories.questId, questIds))
       : [];
 
-    // Группируем типы помощи по questId
-    const helpTypesByQuestId = new Map<number, Array<{ id: number; name: string }>>();
-    for (const helpType of allHelpTypes) {
-      if (!helpTypesByQuestId.has(helpType.questId)) {
-        helpTypesByQuestId.set(helpType.questId, []);
+    // Группируем категории по questId
+    const categoriesByQuestId = new Map<number, Array<{ id: number; name: string }>>();
+    for (const category of allCategories) {
+      if (!categoriesByQuestId.has(category.questId)) {
+        categoriesByQuestId.set(category.questId, []);
       }
-      helpTypesByQuestId.get(helpType.questId)!.push({
-        id: helpType.id,
-        name: helpType.name,
+      categoriesByQuestId.get(category.questId)!.push({
+        id: category.id,
+        name: category.name,
       });
     }
 
     return questsList.map(quest => ({
       ...quest,
-      helpTypes: helpTypesByQuestId.get(quest.id) || [],
+      categories: categoriesByQuestId.get(quest.id) || [],
     }));
   }
 
@@ -402,6 +444,11 @@ export class QuestService {
         achievementId: quests.achievementId,
         ownerId: quests.ownerId,
         cityId: quests.cityId,
+        organizationTypeId: quests.organizationTypeId,
+        latitude: quests.latitude,
+        longitude: quests.longitude,
+        address: quests.address,
+        contacts: quests.contacts,
         coverImage: quests.coverImage,
         gallery: quests.gallery,
         steps: quests.steps,
@@ -425,29 +472,34 @@ export class QuestService {
           id: cities.id,
           name: cities.name,
         },
+        organizationType: {
+          id: organizationTypes.id,
+          name: organizationTypes.name,
+        },
       })
       .from(quests)
       .leftJoin(achievements, eq(quests.achievementId, achievements.id))
       .innerJoin(users, eq(quests.ownerId, users.id))
       .leftJoin(cities, eq(quests.cityId, cities.id))
+      .leftJoin(organizationTypes, eq(quests.organizationTypeId, organizationTypes.id))
       .where(eq(quests.id, id));
     if (!quest) {
       throw new NotFoundException(`Квест с ID ${id} не найден`);
     }
 
-    // Получаем типы помощи для квеста
-    const questHelpTypesData = await this.db
+    // Получаем категории для квеста
+    const questCategoriesData = await this.db
       .select({
-        id: helpTypes.id,
-        name: helpTypes.name,
+        id: categories.id,
+        name: categories.name,
       })
-      .from(questHelpTypes)
-      .innerJoin(helpTypes, eq(questHelpTypes.helpTypeId, helpTypes.id))
-      .where(eq(questHelpTypes.questId, id));
+      .from(questCategories)
+      .innerJoin(categories, eq(questCategories.categoryId, categories.id))
+      .where(eq(questCategories.questId, id));
 
     return {
       ...quest,
-      helpTypes: questHelpTypesData,
+      categories: questCategoriesData,
     };
   }
 
@@ -493,6 +545,30 @@ export class QuestService {
       }
       updateData.cityId = updateQuestDto.cityId;
     }
+    if (updateQuestDto.organizationTypeId !== undefined) {
+      if (updateQuestDto.organizationTypeId !== null) {
+        const [orgType] = await this.db
+          .select()
+          .from(organizationTypes)
+          .where(eq(organizationTypes.id, updateQuestDto.organizationTypeId));
+        if (!orgType) {
+          throw new NotFoundException(`Тип организации с ID ${updateQuestDto.organizationTypeId} не найден`);
+        }
+      }
+      updateData.organizationTypeId = updateQuestDto.organizationTypeId;
+    }
+    if (updateQuestDto.latitude !== undefined) {
+      updateData.latitude = updateQuestDto.latitude.toString();
+    }
+    if (updateQuestDto.longitude !== undefined) {
+      updateData.longitude = updateQuestDto.longitude.toString();
+    }
+    if (updateQuestDto.address !== undefined) {
+      updateData.address = updateQuestDto.address;
+    }
+    if (updateQuestDto.contacts !== undefined) {
+      updateData.contacts = updateQuestDto.contacts;
+    }
     if (updateQuestDto.coverImage !== undefined) {
       updateData.coverImage = updateQuestDto.coverImage;
     }
@@ -517,30 +593,30 @@ export class QuestService {
       throw new NotFoundException(`Квест с ID ${id} не найден`);
     }
 
-    // Обновляем типы помощи, если указаны
-    if (updateQuestDto.helpTypeIds !== undefined) {
+    // Обновляем категории, если указаны
+    if (updateQuestDto.categoryIds !== undefined) {
       // Удаляем старые связи
       await this.db
-        .delete(questHelpTypes)
-        .where(eq(questHelpTypes.questId, id));
+        .delete(questCategories)
+        .where(eq(questCategories.questId, id));
 
-      // Проверяем существование типов помощи, если указаны
-      if (updateQuestDto.helpTypeIds.length > 0) {
-        const existingHelpTypes = await this.db
+      // Проверяем существование категорий, если указаны
+      if (updateQuestDto.categoryIds.length > 0) {
+        const existingCategories = await this.db
           .select()
-          .from(helpTypes)
-          .where(inArray(helpTypes.id, updateQuestDto.helpTypeIds));
-        if (existingHelpTypes.length !== updateQuestDto.helpTypeIds.length) {
-          throw new NotFoundException('Один или несколько типов помощи не найдены');
+          .from(categories)
+          .where(inArray(categories.id, updateQuestDto.categoryIds));
+        if (existingCategories.length !== updateQuestDto.categoryIds.length) {
+          throw new NotFoundException('Одна или несколько категорий не найдены');
         }
 
         // Создаем новые связи
         await this.db
-          .insert(questHelpTypes)
+          .insert(questCategories)
           .values(
-            updateQuestDto.helpTypeIds.map(helpTypeId => ({
+            updateQuestDto.categoryIds.map(categoryId => ({
               questId: id,
-              helpTypeId,
+              categoryId,
             }))
           );
       }
@@ -831,26 +907,26 @@ export class QuestService {
 
     // Получаем типы помощи для всех квестов
     const questIds = result.map(r => r.questId);
-    const allHelpTypes = questIds.length > 0
+    const allCategories = questIds.length > 0
       ? await this.db
           .select({
-            questId: questHelpTypes.questId,
-            id: helpTypes.id,
-            name: helpTypes.name,
+            questId: questCategories.questId,
+            id: categories.id,
+            name: categories.name,
           })
-          .from(questHelpTypes)
-          .innerJoin(helpTypes, eq(questHelpTypes.helpTypeId, helpTypes.id))
-          .where(inArray(questHelpTypes.questId, questIds))
+          .from(questCategories)
+          .innerJoin(categories, eq(questCategories.categoryId, categories.id))
+          .where(inArray(questCategories.questId, questIds))
       : [];
 
-    const helpTypesByQuestId = new Map<number, Array<{ id: number; name: string }>>();
-    for (const helpType of allHelpTypes) {
-      if (!helpTypesByQuestId.has(helpType.questId)) {
-        helpTypesByQuestId.set(helpType.questId, []);
+    const categoriesByQuestId = new Map<number, Array<{ id: number; name: string }>>();
+    for (const category of allCategories) {
+      if (!categoriesByQuestId.has(category.questId)) {
+        categoriesByQuestId.set(category.questId, []);
       }
-      helpTypesByQuestId.get(helpType.questId)!.push({
-        id: helpType.id,
-        name: helpType.name,
+      categoriesByQuestId.get(category.questId)!.push({
+        id: category.id,
+        name: category.name,
       });
     }
 
@@ -858,7 +934,7 @@ export class QuestService {
       ...item,
       quest: {
         ...item.quest,
-        helpTypes: helpTypesByQuestId.get(item.questId) || [],
+        categories: categoriesByQuestId.get(item.questId) || [],
       },
     }));
   }
@@ -925,35 +1001,35 @@ export class QuestService {
     // Фильтруем квесты, которые пользователь еще не начал
     const filteredQuests = activeQuests.filter(quest => !startedQuestIds.has(quest.id));
 
-    // Получаем типы помощи для всех квестов
+    // Получаем категории для всех квестов
     const questIds = filteredQuests.map(q => q.id);
-    const allHelpTypes = questIds.length > 0
+    const allCategories = questIds.length > 0
       ? await this.db
           .select({
-            questId: questHelpTypes.questId,
-            id: helpTypes.id,
-            name: helpTypes.name,
+            questId: questCategories.questId,
+            id: categories.id,
+            name: categories.name,
           })
-          .from(questHelpTypes)
-          .innerJoin(helpTypes, eq(questHelpTypes.helpTypeId, helpTypes.id))
-          .where(inArray(questHelpTypes.questId, questIds))
+          .from(questCategories)
+          .innerJoin(categories, eq(questCategories.categoryId, categories.id))
+          .where(inArray(questCategories.questId, questIds))
       : [];
 
-    // Группируем типы помощи по questId
-    const helpTypesByQuestId = new Map<number, Array<{ id: number; name: string }>>();
-    for (const helpType of allHelpTypes) {
-      if (!helpTypesByQuestId.has(helpType.questId)) {
-        helpTypesByQuestId.set(helpType.questId, []);
+    // Группируем категории по questId
+    const categoriesByQuestId = new Map<number, Array<{ id: number; name: string }>>();
+    for (const category of allCategories) {
+      if (!categoriesByQuestId.has(category.questId)) {
+        categoriesByQuestId.set(category.questId, []);
       }
-      helpTypesByQuestId.get(helpType.questId)!.push({
-        id: helpType.id,
-        name: helpType.name,
+      categoriesByQuestId.get(category.questId)!.push({
+        id: category.id,
+        name: category.name,
       });
     }
 
     return filteredQuests.map(quest => ({
       ...quest,
-      helpTypes: helpTypesByQuestId.get(quest.id) || [],
+      categories: categoriesByQuestId.get(quest.id) || [],
     }));
   }
 }

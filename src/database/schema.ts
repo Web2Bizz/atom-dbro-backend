@@ -43,6 +43,14 @@ export const helpTypes = pgTable('help_types', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+// Категории
+export const categories = pgTable('categories', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 255 }).notNull().unique(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 // Типы организаций
 export const organizationTypes = pgTable('organization_types', {
   id: serial('id').primaryKey(),
@@ -124,7 +132,12 @@ export const quests = pgTable('quests', {
   experienceReward: integer('experience_reward').default(0).notNull(),
   achievementId: integer('achievement_id').references(() => achievements.id),
   ownerId: integer('owner_id').references(() => users.id).notNull(),
-  cityId: integer('city_id').references(() => cities.id),
+  cityId: integer('city_id').references(() => cities.id).notNull(),
+  organizationTypeId: integer('organization_type_id').references(() => organizationTypes.id),
+  latitude: decimal('latitude', { precision: 10, scale: 8 }),
+  longitude: decimal('longitude', { precision: 11, scale: 8 }),
+  address: text('address'),
+  contacts: jsonb('contacts').$type<Array<{ name: string; value: string }>>(),
   coverImage: varchar('cover_image', { length: 500 }),
   gallery: jsonb('gallery').$type<string[]>(),
   steps: jsonb('steps').$type<Array<{
@@ -139,14 +152,27 @@ export const quests = pgTable('quests', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
-// Связующая таблица: типы помощи квестов
-export const questHelpTypes = pgTable('quest_help_types', {
+// Связующая таблица: категории квестов
+export const questCategories = pgTable('quest_categories', {
   questId: integer('quest_id')
     .references(() => quests.id)
     .notNull(),
-  helpTypeId: integer('help_type_id')
-    .references(() => helpTypes.id)
+  categoryId: integer('category_id')
+    .references(() => categories.id)
     .notNull(),
+});
+
+// Обновления квестов
+export const questUpdates = pgTable('quest_updates', {
+  id: serial('id').primaryKey(),
+  questId: integer('quest_id')
+    .references(() => quests.id)
+    .notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  text: text('text').notNull(),
+  photos: jsonb('photos').$type<string[]>(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
 });
 
 // Связующая таблица: выполнение квестов пользователями
@@ -188,11 +214,15 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 
 export const helpTypesRelations = relations(helpTypes, ({ many }) => ({
   organizations: many(organizationHelpTypes),
-  quests: many(questHelpTypes),
+}));
+
+export const categoriesRelations = relations(categories, ({ many }) => ({
+  quests: many(questCategories),
 }));
 
 export const organizationTypesRelations = relations(organizationTypes, ({ many }) => ({
   organizations: many(organizations),
+  quests: many(quests),
 }));
 
 export const organizationsRelations = relations(organizations, ({ one, many }) => ({
@@ -262,18 +292,30 @@ export const questsRelations = relations(quests, ({ one, many }) => ({
     fields: [quests.cityId],
     references: [cities.id],
   }),
+  organizationType: one(organizationTypes, {
+    fields: [quests.organizationTypeId],
+    references: [organizationTypes.id],
+  }),
   userQuests: many(userQuests),
-  helpTypes: many(questHelpTypes),
+  categories: many(questCategories),
+  updates: many(questUpdates),
 }));
 
-export const questHelpTypesRelations = relations(questHelpTypes, ({ one }) => ({
+export const questCategoriesRelations = relations(questCategories, ({ one }) => ({
   quest: one(quests, {
-    fields: [questHelpTypes.questId],
+    fields: [questCategories.questId],
     references: [quests.id],
   }),
-  helpType: one(helpTypes, {
-    fields: [questHelpTypes.helpTypeId],
-    references: [helpTypes.id],
+  category: one(categories, {
+    fields: [questCategories.categoryId],
+    references: [categories.id],
+  }),
+}));
+
+export const questUpdatesRelations = relations(questUpdates, ({ one }) => ({
+  quest: one(quests, {
+    fields: [questUpdates.questId],
+    references: [quests.id],
   }),
 }));
 
