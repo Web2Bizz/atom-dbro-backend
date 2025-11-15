@@ -1,5 +1,25 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, MaxLength, IsIn, IsInt, Min, IsObject } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, MaxLength, IsIn, IsInt, Min, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+
+class CreateAchievementForQuestDto {
+  @ApiProperty({ description: 'Название достижения', example: 'Помощник бездомным' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  title: string;
+
+  @ApiProperty({ description: 'Описание достижения', example: 'Помог бездомным людям', required: false })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({ description: 'Иконка достижения', example: 'medal-icon.svg', required: false })
+  @IsString()
+  @IsOptional()
+  @MaxLength(255)
+  icon?: string;
+}
 
 export class CreateQuestDto {
   @ApiProperty({ description: 'Название квеста', example: 'Помощь бездомным' })
@@ -31,12 +51,12 @@ export class CreateQuestDto {
   experienceReward?: number;
 
   @ApiProperty({ 
-    description: 'Требования квеста (JSON объект)', 
-    example: { minLevel: 1, requiredAchievements: [1, 2] },
-    required: false 
+    description: 'Данные для создания достижения, которое будет присвоено при завершении квеста. Достижение автоматически получит rarity = "private" и будет привязано к квесту.',
+    type: CreateAchievementForQuestDto
   })
-  @IsObject()
-  @IsOptional()
-  requirements?: Record<string, any>;
+  @ValidateNested()
+  @Type(() => CreateAchievementForQuestDto)
+  @IsNotEmpty()
+  achievement: CreateAchievementForQuestDto;
 }
 

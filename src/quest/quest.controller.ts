@@ -25,8 +25,12 @@ export class QuestController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Создать квест' })
   @ApiResponse({ status: 201, description: 'Квест успешно создан' })
-  create(@Body() createQuestDto: CreateQuestDto) {
-    return this.questService.create(createQuestDto);
+  @ApiResponse({ status: 403, description: 'Недостаточный уровень для создания квеста (требуется уровень 5+)' })
+  create(
+    @Body() createQuestDto: CreateQuestDto,
+    @CurrentUser() user: { userId: number; email: string },
+  ) {
+    return this.questService.create(createQuestDto, user.userId);
   }
 
   @Get()

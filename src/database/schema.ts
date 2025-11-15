@@ -85,7 +85,8 @@ export const achievements = pgTable('achievements', {
   title: varchar('title', { length: 255 }).notNull().unique(),
   description: text('description'),
   icon: varchar('icon', { length: 255 }),
-  rarity: varchar('rarity', { length: 20 }).notNull(), // 'common' | 'epic' | 'rare' | 'legendary'
+  rarity: varchar('rarity', { length: 20 }).notNull(), // 'common' | 'epic' | 'rare' | 'legendary' | 'private'
+  questId: integer('quest_id').references(() => quests.id), // Заполняется только если rarity = 'private'
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -111,7 +112,8 @@ export const quests = pgTable('quests', {
   description: text('description'),
   status: varchar('status', { length: 20 }).notNull().default('active'), // 'active' | 'completed' | 'archived'
   experienceReward: integer('experience_reward').default(0).notNull(),
-  requirements: jsonb('requirements').$type<Record<string, any>>(),
+  achievementId: integer('achievement_id').references(() => achievements.id).notNull(),
+  ownerId: integer('owner_id').references(() => users.id).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -154,6 +156,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   ownedOrganizations: many(organizationOwners),
   achievements: many(userAchievements),
   quests: many(userQuests),
+  ownedQuests: many(quests),
 }));
 
 export const helpTypesRelations = relations(helpTypes, ({ many }) => ({
@@ -191,8 +194,12 @@ export const organizationHelpTypesRelations = relations(organizationHelpTypes, (
   }),
 }));
 
-export const achievementsRelations = relations(achievements, ({ many }) => ({
+export const achievementsRelations = relations(achievements, ({ one, many }) => ({
   users: many(userAchievements),
+  quest: one(quests, {
+    fields: [achievements.questId],
+    references: [quests.id],
+  }),
 }));
 
 export const userAchievementsRelations = relations(userAchievements, ({ one }) => ({
@@ -206,7 +213,15 @@ export const userAchievementsRelations = relations(userAchievements, ({ one }) =
   }),
 }));
 
-export const questsRelations = relations(quests, ({ many }) => ({
+export const questsRelations = relations(quests, ({ one, many }) => ({
+  achievement: one(achievements, {
+    fields: [quests.achievementId],
+    references: [achievements.id],
+  }),
+  owner: one(users, {
+    fields: [quests.ownerId],
+    references: [users.id],
+  }),
   userQuests: many(userQuests),
 }));
 

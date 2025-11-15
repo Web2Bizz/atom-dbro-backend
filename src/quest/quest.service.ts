@@ -1,7 +1,7 @@
-import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { quests, userQuests, users } from '../database/schema';
+import { quests, userQuests, users, achievements, userAchievements } from '../database/schema';
 import { eq, and, ne } from 'drizzle-orm';
 import { CreateQuestDto } from './dto/create-quest.dto';
 import { UpdateQuestDto } from './dto/update-quest.dto';
@@ -13,7 +13,32 @@ export class QuestService {
     private db: NodePgDatabase,
   ) {}
 
-  async create(createQuestDto: CreateQuestDto) {
+  async create(createQuestDto: CreateQuestDto, userId: number) {
+    // Проверяем уровень пользователя (требуется минимум 5 уровень)
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId));
+    if (!user) {
+      throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
+    }
+    if (user.level < 5) {
+      throw new ForbiddenException('Для создания квеста требуется уровень 5 или выше');
+    }
+
+    // Создаем достижение с автоматической установкой rarity = 'private'
+    // questId будет установлен после создания квеста
+    const [achievement] = await this.db
+      .insert(achievements)
+      .values({
+        title: createQuestDto.achievement.title,
+        description: createQuestDto.achievement.description,
+        icon: createQuestDto.achievement.icon,
+        rarity: 'private', // Всегда 'private' для достижений, создаваемых с квестами
+      })
+      .returning();
+
+    // Создаем квест с привязкой к достижению и владельцем
     const [quest] = await this.db
       .insert(quests)
       .values({
@@ -21,30 +46,151 @@ export class QuestService {
         description: createQuestDto.description,
         status: createQuestDto.status || 'active',
         experienceReward: createQuestDto.experienceReward || 0,
-        requirements: createQuestDto.requirements || {},
+        achievementId: achievement.id,
+        ownerId: userId,
       })
       .returning();
-    return quest;
+
+    // Обновляем достижение с questId (так как rarity = 'private')
+    await this.db
+      .update(achievements)
+      .set({ questId: quest.id })
+      .where(eq(achievements.id, achievement.id));
+
+    // Возвращаем квест с информацией о достижении
+    const [questWithAchievement] = await this.db
+      .select({
+        id: quests.id,
+        title: quests.title,
+        description: quests.description,
+        status: quests.status,
+        experienceReward: quests.experienceReward,
+        achievementId: quests.achievementId,
+        ownerId: quests.ownerId,
+        createdAt: quests.createdAt,
+        updatedAt: quests.updatedAt,
+        achievement: {
+          id: achievements.id,
+          title: achievements.title,
+          description: achievements.description,
+          icon: achievements.icon,
+          rarity: achievements.rarity,
+          questId: achievements.questId,
+        },
+        owner: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+        },
+      })
+      .from(quests)
+      .innerJoin(achievements, eq(quests.achievementId, achievements.id))
+      .innerJoin(users, eq(quests.ownerId, users.id))
+      .where(eq(quests.id, quest.id));
+
+    return questWithAchievement;
   }
 
   async findAll() {
-    return this.db.select().from(quests);
+    return this.db
+      .select({
+        id: quests.id,
+        title: quests.title,
+        description: quests.description,
+        status: quests.status,
+        experienceReward: quests.experienceReward,
+        achievementId: quests.achievementId,
+        ownerId: quests.ownerId,
+        createdAt: quests.createdAt,
+        updatedAt: quests.updatedAt,
+        achievement: {
+          id: achievements.id,
+          title: achievements.title,
+          description: achievements.description,
+          icon: achievements.icon,
+          rarity: achievements.rarity,
+          questId: achievements.questId,
+        },
+        owner: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+        },
+      })
+      .from(quests)
+      .innerJoin(achievements, eq(quests.achievementId, achievements.id))
+      .innerJoin(users, eq(quests.ownerId, users.id));
   }
 
   async findByStatus(status?: 'active' | 'archived' | 'completed') {
+    const baseQuery = this.db
+      .select({
+        id: quests.id,
+        title: quests.title,
+        description: quests.description,
+        status: quests.status,
+        experienceReward: quests.experienceReward,
+        achievementId: quests.achievementId,
+        ownerId: quests.ownerId,
+        createdAt: quests.createdAt,
+        updatedAt: quests.updatedAt,
+        achievement: {
+          id: achievements.id,
+          title: achievements.title,
+          description: achievements.description,
+          icon: achievements.icon,
+          rarity: achievements.rarity,
+          questId: achievements.questId,
+        },
+        owner: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+        },
+      })
+      .from(quests)
+      .innerJoin(achievements, eq(quests.achievementId, achievements.id))
+      .innerJoin(users, eq(quests.ownerId, users.id));
+    
     if (status) {
-      return this.db
-        .select()
-        .from(quests)
-        .where(eq(quests.status, status));
+      return baseQuery.where(eq(quests.status, status));
     }
-    return this.db.select().from(quests);
+    return baseQuery;
   }
 
   async findOne(id: number) {
     const [quest] = await this.db
-      .select()
+      .select({
+        id: quests.id,
+        title: quests.title,
+        description: quests.description,
+        status: quests.status,
+        experienceReward: quests.experienceReward,
+        achievementId: quests.achievementId,
+        ownerId: quests.ownerId,
+        createdAt: quests.createdAt,
+        updatedAt: quests.updatedAt,
+        achievement: {
+          id: achievements.id,
+          title: achievements.title,
+          description: achievements.description,
+          icon: achievements.icon,
+          rarity: achievements.rarity,
+          questId: achievements.questId,
+        },
+        owner: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+        },
+      })
       .from(quests)
+      .innerJoin(achievements, eq(quests.achievementId, achievements.id))
+      .innerJoin(users, eq(quests.ownerId, users.id))
       .where(eq(quests.id, id));
     if (!quest) {
       throw new NotFoundException(`Квест с ID ${id} не найден`);
@@ -53,6 +199,17 @@ export class QuestService {
   }
 
   async update(id: number, updateQuestDto: UpdateQuestDto) {
+    // Если обновляется achievementId, проверяем существование достижения
+    if (updateQuestDto.achievementId !== undefined) {
+      const [achievement] = await this.db
+        .select()
+        .from(achievements)
+        .where(eq(achievements.id, updateQuestDto.achievementId));
+      if (!achievement) {
+        throw new NotFoundException(`Достижение с ID ${updateQuestDto.achievementId} не найдено`);
+      }
+    }
+
     const updateData: any = { updatedAt: new Date() };
     
     if (updateQuestDto.title !== undefined) {
@@ -67,8 +224,8 @@ export class QuestService {
     if (updateQuestDto.experienceReward !== undefined) {
       updateData.experienceReward = updateQuestDto.experienceReward;
     }
-    if (updateQuestDto.requirements !== undefined) {
-      updateData.requirements = updateQuestDto.requirements;
+    if (updateQuestDto.achievementId !== undefined) {
+      updateData.achievementId = updateQuestDto.achievementId;
     }
 
     const [quest] = await this.db
@@ -244,6 +401,26 @@ export class QuestService {
       .set({ experience: newExperience })
       .where(eq(users.id, userId));
 
+    // Присваиваем достижение пользователю, если оно еще не присвоено
+    const [existingUserAchievement] = await this.db
+      .select()
+      .from(userAchievements)
+      .where(
+        and(
+          eq(userAchievements.userId, userId),
+          eq(userAchievements.achievementId, quest.achievementId),
+        ),
+      );
+    
+    if (!existingUserAchievement) {
+      await this.db
+        .insert(userAchievements)
+        .values({
+          userId,
+          achievementId: quest.achievementId,
+        });
+    }
+
     return completedQuest;
   }
 
@@ -257,7 +434,7 @@ export class QuestService {
       throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
     }
 
-    // Получаем все квесты пользователя с информацией о квесте
+    // Получаем все квесты пользователя с информацией о квесте и достижении
     return this.db
       .select({
         id: userQuests.id,
@@ -272,13 +449,23 @@ export class QuestService {
           description: quests.description,
           status: quests.status,
           experienceReward: quests.experienceReward,
-          requirements: quests.requirements,
+          achievementId: quests.achievementId,
+          ownerId: quests.ownerId,
           createdAt: quests.createdAt,
           updatedAt: quests.updatedAt,
+        },
+        achievement: {
+          id: achievements.id,
+          title: achievements.title,
+          description: achievements.description,
+          icon: achievements.icon,
+          rarity: achievements.rarity,
+          questId: achievements.questId,
         },
       })
       .from(userQuests)
       .innerJoin(quests, eq(userQuests.questId, quests.id))
+      .innerJoin(achievements, eq(quests.achievementId, achievements.id))
       .where(eq(userQuests.userId, userId));
   }
 
@@ -292,10 +479,36 @@ export class QuestService {
       throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
     }
 
-    // Получаем все активные квесты
+    // Получаем все активные квесты с информацией о достижении
     const activeQuests = await this.db
-      .select()
+      .select({
+        id: quests.id,
+        title: quests.title,
+        description: quests.description,
+        status: quests.status,
+        experienceReward: quests.experienceReward,
+        achievementId: quests.achievementId,
+        ownerId: quests.ownerId,
+        createdAt: quests.createdAt,
+        updatedAt: quests.updatedAt,
+        achievement: {
+          id: achievements.id,
+          title: achievements.title,
+          description: achievements.description,
+          icon: achievements.icon,
+          rarity: achievements.rarity,
+          questId: achievements.questId,
+        },
+        owner: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+        },
+      })
       .from(quests)
+      .innerJoin(achievements, eq(quests.achievementId, achievements.id))
+      .innerJoin(users, eq(quests.ownerId, users.id))
       .where(eq(quests.status, 'active'));
 
     // Получаем квесты, которые пользователь уже начал

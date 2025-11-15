@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, MaxLength, IsIn, IsInt, Min, IsObject } from 'class-validator';
+import { IsString, IsOptional, MaxLength, IsIn, IsInt, Min } from 'class-validator';
 
 export class UpdateQuestDto {
   @ApiProperty({ description: 'Название квеста', example: 'Помощь бездомным', required: false })
@@ -30,13 +30,9 @@ export class UpdateQuestDto {
   @Min(0)
   experienceReward?: number;
 
-  @ApiProperty({ 
-    description: 'Требования квеста (JSON объект)', 
-    example: { minLevel: 1, requiredAchievements: [1, 2] },
-    required: false 
-  })
-  @IsObject()
+  @ApiProperty({ description: 'ID достижения, которое будет присвоено при завершении квеста', example: 1, required: false })
+  @IsInt()
   @IsOptional()
-  requirements?: Record<string, any>;
+  achievementId?: number;
 }
 

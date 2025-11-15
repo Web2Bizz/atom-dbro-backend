@@ -22,12 +22,12 @@ export class UpdateAchievementDto {
   @ApiProperty({ 
     description: 'Редкость достижения', 
     example: 'common',
-    enum: ['common', 'epic', 'rare', 'legendary'],
+    enum: ['common', 'epic', 'rare', 'legendary', 'private'],
     required: false
   })
   @IsString()
   @IsOptional()
-  @IsIn(['common', 'epic', 'rare', 'legendary'])
-  rarity?: 'common' | 'epic' | 'rare' | 'legendary';
+  @IsIn(['common', 'epic', 'rare', 'legendary', 'private'])
+  rarity?: 'common' | 'epic' | 'rare' | 'legendary' | 'private';
 }
 
