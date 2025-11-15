@@ -28,7 +28,6 @@ export const users = pgTable('users', {
   middleName: varchar('middle_name', { length: 255 }),
   email: varchar('email', { length: 255 }).notNull().unique(),
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
-  cityId: integer('city_id').references(() => cities.id),
   level: integer('level').default(1).notNull(),
   experience: integer('experience').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
@@ -175,16 +174,11 @@ export const citiesRelations = relations(cities, ({ one, many }) => ({
     fields: [cities.regionId],
     references: [regions.id],
   }),
-  users: many(users),
   organizations: many(organizations),
   quests: many(quests),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
-  city: one(cities, {
-    fields: [users.cityId],
-    references: [cities.id],
-  }),
   ownedOrganizations: many(organizationOwners),
   achievements: many(userAchievements),
   quests: many(userQuests),
