@@ -9,7 +9,7 @@ import {
   helpTypes,
   cities,
 } from '../database/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 
@@ -95,10 +95,35 @@ export class OrganizationService {
       .from(organizations)
       .leftJoin(cities, eq(organizations.cityId, cities.id));
 
+    // Получаем helpTypes для всех организаций
+    const orgIds = orgs.map(org => org.id);
+    const allHelpTypes = orgIds.length > 0
+      ? await this.db
+          .select({
+            organizationId: organizationHelpTypes.organizationId,
+            id: helpTypes.id,
+            name: helpTypes.name,
+          })
+          .from(organizationHelpTypes)
+          .innerJoin(helpTypes, eq(organizationHelpTypes.helpTypeId, helpTypes.id))
+          .where(inArray(organizationHelpTypes.organizationId, orgIds))
+      : [];
+
+    // Группируем helpTypes по organizationId
+    const helpTypesByOrgId = new Map<number, Array<{ id: number; name: string }>>();
+    for (const helpType of allHelpTypes) {
+      if (!helpTypesByOrgId.has(helpType.organizationId)) {
+        helpTypesByOrgId.set(helpType.organizationId, []);
+      }
+      helpTypesByOrgId.get(helpType.organizationId)!.push({
+        id: helpType.id,
+        name: helpType.name,
+      });
+    }
+
     return orgs.map(org => ({
       id: org.id,
       name: org.name,
-      cityId: org.cityId,
       latitude: org.latitude,
       longitude: org.longitude,
       summary: org.summary,
@@ -116,6 +141,7 @@ export class OrganizationService {
         latitude: org.cityLatitude,
         longitude: org.cityLongitude,
       } : null,
+      helpTypes: helpTypesByOrgId.get(org.id) || [],
     }));
   }
 
@@ -147,10 +173,19 @@ export class OrganizationService {
       throw new NotFoundException(`Организация с ID ${id} не найдена`);
     }
 
+    // Получаем виды помощи
+    const orgHelpTypes = await this.db
+      .select({
+        id: helpTypes.id,
+        name: helpTypes.name,
+      })
+      .from(organizationHelpTypes)
+      .innerJoin(helpTypes, eq(organizationHelpTypes.helpTypeId, helpTypes.id))
+      .where(eq(organizationHelpTypes.organizationId, id));
+
     const organization = {
       id: orgData.id,
       name: orgData.name,
-      cityId: orgData.cityId,
       latitude: orgData.latitude,
       longitude: orgData.longitude,
       summary: orgData.summary,
@@ -168,6 +203,7 @@ export class OrganizationService {
         latitude: orgData.cityLatitude,
         longitude: orgData.cityLongitude,
       } : null,
+      helpTypes: orgHelpTypes,
     };
 
     // Получаем владельцев
@@ -183,20 +219,9 @@ export class OrganizationService {
       .innerJoin(users, eq(organizationOwners.userId, users.id))
       .where(eq(organizationOwners.organizationId, id));
 
-    // Получаем виды помощи
-    const orgHelpTypes = await this.db
-      .select({
-        id: helpTypes.id,
-        name: helpTypes.name,
-      })
-      .from(organizationHelpTypes)
-      .innerJoin(helpTypes, eq(organizationHelpTypes.helpTypeId, helpTypes.id))
-      .where(eq(organizationHelpTypes.organizationId, id));
-
     return {
       ...organization,
       owners,
-      helpTypes: orgHelpTypes,
     };
   }
 
