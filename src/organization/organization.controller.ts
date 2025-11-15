@@ -34,57 +34,15 @@ export class OrganizationController {
   ) {}
 
   @Post()
-  @UseInterceptors(FilesInterceptor('images', 20)) // Максимум 20 файлов
   @ApiOperation({ summary: 'Создать организацию' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['name', 'cityId'],
-      properties: {
-        name: { type: 'string', example: 'Благотворительный фонд' },
-        cityId: { type: 'number', example: 1 },
-        latitude: { type: 'number', example: 55.7558 },
-        longitude: { type: 'number', example: 37.6173 },
-        summary: { type: 'string' },
-        mission: { type: 'string' },
-        description: { type: 'string' },
-        goals: { type: 'array', items: { type: 'string' } },
-        needs: { type: 'array', items: { type: 'string' } },
-        address: { type: 'string' },
-        contacts: { type: 'array', items: { type: 'object' } },
-        organizationTypes: { type: 'array', items: { type: 'string' } },
-        images: {
-          type: 'array',
-          items: {
-            type: 'string',
-            format: 'binary',
-          },
-        },
-      },
-    },
-  })
   @ApiResponse({ status: 201, description: 'Организация успешно создана' })
   @ApiResponse({ status: 400, description: 'Неверные данные' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
-  async create(
+  create(
     @Body() createOrganizationDto: CreateOrganizationDto,
-    @UploadedFiles() files: Array<Express.Multer.File> | undefined,
     @CurrentUser() user: { userId: number; email: string },
   ) {
-    // Создаем организацию
-    const organization = await this.organizationService.create(createOrganizationDto, user.userId);
-
-    // Если есть загруженные файлы, добавляем их в галерею
-    if (files && files.length > 0) {
-      const imageUrls = await this.s3Service.uploadMultipleImages(files, organization.id);
-      await this.organizationService.addImagesToGallery(organization.id, imageUrls);
-      
-      // Получаем обновленную организацию с галереей
-      return this.organizationService.findOne(organization.id);
-    }
-
-    return organization;
+    return this.organizationService.create(createOrganizationDto, user.userId);
   }
 
   @Get()
