@@ -14,7 +14,10 @@ async function applyMigration(migrationFile: string) {
   try {
     console.log(`Применение миграции: ${migrationFile}`);
     
-    const migrationPath = join(__dirname, '../../drizzle', migrationFile);
+    // Используем process.cwd() для получения корня проекта
+    // Это работает как при запуске через ts-node, так и в скомпилированном виде
+    const migrationPath = join(process.cwd(), 'drizzle', migrationFile);
+    console.log(`Путь к миграции: ${migrationPath}`);
     const sql = readFileSync(migrationPath, 'utf-8');
     
     const client = await pool.connect();
