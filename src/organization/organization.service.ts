@@ -23,6 +23,17 @@ export class OrganizationService {
     private s3Service: S3Service,
   ) {}
 
+  /**
+   * Преобразует координату в число
+   * @param coord - координата (может быть строкой или числом)
+   * @returns число или null
+   */
+  private parseCoordinate(coord: string | number | null | undefined): number | null {
+    if (coord === null || coord === undefined) return null;
+    const parsed = typeof coord === 'string' ? parseFloat(coord) : coord;
+    return isNaN(parsed) ? null : parsed;
+  }
+
   async create(createOrganizationDto: CreateOrganizationDto, userId: number) {
     // Проверяем существование города
     const [city] = await this.db
@@ -164,8 +175,8 @@ export class OrganizationService {
     return orgs.map(org => ({
       id: org.id,
       name: org.name,
-      latitude: org.latitude,
-      longitude: org.longitude,
+      latitude: this.parseCoordinate(org.latitude),
+      longitude: this.parseCoordinate(org.longitude),
       summary: org.summary,
       mission: org.mission,
       description: org.description,
@@ -179,8 +190,8 @@ export class OrganizationService {
       city: org.cityName ? {
         id: org.cityId,
         name: org.cityName,
-        latitude: org.cityLatitude,
-        longitude: org.cityLongitude,
+        latitude: this.parseCoordinate(org.cityLatitude),
+        longitude: this.parseCoordinate(org.cityLongitude),
       } : null,
       type: org.organizationTypeName ? {
         id: org.organizationTypeId,
@@ -235,8 +246,8 @@ export class OrganizationService {
     const organization = {
       id: orgData.id,
       name: orgData.name,
-      latitude: orgData.latitude,
-      longitude: orgData.longitude,
+      latitude: this.parseCoordinate(orgData.latitude),
+      longitude: this.parseCoordinate(orgData.longitude),
       summary: orgData.summary,
       mission: orgData.mission,
       description: orgData.description,
@@ -250,8 +261,8 @@ export class OrganizationService {
       city: orgData.cityName ? {
         id: orgData.cityId,
         name: orgData.cityName,
-        latitude: orgData.cityLatitude,
-        longitude: orgData.cityLongitude,
+        latitude: this.parseCoordinate(orgData.cityLatitude),
+        longitude: this.parseCoordinate(orgData.cityLongitude),
       } : null,
       type: orgData.organizationTypeName ? {
         id: orgData.organizationTypeId,
