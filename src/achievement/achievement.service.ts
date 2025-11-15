@@ -2,7 +2,7 @@ import { Injectable, Inject, NotFoundException, ConflictException } from '@nestj
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { achievements, userAchievements, users } from '../database/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, ne } from 'drizzle-orm';
 import { CreateAchievementDto } from './dto/create-achievement.dto';
 import { UpdateAchievementDto } from './dto/update-achievement.dto';
 
@@ -14,6 +14,15 @@ export class AchievementService {
   ) {}
 
   async create(createAchievementDto: CreateAchievementDto) {
+    // Проверяем уникальность названия
+    const [existingAchievement] = await this.db
+      .select()
+      .from(achievements)
+      .where(eq(achievements.title, createAchievementDto.title));
+    if (existingAchievement) {
+      throw new ConflictException('Достижение с таким названием уже существует');
+    }
+
     const [achievement] = await this.db
       .insert(achievements)
       .values(createAchievementDto)
@@ -37,6 +46,20 @@ export class AchievementService {
   }
 
   async update(id: number, updateAchievementDto: UpdateAchievementDto) {
+    // Если обновляется название, проверяем уникальность
+    if (updateAchievementDto.title) {
+      const [existingAchievement] = await this.db
+        .select()
+        .from(achievements)
+        .where(and(
+          eq(achievements.title, updateAchievementDto.title),
+          ne(achievements.id, id)
+        ));
+      if (existingAchievement) {
+        throw new ConflictException('Достижение с таким названием уже существует');
+      }
+    }
+
     const [achievement] = await this.db
       .update(achievements)
       .set({ ...updateAchievementDto, updatedAt: new Date() })

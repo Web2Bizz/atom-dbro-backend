@@ -22,6 +22,7 @@ export class AchievementController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Создать достижение' })
   @ApiResponse({ status: 201, description: 'Достижение успешно создано' })
+  @ApiResponse({ status: 409, description: 'Достижение с таким названием уже существует' })
   create(@Body() createAchievementDto: CreateAchievementDto) {
     return this.achievementService.create(createAchievementDto);
   }
@@ -46,6 +47,7 @@ export class AchievementController {
   @ApiOperation({ summary: 'Обновить достижение' })
   @ApiResponse({ status: 200, description: 'Достижение обновлено' })
   @ApiResponse({ status: 404, description: 'Достижение не найдено' })
+  @ApiResponse({ status: 409, description: 'Достижение с таким названием уже существует' })
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateAchievementDto: UpdateAchievementDto,

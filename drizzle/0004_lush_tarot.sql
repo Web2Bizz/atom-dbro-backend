@@ -1,0 +1,1 @@
+ALTER TABLE "achievements" ADD CONSTRAINT "achievements_title_unique" UNIQUE("title");

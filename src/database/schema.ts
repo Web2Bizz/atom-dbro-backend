@@ -82,7 +82,7 @@ export const organizationHelpTypes = pgTable('organization_help_types', {
 // Достижения
 export const achievements = pgTable('achievements', {
   id: serial('id').primaryKey(),
-  title: varchar('title', { length: 255 }).notNull(),
+  title: varchar('title', { length: 255 }).notNull().unique(),
   description: text('description'),
   icon: varchar('icon', { length: 255 }),
   rarity: varchar('rarity', { length: 20 }).notNull(), // 'common' | 'epic' | 'rare' | 'legendary'
