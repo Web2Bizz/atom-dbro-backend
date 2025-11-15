@@ -36,7 +36,7 @@ export class CityService {
   }
 
   async findAll(regionId?: number) {
-    const baseQuery = this.db
+    const query = this.db
       .select({
         id: cities.id,
         name: cities.name,
@@ -54,10 +54,10 @@ export class CityService {
       .leftJoin(regions, eq(cities.regionId, regions.id));
 
     if (regionId) {
-      return baseQuery.where(eq(cities.regionId, regionId));
+      return query.where(eq(cities.regionId, regionId));
     }
 
-    return baseQuery;
+    return query;
   }
 
   async findOne(id: number) {

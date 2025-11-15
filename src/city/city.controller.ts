@@ -9,7 +9,7 @@ import {
   ParseIntPipe,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { CityService } from './city.service';
 import { CreateCityDto } from './dto/create-city.dto';
 import { UpdateCityDto } from './dto/update-city.dto';
@@ -32,6 +32,7 @@ export class CityController {
   @Get()
   @Public()
   @ApiOperation({ summary: 'Получить все города (опционально фильтр по региону)' })
+  @ApiQuery({ name: 'regionId', required: false, type: Number, description: 'ID региона для фильтрации' })
   @ApiResponse({ status: 200, description: 'Список городов' })
   findAll(@Query('regionId') regionId?: string) {
     const regionIdNum = regionId ? parseInt(regionId, 10) : undefined;
