@@ -359,14 +359,42 @@ export class OrganizationService {
   }
 
   async remove(id: number) {
+    // Проверяем существование организации и получаем данные для удаления файлов
     const [organization] = await this.db
-      .delete(organizations)
-      .where(eq(organizations.id, id))
-      .returning();
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, id));
     if (!organization) {
       throw new NotFoundException(`Организация с ID ${id} не найдена`);
     }
-    return organization;
+
+    // Удаляем связанные записи в organizationHelpTypes
+    await this.db
+      .delete(organizationHelpTypes)
+      .where(eq(organizationHelpTypes.organizationId, id));
+
+    // Удаляем связанные записи в organizationOwners
+    await this.db
+      .delete(organizationOwners)
+      .where(eq(organizationOwners.organizationId, id));
+
+    // Удаляем файлы из S3, если они есть в галерее
+    if (organization.gallery && organization.gallery.length > 0) {
+      try {
+        await this.s3Service.deleteFiles(organization.gallery);
+      } catch (error) {
+        // Логируем ошибку, но не прерываем удаление организации
+        console.error(`Ошибка при удалении файлов из S3: ${error}`);
+      }
+    }
+
+    // Удаляем саму организацию
+    const [deletedOrganization] = await this.db
+      .delete(organizations)
+      .where(eq(organizations.id, id))
+      .returning();
+
+    return deletedOrganization;
   }
 
   async addOwner(organizationId: number, userId: number) {
