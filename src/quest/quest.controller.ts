@@ -14,6 +14,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@ne
 import { QuestService } from './quest.service';
 import { CreateQuestDto } from './dto/create-quest.dto';
 import { UpdateQuestDto } from './dto/update-quest.dto';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('Квесты')
 @Controller('quests')
@@ -108,17 +109,17 @@ export class QuestController {
     return this.questService.leaveQuest(userId, questId);
   }
 
-  @Post(':id/complete/:userId')
+  @Post(':id/complete')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Завершить квест пользователем' })
+  @ApiOperation({ summary: 'Завершить квест' })
   @ApiResponse({ status: 200, description: 'Квест успешно завершен' })
   @ApiResponse({ status: 404, description: 'Пользователь или квест не найден' })
   @ApiResponse({ status: 409, description: 'Квест уже выполнен' })
   completeQuest(
     @Param('id', ParseIntPipe) questId: number,
-    @Param('userId', ParseIntPipe) userId: number,
+    @CurrentUser() user: { userId: number; email: string },
   ) {
-    return this.questService.completeQuest(userId, questId);
+    return this.questService.completeQuest(user.userId, questId);
   }
 
   @Get('user/:userId')
