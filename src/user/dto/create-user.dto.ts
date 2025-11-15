@@ -7,7 +7,6 @@ export const createUserSchema = z.object({
   middleName: z.string().max(255, 'Отчество не должно превышать 255 символов').optional(),
   email: z.string().email('Некорректный формат email').min(1, 'Email обязателен'),
   password: z.string().min(1, 'Пароль обязателен'),
-  cityId: z.number().int().positive('ID города должен быть положительным числом').optional(),
 });
 
 export type CreateUserDto = z.infer<typeof createUserSchema>;
@@ -27,8 +26,5 @@ export class CreateUserDtoClass {
 
   @ApiProperty({ description: 'Пароль', example: 'password123' })
   password: string;
-
-  @ApiProperty({ description: 'ID города', example: 1, required: false })
-  cityId?: number;
 }
 

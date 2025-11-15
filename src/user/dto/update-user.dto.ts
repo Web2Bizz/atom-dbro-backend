@@ -6,7 +6,6 @@ export const updateUserSchema = z.object({
   lastName: z.string().max(255, 'Фамилия не должна превышать 255 символов').optional(),
   middleName: z.string().max(255, 'Отчество не должно превышать 255 символов').optional(),
   email: z.string().email('Некорректный формат email').optional(),
-  cityId: z.number().int().positive('ID города должен быть положительным числом').optional(),
 });
 
 export type UpdateUserDto = z.infer<typeof updateUserSchema>;
@@ -23,8 +22,5 @@ export class UpdateUserDtoClass {
 
   @ApiProperty({ description: 'Email', example: 'ivan@example.com', required: false })
   email?: string;
-
-  @ApiProperty({ description: 'ID города', example: 1, required: false })
-  cityId?: number;
 }
 

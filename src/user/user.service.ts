@@ -1,7 +1,7 @@
 import { Injectable, Inject, NotFoundException, ConflictException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { users, cities, regions } from '../database/schema';
+import { users } from '../database/schema';
 import { eq } from 'drizzle-orm';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -24,17 +24,6 @@ export class UserService {
       throw new ConflictException('Пользователь с таким email уже существует');
     }
 
-    // Проверяем существование города, если указан
-    if (createUserDto.cityId) {
-      const [city] = await this.db
-        .select()
-        .from(cities)
-        .where(eq(cities.id, createUserDto.cityId));
-      if (!city) {
-        throw new NotFoundException(`Город с ID ${createUserDto.cityId} не найден`);
-      }
-    }
-
     // Хешируем пароль
     const passwordHash = await bcrypt.hash(createUserDto.password, 10);
 
@@ -46,7 +35,6 @@ export class UserService {
         middleName: createUserDto.middleName,
         email: createUserDto.email,
         passwordHash,
-        cityId: createUserDto.cityId,
         level: 1,
         experience: 0,
       })
@@ -64,20 +52,10 @@ export class UserService {
         email: users.email,
         level: users.level,
         experience: users.experience,
-        city: {
-          id: cities.id,
-          name: cities.name,
-        },
-        region: {
-          id: regions.id,
-          name: regions.name,
-        },
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
       })
-      .from(users)
-      .leftJoin(cities, eq(users.cityId, cities.id))
-      .leftJoin(regions, eq(cities.regionId, regions.id));
+      .from(users);
   }
 
   async findOne(id: number) {
@@ -90,20 +68,10 @@ export class UserService {
         email: users.email,
         level: users.level,
         experience: users.experience,
-        city: {
-          id: cities.id,
-          name: cities.name,
-        },
-        region: {
-          id: regions.id,
-          name: regions.name,
-        },
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
       })
       .from(users)
-      .leftJoin(cities, eq(users.cityId, cities.id))
-      .leftJoin(regions, eq(cities.regionId, regions.id))
       .where(eq(users.id, id));
     if (!user) {
       throw new NotFoundException(`Пользователь с ID ${id} не найден`);
@@ -127,16 +95,6 @@ export class UserService {
         .where(eq(users.email, updateUserDto.email));
       if (existingUser && existingUser.id !== id) {
         throw new ConflictException('Пользователь с таким email уже существует');
-      }
-    }
-
-    if (updateUserDto.cityId) {
-      const [city] = await this.db
-        .select()
-        .from(cities)
-        .where(eq(cities.id, updateUserDto.cityId));
-      if (!city) {
-        throw new NotFoundException(`Город с ID ${updateUserDto.cityId} не найден`);
       }
     }
 
