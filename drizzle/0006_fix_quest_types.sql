@@ -5,6 +5,21 @@ DECLARE
     constraint_name text;
     max_val bigint;
 BEGIN
+    -- Сначала убеждаемся, что таблица quests существует
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'quests') THEN
+        RAISE EXCEPTION 'Таблица quests не существует. Сначала примените миграцию 0005_chief_namor.sql';
+    END IF;
+    
+    -- Создаем колонку achievement_id, если её нет
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quests' AND column_name = 'achievement_id') THEN
+        ALTER TABLE quests ADD COLUMN achievement_id integer;
+    END IF;
+    
+    -- Создаем колонку owner_id, если её нет
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quests' AND column_name = 'owner_id') THEN
+        ALTER TABLE quests ADD COLUMN owner_id integer;
+    END IF;
+    
     -- Проверяем и исправляем achievement_id
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quests' AND column_name = 'achievement_id') THEN
         -- Получаем текущий тип колонки (udt_name более точный, чем data_type)
@@ -130,16 +145,26 @@ BEGIN
     END IF;
 END $$;
 --> statement-breakpoint
--- Восстанавливаем внешние ключи
+-- Восстанавливаем внешние ключи только если колонки существуют
 DO $$ BEGIN
- ALTER TABLE "quests" ADD CONSTRAINT "quests_achievement_id_achievements_id_fk" FOREIGN KEY ("achievement_id") REFERENCES "achievements"("id") ON DELETE no action ON UPDATE no action;
+    -- Проверяем существование колонки achievement_id перед созданием внешнего ключа
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quests' AND column_name = 'achievement_id') THEN
+        ALTER TABLE "quests" ADD CONSTRAINT "quests_achievement_id_achievements_id_fk" FOREIGN KEY ("achievement_id") REFERENCES "achievements"("id") ON DELETE no action ON UPDATE no action;
+    END IF;
 EXCEPTION
  WHEN duplicate_object THEN null;
+ WHEN undefined_table THEN null;
+ WHEN undefined_column THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "quests" ADD CONSTRAINT "quests_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "users"("id") ON DELETE no action ON UPDATE no action;
+    -- Проверяем существование колонки owner_id перед созданием внешнего ключа
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quests' AND column_name = 'owner_id') THEN
+        ALTER TABLE "quests" ADD CONSTRAINT "quests_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "users"("id") ON DELETE no action ON UPDATE no action;
+    END IF;
 EXCEPTION
  WHEN duplicate_object THEN null;
+ WHEN undefined_table THEN null;
+ WHEN undefined_column THEN null;
 END $$;
 
