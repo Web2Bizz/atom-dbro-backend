@@ -6,7 +6,7 @@ export const updateAchievementSchema = z.object({
   description: z.string().optional(),
   icon: z.string().max(255, 'Иконка не должна превышать 255 символов').optional(),
   rarity: z.enum(['common', 'epic', 'rare', 'legendary', 'private'], {
-    errorMap: () => ({ message: 'Редкость должна быть одним из: common, epic, rare, legendary, private' }),
+    message: 'Редкость должна быть одним из: common, epic, rare, legendary, private',
   }).optional(),
 });
 
