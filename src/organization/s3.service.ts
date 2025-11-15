@@ -92,6 +92,51 @@ export class S3Service {
   }
 
   /**
+   * Загружает одно изображение в S3 хранилище и возвращает информацию о файле
+   * @param file - файл изображения
+   * @param folder - папка для сохранения (например, 'uploads', 'images')
+   * @returns объект с именем файла и полным URL
+   */
+  async uploadImageWithUrl(
+    file: { buffer: Buffer; originalname: string; mimetype: string },
+    folder: string = 'uploads',
+  ): Promise<{ fileName: string; url: string }> {
+    const fileExtension = file.originalname.split('.').pop();
+    const fileName = `${folder}/${uuidv4()}.${fileExtension}`;
+
+    const command = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: fileName,
+      Body: file.buffer,
+      ContentType: file.mimetype,
+      ACL: 'public-read',
+    });
+
+    await this.s3Client.send(command);
+
+    const url = this.getPublicUrl(fileName);
+
+    return {
+      fileName,
+      url,
+    };
+  }
+
+  /**
+   * Загружает несколько изображений в S3 хранилище и возвращает информацию о файлах
+   * @param files - массив файлов изображений
+   * @param folder - папка для сохранения (например, 'uploads', 'images')
+   * @returns массив объектов с именем файла и полным URL
+   */
+  async uploadMultipleImagesWithUrl(
+    files: Array<{ buffer: Buffer; originalname: string; mimetype: string }>,
+    folder: string = 'uploads',
+  ): Promise<Array<{ fileName: string; url: string }>> {
+    const uploadPromises = files.map((file) => this.uploadImageWithUrl(file, folder));
+    return Promise.all(uploadPromises);
+  }
+
+  /**
    * Генерирует публичный URL для файла на основе его имени (ключа в S3)
    * @param fileName - имя файла (ключ в S3)
    * @returns публичный URL файла
