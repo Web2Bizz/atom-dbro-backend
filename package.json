@@ -12,6 +12,7 @@
     "start:prod": "node dist/main",
     "db:generate": "drizzle-kit generate:pg",
     "db:migrate": "drizzle-kit push:pg --config=drizzle.config.ts",
+    "db:apply-migration": "ts-node src/scripts/apply-migration.ts",
     "db:studio": "drizzle-kit studio",
     "import:cities": "ts-node src/scripts/import-cities.ts",
     "import:organizations": "ts-node src/scripts/import-organizations.ts"

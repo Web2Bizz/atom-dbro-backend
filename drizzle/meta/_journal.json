@@ -43,6 +43,13 @@
       "when": 1763197198670,
       "tag": "0005_chief_namor",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1763200000000,
+      "tag": "0006_fix_quest_types",
+      "breakpoints": true
     }
   ]
 }
