@@ -153,11 +153,15 @@ export class S3Service {
 
   /**
    * Генерирует публичный URL для файла на основе его имени (ключа в S3)
-   * @param fileName - имя файла (ключ в S3)
+   * @param fileName - имя файла (ключ в S3) или уже полный URL
    * @returns публичный URL файла
    */
   getImageUrl(fileName: string): string {
     if (!fileName) return '';
+    // Если это уже полный URL, возвращаем как есть
+    if (fileName.startsWith('http://') || fileName.startsWith('https://')) {
+      return fileName;
+    }
     return this.getPublicUrl(fileName);
   }
 
