@@ -162,8 +162,8 @@ export class OrganizationController {
       throw new BadRequestException('Необходимо загрузить хотя бы одно изображение');
     }
 
-    const imageUrls = await this.s3Service.uploadMultipleImages(files, organizationId);
-    return this.organizationService.addImagesToGallery(organizationId, imageUrls);
+    const imageFileNames = await this.s3Service.uploadMultipleImages(files, organizationId);
+    return this.organizationService.addImagesToGallery(organizationId, imageFileNames);
   }
 
   @Delete(':id/gallery')
@@ -173,9 +173,9 @@ export class OrganizationController {
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   removeImage(
     @Param('id', ParseIntPipe) organizationId: number,
-    @Body('imageUrl') imageUrl: string,
+    @Body('fileName') fileName: string,
   ) {
-    return this.organizationService.removeImageFromGallery(organizationId, imageUrl);
+    return this.organizationService.removeImageFromGallery(organizationId, fileName);
   }
 }
 

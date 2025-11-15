@@ -12,12 +12,14 @@ import {
 import { eq, and, inArray } from 'drizzle-orm';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
+import { S3Service } from './s3.service';
 
 @Injectable()
 export class OrganizationService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private db: NodePgDatabase,
+    private s3Service: S3Service,
   ) {}
 
   async create(createOrganizationDto: CreateOrganizationDto, userId: number) {
@@ -138,7 +140,7 @@ export class OrganizationService {
       address: org.address,
       contacts: org.contacts,
       organizationTypes: org.organizationTypes,
-      gallery: org.gallery,
+      gallery: org.gallery ? this.s3Service.getImageUrls(org.gallery) : [],
       createdAt: org.createdAt,
       updatedAt: org.updatedAt,
       city: org.cityName ? {
@@ -204,7 +206,7 @@ export class OrganizationService {
       address: orgData.address,
       contacts: orgData.contacts,
       organizationTypes: orgData.organizationTypes,
-      gallery: orgData.gallery,
+      gallery: orgData.gallery ? this.s3Service.getImageUrls(orgData.gallery) : [],
       createdAt: orgData.createdAt,
       updatedAt: orgData.updatedAt,
       city: orgData.cityName ? {
@@ -406,7 +408,7 @@ export class OrganizationService {
     return { message: 'Вид помощи успешно удален' };
   }
 
-  async addImagesToGallery(organizationId: number, imageUrls: string[]) {
+  async addImagesToGallery(organizationId: number, imageFileNames: string[]) {
     // Проверяем существование организации
     const [organization] = await this.db
       .select()
@@ -418,7 +420,7 @@ export class OrganizationService {
 
     // Получаем текущую галерею или создаем пустой массив
     const currentGallery = organization.gallery || [];
-    const updatedGallery = [...currentGallery, ...imageUrls];
+    const updatedGallery = [...currentGallery, ...imageFileNames];
 
     // Обновляем галерею
     const [updated] = await this.db
@@ -433,7 +435,7 @@ export class OrganizationService {
     return updated;
   }
 
-  async removeImageFromGallery(organizationId: number, imageUrl: string) {
+  async removeImageFromGallery(organizationId: number, imageFileName: string) {
     // Проверяем существование организации
     const [organization] = await this.db
       .select()
@@ -445,7 +447,7 @@ export class OrganizationService {
 
     // Получаем текущую галерею
     const currentGallery = organization.gallery || [];
-    const updatedGallery = currentGallery.filter((url) => url !== imageUrl);
+    const updatedGallery = currentGallery.filter((fileName) => fileName !== imageFileName);
 
     // Обновляем галерею
     const [updated] = await this.db
