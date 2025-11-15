@@ -34,15 +34,57 @@ export class OrganizationController {
   ) {}
 
   @Post()
+  @UseInterceptors(FilesInterceptor('images', 20)) // Максимум 20 файлов
   @ApiOperation({ summary: 'Создать организацию' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', example: 'Благотворительный фонд' },
+        cityId: { type: 'number', example: 1 },
+        latitude: { type: 'number', example: 55.7558, required: false },
+        longitude: { type: 'number', example: 37.6173, required: false },
+        summary: { type: 'string', required: false },
+        mission: { type: 'string', required: false },
+        description: { type: 'string', required: false },
+        goals: { type: 'array', items: { type: 'string' }, required: false },
+        needs: { type: 'array', items: { type: 'string' }, required: false },
+        address: { type: 'string', required: false },
+        contacts: { type: 'array', items: { type: 'object' }, required: false },
+        organizationTypes: { type: 'array', items: { type: 'string' }, required: false },
+        images: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+          required: false,
+        },
+      },
+    },
+  })
   @ApiResponse({ status: 201, description: 'Организация успешно создана' })
   @ApiResponse({ status: 400, description: 'Неверные данные' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
-  create(
+  async create(
     @Body() createOrganizationDto: CreateOrganizationDto,
+    @UploadedFiles() files: Array<Express.Multer.File> | undefined,
     @CurrentUser() user: { userId: number; email: string },
   ) {
-    return this.organizationService.create(createOrganizationDto, user.userId);
+    // Создаем организацию
+    const organization = await this.organizationService.create(createOrganizationDto, user.userId);
+
+    // Если есть загруженные файлы, добавляем их в галерею
+    if (files && files.length > 0) {
+      const imageUrls = await this.s3Service.uploadMultipleImages(files, organization.id);
+      await this.organizationService.addImagesToGallery(organization.id, imageUrls);
+      
+      // Получаем обновленную организацию с галереей
+      return this.organizationService.findOne(organization.id);
+    }
+
+    return organization;
   }
 
   @Get()
