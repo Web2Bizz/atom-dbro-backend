@@ -31,8 +31,7 @@ POSTGRES_DB=atom_dbro
 POSTGRES_PORT=5432
 
 # Приложение
-APP_PORT=3000
-# PORT автоматически устанавливается из APP_PORT в docker-compose.yml
+PORT=3000
 
 # JWT
 JWT_SECRET=your-secret-key-change-in-production
@@ -40,9 +39,25 @@ JWT_EXPIRES_IN=24h
 
 # Database URL (автоматически формируется из переменных выше)
 DATABASE_URL=postgresql://postgres:postgres@postgres:5432/atom_dbro
+
+# S3 Configuration (ОБЯЗАТЕЛЬНО)
+S3_BUCKET_NAME=your-bucket-name
+S3_ACCESS_KEY_ID=your-access-key-id
+S3_SECRET_ACCESS_KEY=your-secret-access-key
+S3_REGION=us-east-1
+
+# S3 Configuration (опционально, для кастомных провайдеров)
+# S3_ENDPOINT=https://s3.ru1.storage.beget.cloud
+# S3_PUBLIC_URL_TEMPLATE=https://{bucket}.s3.{region}.amazonaws.com/{key}
+# S3_FORCE_PATH_STYLE=true
 ```
 
-**⚠️ ВАЖНО**: В продакшене обязательно измените `JWT_SECRET` и `POSTGRES_PASSWORD` на безопасные значения!
+**⚠️ ВАЖНО**: 
+- В продакшене обязательно измените `JWT_SECRET` и `POSTGRES_PASSWORD` на безопасные значения!
+- **S3 переменные обязательны** - приложение не запустится без них. Укажите как минимум:
+  - `S3_BUCKET_NAME`
+  - `S3_ACCESS_KEY_ID` (или `AWS_ACCESS_KEY_ID`)
+  - `S3_SECRET_ACCESS_KEY` (или `AWS_SECRET_ACCESS_KEY`)
 
 ### 3. Сборка и запуск контейнеров
 

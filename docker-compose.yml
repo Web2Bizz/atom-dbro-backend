@@ -26,11 +26,11 @@ services:
     container_name: atom-dbro-app
     ports:
       - "3000:3000"
+    env_file:
+      - .env  # Загружаем переменные из .env файла
     environment:
-      PORT: 3000
+      PORT: ${PORT:-3000}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-atom_dbro}
-      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
     depends_on:
       postgres:
         condition: service_healthy
