@@ -11,9 +11,12 @@ import {
   BadRequestException,
   UseGuards,
   UnauthorizedException,
+  Sse,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { Observable } from 'rxjs';
 import { QuestService } from './quest.service';
+import { QuestEventsService } from './quest.events';
 import { CreateQuestDto } from './dto/create-quest.dto';
 import { UpdateQuestDto } from './dto/update-quest.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -22,7 +25,10 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @ApiTags('Квесты')
 @Controller('quests')
 export class QuestController {
-  constructor(private readonly questService: QuestService) {}
+  constructor(
+    private readonly questService: QuestService,
+    private readonly questEventsService: QuestEventsService,
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -161,6 +167,22 @@ export class QuestController {
   @ApiResponse({ status: 404, description: 'Пользователь не найден' })
   getAvailableQuests(@Param('userId', ParseIntPipe) userId: number) {
     return this.questService.getAvailableQuests(userId);
+  }
+
+  @Get('events')
+  @Sse('events')
+  @ApiOperation({ summary: 'Подписаться на события квестов (Server-Sent Events)' })
+  @ApiResponse({ status: 200, description: 'Поток событий квестов' })
+  streamQuestEvents(): Observable<MessageEvent> {
+    return this.questEventsService.getQuestEvents();
+  }
+
+  @Get('events/:questId')
+  @Sse('events/:questId')
+  @ApiOperation({ summary: 'Подписаться на события конкретного квеста (Server-Sent Events)' })
+  @ApiResponse({ status: 200, description: 'Поток событий для конкретного квеста' })
+  streamQuestEventsByQuestId(@Param('questId', ParseIntPipe) questId: number): Observable<MessageEvent> {
+    return this.questEventsService.getQuestEventsByQuestId(questId);
   }
 }
 

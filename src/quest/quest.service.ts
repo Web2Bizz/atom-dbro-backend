@@ -5,12 +5,14 @@ import { quests, userQuests, users, achievements, userAchievements } from '../da
 import { eq, and, ne } from 'drizzle-orm';
 import { CreateQuestDto } from './dto/create-quest.dto';
 import { UpdateQuestDto } from './dto/update-quest.dto';
+import { QuestEventsService } from './quest.events';
 
 @Injectable()
 export class QuestService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private db: NodePgDatabase,
+    private questEventsService: QuestEventsService,
   ) {}
 
   async create(createQuestDto: CreateQuestDto, userId: number) {
@@ -96,6 +98,9 @@ export class QuestService {
       .innerJoin(achievements, eq(quests.achievementId, achievements.id))
       .innerJoin(users, eq(quests.ownerId, users.id))
       .where(eq(quests.id, quest.id));
+
+    // Эмитим событие создания квеста
+    this.questEventsService.emitQuestCreated(quest.id, questWithAchievement);
 
     return questWithAchievement;
   }
@@ -324,6 +329,21 @@ export class QuestService {
     if (!userQuest) {
       throw new Error('Не удалось присоединиться к квесту');
     }
+
+    // Получаем данные пользователя для события
+    const [userData] = await this.db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+      })
+      .from(users)
+      .where(eq(users.id, userId));
+
+    // Эмитим событие присоединения пользователя
+    this.questEventsService.emitUserJoined(questId, userId, userData || {});
+
     return userQuest;
   }
 
@@ -454,6 +474,20 @@ export class QuestService {
           achievementId: quest.achievementId,
         });
     }
+
+    // Получаем данные квеста для события
+    const [questData] = await this.db
+      .select({
+        id: quests.id,
+        title: quests.title,
+        status: quests.status,
+        experienceReward: quests.experienceReward,
+      })
+      .from(quests)
+      .where(eq(quests.id, questId));
+
+    // Эмитим событие завершения квеста
+    this.questEventsService.emitQuestCompleted(questId, userId, questData || {});
 
     return completedQuest;
   }
