@@ -1,7 +1,7 @@
 import { Injectable, Inject, NotFoundException, ConflictException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { users, quests, organizations } from '../database/schema';
+import { users } from '../database/schema';
 import { eq } from 'drizzle-orm';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -24,28 +24,6 @@ export class UserService {
       .where(eq(users.email, createUserDto.email));
     if (existingUser) {
       throw new ConflictException('Пользователь с таким email уже существует');
-    }
-
-    // Проверяем существование квеста, если указан
-    if (createUserDto.questId !== undefined && createUserDto.questId !== null) {
-      const [quest] = await this.db
-        .select()
-        .from(quests)
-        .where(eq(quests.id, createUserDto.questId));
-      if (!quest) {
-        throw new NotFoundException(`Квест с ID ${createUserDto.questId} не найден`);
-      }
-    }
-
-    // Проверяем существование организации, если указана
-    if (createUserDto.organisationId !== undefined && createUserDto.organisationId !== null) {
-      const [organisation] = await this.db
-        .select()
-        .from(organizations)
-        .where(eq(organizations.id, createUserDto.organisationId));
-      if (!organisation) {
-        throw new NotFoundException(`Организация с ID ${createUserDto.organisationId} не найдена`);
-      }
     }
 
     // Хешируем пароль
@@ -137,32 +115,6 @@ export class UserService {
         .where(eq(users.email, updateUserDto.email));
       if (existingUser && existingUser.id !== id) {
         throw new ConflictException('Пользователь с таким email уже существует');
-      }
-    }
-
-    // Проверяем существование квеста, если указан
-    if (updateUserDto.questId !== undefined) {
-      if (updateUserDto.questId !== null) {
-        const [quest] = await this.db
-          .select()
-          .from(quests)
-          .where(eq(quests.id, updateUserDto.questId));
-        if (!quest) {
-          throw new NotFoundException(`Квест с ID ${updateUserDto.questId} не найден`);
-        }
-      }
-    }
-
-    // Проверяем существование организации, если указана
-    if (updateUserDto.organisationId !== undefined) {
-      if (updateUserDto.organisationId !== null) {
-        const [organisation] = await this.db
-          .select()
-          .from(organizations)
-          .where(eq(organizations.id, updateUserDto.organisationId));
-        if (!organisation) {
-          throw new NotFoundException(`Организация с ID ${updateUserDto.organisationId} не найдена`);
-        }
       }
     }
 
