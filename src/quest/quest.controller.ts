@@ -9,12 +9,15 @@ import {
   Query,
   ParseIntPipe,
   BadRequestException,
+  UseGuards,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { QuestService } from './quest.service';
 import { CreateQuestDto } from './dto/create-quest.dto';
 import { UpdateQuestDto } from './dto/update-quest.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Квесты')
 @Controller('quests')
@@ -22,14 +25,19 @@ export class QuestController {
   constructor(private readonly questService: QuestService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Создать квест' })
   @ApiResponse({ status: 201, description: 'Квест успешно создан' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 403, description: 'Недостаточный уровень для создания квеста (требуется уровень 5+)' })
   create(
     @Body() createQuestDto: CreateQuestDto,
-    @CurrentUser() user: { userId: number; email: string },
+    @CurrentUser() user: { userId: number; email: string } | undefined,
   ) {
+    if (!user || !user.userId) {
+      throw new UnauthorizedException('Требуется аутентификация');
+    }
     return this.questService.create(createQuestDto, user.userId);
   }
 
@@ -66,9 +74,11 @@ export class QuestController {
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Обновить квест' })
   @ApiResponse({ status: 200, description: 'Квест обновлен' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 404, description: 'Квест не найден' })
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -78,18 +88,22 @@ export class QuestController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Удалить квест' })
   @ApiResponse({ status: 200, description: 'Квест удален' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 404, description: 'Квест не найден' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.questService.remove(id);
   }
 
   @Post(':id/join/:userId')
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Присоединиться к квесту' })
   @ApiResponse({ status: 201, description: 'Пользователь успешно присоединился к квесту' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 404, description: 'Пользователь или квест не найден' })
   @ApiResponse({ status: 409, description: 'Пользователь уже присоединился к этому квесту' })
   @ApiResponse({ status: 400, description: 'Квест не доступен для выполнения' })
@@ -101,9 +115,11 @@ export class QuestController {
   }
 
   @Post(':id/leave/:userId')
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Покинуть квест' })
   @ApiResponse({ status: 200, description: 'Пользователь успешно покинул квест' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 404, description: 'Пользователь или квест не найден, либо пользователь не участвует в квесте' })
   @ApiResponse({ status: 400, description: 'Нельзя покинуть уже завершенный квест' })
   leaveQuest(
@@ -114,15 +130,20 @@ export class QuestController {
   }
 
   @Post(':id/complete')
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Завершить квест' })
   @ApiResponse({ status: 200, description: 'Квест успешно завершен' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 404, description: 'Пользователь или квест не найден' })
   @ApiResponse({ status: 409, description: 'Квест уже выполнен' })
   completeQuest(
     @Param('id', ParseIntPipe) questId: number,
-    @CurrentUser() user: { userId: number; email: string },
+    @CurrentUser() user: { userId: number; email: string } | undefined,
   ) {
+    if (!user || !user.userId) {
+      throw new UnauthorizedException('Требуется аутентификация');
+    }
     return this.questService.completeQuest(user.userId, questId);
   }
 
