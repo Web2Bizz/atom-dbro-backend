@@ -99,6 +99,33 @@ export class QuestService {
       .innerJoin(users, eq(quests.ownerId, users.id))
       .where(eq(quests.id, quest.id));
 
+    // Автоматически присоединяем создателя к квесту
+    const userQuestResult = await this.db
+      .insert(userQuests)
+      .values({
+        userId,
+        questId: quest.id,
+        status: 'in_progress',
+      })
+      .returning();
+    const userQuest = Array.isArray(userQuestResult) ? userQuestResult[0] : userQuestResult;
+    
+    if (userQuest) {
+      // Получаем данные пользователя для события присоединения
+      const [userData] = await this.db
+        .select({
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+        })
+        .from(users)
+        .where(eq(users.id, userId));
+
+      // Эмитим событие присоединения пользователя
+      this.questEventsService.emitUserJoined(quest.id, userId, userData || {});
+    }
+
     // Эмитим событие создания квеста
     this.questEventsService.emitQuestCreated(quest.id, questWithAchievement);
 
