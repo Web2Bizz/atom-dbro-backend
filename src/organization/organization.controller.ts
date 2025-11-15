@@ -11,9 +11,12 @@ import {
   UseInterceptors,
   UploadedFiles,
   BadRequestException,
+  Res,
+  NotFoundException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { Response } from 'express';
 import { OrganizationService } from './organization.service';
 import { S3Service } from './s3.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
@@ -134,7 +137,9 @@ export class OrganizationController {
   }
 
   @Post(':id/gallery')
-  @UseInterceptors(FilesInterceptor('images'))
+  @UseInterceptors(
+    FilesInterceptor('images', 20), // Максимум 20 файлов
+  )
   @ApiOperation({ summary: 'Загрузить изображения в галерею организации' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -162,6 +167,35 @@ export class OrganizationController {
       throw new BadRequestException('Необходимо загрузить хотя бы одно изображение');
     }
 
+    // Валидация файлов
+    const maxFileSize = 10 * 1024 * 1024; // 10MB
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+
+    files.forEach((file, index) => {
+      // Проверка размера файла
+      if (file.size > maxFileSize) {
+        throw new BadRequestException(
+          `Файл "${file.originalname}" (${index + 1}) превышает максимальный размер 10MB`,
+        );
+      }
+
+      // Проверка типа файла
+      if (!allowedMimeTypes.includes(file.mimetype)) {
+        throw new BadRequestException(
+          `Файл "${file.originalname}" (${index + 1}) имеет недопустимый тип. Разрешены только: ${allowedMimeTypes.join(', ')}`,
+        );
+      }
+
+      // Проверка расширения файла
+      const fileExtension = file.originalname.split('.').pop()?.toLowerCase();
+      if (!fileExtension || !allowedExtensions.includes(fileExtension)) {
+        throw new BadRequestException(
+          `Файл "${file.originalname}" (${index + 1}) имеет недопустимое расширение. Разрешены только: ${allowedExtensions.join(', ')}`,
+        );
+      }
+    });
+
     const imageFileNames = await this.s3Service.uploadMultipleImages(files, organizationId);
     return this.organizationService.addImagesToGallery(organizationId, imageFileNames);
   }
@@ -176,6 +210,41 @@ export class OrganizationController {
     @Body('fileName') fileName: string,
   ) {
     return this.organizationService.removeImageFromGallery(organizationId, fileName);
+  }
+
+  @Get(':id/gallery/:fileName')
+  @ApiOperation({ summary: 'Получить изображение из галереи организации (шлюз)' })
+  @ApiResponse({ status: 200, description: 'Изображение найдено', content: { 'image/*': {} } })
+  @ApiResponse({ status: 404, description: 'Изображение не найдено' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
+  async getImage(
+    @Param('id', ParseIntPipe) organizationId: number,
+    @Param('fileName') fileName: string,
+    @Res() res: Response,
+  ) {
+    // Проверяем, что организация существует и файл принадлежит ей
+    // Используем метод сервиса для проверки файла в галерее
+    const fullFileName = `organizations/${organizationId}/${decodeURIComponent(fileName)}`;
+    const isValid = await this.organizationService.checkImageInGallery(organizationId, fullFileName);
+    
+    if (!isValid) {
+      throw new NotFoundException('Изображение не найдено в галерее организации');
+    }
+
+    try {
+      // Получаем файл из S3
+      const file = await this.s3Service.getFile(fullFileName);
+      
+      // Устанавливаем заголовки
+      res.setHeader('Content-Type', file.contentType);
+      res.setHeader('Content-Length', file.body.length);
+      res.setHeader('Cache-Control', 'public, max-age=31536000'); // Кеш на 1 год
+      
+      // Отправляем файл
+      res.send(file.body);
+    } catch (error) {
+      throw new NotFoundException('Изображение не найдено в хранилище');
+    }
   }
 }
 

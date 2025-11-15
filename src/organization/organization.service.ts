@@ -461,5 +461,25 @@ export class OrganizationService {
 
     return updated;
   }
+
+  /**
+   * Проверяет, существует ли изображение в галерее организации
+   * @param organizationId - ID организации
+   * @param fileName - имя файла (ключ в S3)
+   * @returns true, если файл есть в галерее
+   */
+  async checkImageInGallery(organizationId: number, fileName: string): Promise<boolean> {
+    const [organization] = await this.db
+      .select({ gallery: organizations.gallery })
+      .from(organizations)
+      .where(eq(organizations.id, organizationId));
+    
+    if (!organization) {
+      return false;
+    }
+
+    const gallery = organization.gallery || [];
+    return gallery.includes(fileName);
+  }
 }
 

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -109,6 +109,36 @@ export class S3Service {
   getImageUrls(fileNames: string[]): string[] {
     if (!fileNames || fileNames.length === 0) return [];
     return fileNames.map((fileName) => this.getImageUrl(fileName));
+  }
+
+  /**
+   * Получает файл из S3 хранилища
+   * @param fileName - имя файла (ключ в S3)
+   * @returns объект с данными файла (Buffer и ContentType)
+   */
+  async getFile(fileName: string): Promise<{ body: Buffer; contentType: string }> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: fileName,
+    });
+
+    const response = await this.s3Client.send(command);
+    
+    // Конвертируем stream в Buffer
+    const chunks: Uint8Array[] = [];
+    if (response.Body) {
+      for await (const chunk of response.Body as any) {
+        chunks.push(chunk);
+      }
+    }
+    
+    const buffer = Buffer.concat(chunks);
+    const contentType = response.ContentType || 'application/octet-stream';
+
+    return {
+      body: buffer,
+      contentType,
+    };
   }
 
   /**
