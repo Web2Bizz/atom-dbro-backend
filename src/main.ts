@@ -51,7 +51,144 @@ async function bootstrap() {
       .build();
 
     const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api', app, document);
+    SwaggerModule.setup('api', app, document, {
+      customCss: `
+        .swagger-ui {
+          color: #e0e0e0;
+        }
+        .swagger-ui .topbar {
+          background-color: #1a1a1a;
+          border-bottom: 1px solid #333;
+        }
+        .swagger-ui .topbar .download-url-wrapper {
+          background-color: #1a1a1a;
+        }
+        .swagger-ui .topbar .download-url-wrapper input[type=text] {
+          border: 1px solid #444;
+          background-color: #2a2a2a;
+          color: #e0e0e0;
+        }
+        .swagger-ui .info {
+          background-color: #1a1a1a;
+          color: #e0e0e0;
+        }
+        .swagger-ui .info .title {
+          color: #e0e0e0;
+        }
+        .swagger-ui .info p, .swagger-ui .info table {
+          color: #d0d0d0;
+        }
+        .swagger-ui .scheme-container {
+          background-color: #1a1a1a;
+        }
+        .swagger-ui .btn {
+          background-color: #3b82f6;
+          color: #fff;
+        }
+        .swagger-ui .btn:hover {
+          background-color: #2563eb;
+        }
+        .swagger-ui .opblock {
+          background-color: #2a2a2a;
+          border-color: #444;
+        }
+        .swagger-ui .opblock.opblock-post {
+          background-color: #2a2a2a;
+          border-color: #49cc90;
+        }
+        .swagger-ui .opblock.opblock-get {
+          background-color: #2a2a2a;
+          border-color: #61affe;
+        }
+        .swagger-ui .opblock.opblock-put {
+          background-color: #2a2a2a;
+          border-color: #fca130;
+        }
+        .swagger-ui .opblock.opblock-delete {
+          background-color: #2a2a2a;
+          border-color: #f93e3e;
+        }
+        .swagger-ui .opblock .opblock-summary {
+          color: #e0e0e0;
+        }
+        .swagger-ui .opblock .opblock-section {
+          background-color: #1a1a1a;
+        }
+        .swagger-ui .opblock .opblock-description-wrapper p,
+        .swagger-ui .opblock .opblock-description-wrapper h4 {
+          color: #e0e0e0;
+        }
+        .swagger-ui .parameter__name {
+          color: #e0e0e0;
+        }
+        .swagger-ui .parameter__type {
+          color: #9ca3af;
+        }
+        .swagger-ui .parameter__in {
+          color: #9ca3af;
+        }
+        .swagger-ui .response-col_status {
+          color: #e0e0e0;
+        }
+        .swagger-ui .response-col_description {
+          color: #d0d0d0;
+        }
+        .swagger-ui .model-box {
+          background-color: #1a1a1a;
+        }
+        .swagger-ui .model-title {
+          color: #e0e0e0;
+        }
+        .swagger-ui .prop-name {
+          color: #60a5fa;
+        }
+        .swagger-ui .prop-type {
+          color: #f472b6;
+        }
+        .swagger-ui table thead tr td,
+        .swagger-ui table thead tr th {
+          background-color: #2a2a2a;
+          color: #e0e0e0;
+          border-color: #444;
+        }
+        .swagger-ui table tbody tr td {
+          background-color: #1a1a1a;
+          color: #e0e0e0;
+          border-color: #444;
+        }
+        .swagger-ui input[type=text],
+        .swagger-ui input[type=password],
+        .swagger-ui input[type=search],
+        .swagger-ui textarea {
+          background-color: #2a2a2a;
+          border-color: #444;
+          color: #e0e0e0;
+        }
+        .swagger-ui select {
+          background-color: #2a2a2a;
+          border-color: #444;
+          color: #e0e0e0;
+        }
+        .swagger-ui .response-content-type {
+          color: #9ca3af;
+        }
+        .swagger-ui .highlight-code {
+          background-color: #1e1e1e;
+        }
+        .swagger-ui .microlight {
+          background-color: #1e1e1e;
+          color: #d4d4d4;
+        }
+        .swagger-ui .renderedMarkdown p,
+        .swagger-ui .renderedMarkdown code {
+          color: #e0e0e0;
+        }
+        body {
+          background-color: #1a1a1a;
+        }
+      `,
+      customSiteTitle: 'Atom DBRO Backend API',
+    });
     console.log('Swagger configured');
 
     const port = process.env.PORT || 3000;
