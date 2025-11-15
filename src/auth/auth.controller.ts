@@ -1,4 +1,4 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -10,12 +10,13 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  @HttpCode(201)
   @ApiOperation({ summary: 'Регистрация пользователя' })
   @ApiResponse({ status: 201, description: 'Пользователь успешно зарегистрирован' })
   @ApiResponse({ status: 400, description: 'Неверные данные' })
   @ApiResponse({ status: 409, description: 'Пользователь с таким email уже существует' })
-  register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
+  async register(@Body() registerDto: RegisterDto): Promise<void> {
+    await this.authService.register(registerDto);
   }
 
   @Post('login')

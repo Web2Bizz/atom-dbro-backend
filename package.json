@@ -13,7 +13,8 @@
     "db:generate": "drizzle-kit generate:pg",
     "db:migrate": "drizzle-kit push:pg --config=drizzle.config.ts",
     "db:studio": "drizzle-kit studio",
-    "import:cities": "ts-node src/scripts/import-cities.ts"
+    "import:cities": "ts-node src/scripts/import-cities.ts",
+    "import:organizations": "ts-node src/scripts/import-organizations.ts"
   },
   "repository": {
     "type": "git",

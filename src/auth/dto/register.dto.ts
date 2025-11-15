@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsEmail, IsOptional, IsNumber, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
+import { Match } from '../decorators/match.decorator';
 
 export class RegisterDto {
   @ApiProperty({ description: 'Имя', example: 'Иван' })
@@ -30,6 +31,12 @@ export class RegisterDto {
   @IsString()
   @IsNotEmpty()
   password: string;
+
+  @ApiProperty({ description: 'Подтверждение пароля', example: 'password123' })
+  @IsString()
+  @IsNotEmpty()
+  @Match('password', { message: 'Пароль и подтверждение пароля должны совпадать' })
+  confirmPassword: string;
 
   @ApiProperty({ description: 'ID города', example: 1, required: false })
   @IsNumber()

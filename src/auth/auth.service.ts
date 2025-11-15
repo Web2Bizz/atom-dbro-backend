@@ -21,21 +21,11 @@ export class AuthService {
       throw new ConflictException('Пользователь с таким email уже существует');
     }
 
-    // Создаем пользователя
-    const user = await this.userService.create(registerDto);
+    // Исключаем confirmPassword перед созданием пользователя
+    const { confirmPassword, ...createUserDto } = registerDto;
 
-    // Генерируем токен
-    const payload = { email: user.email, sub: user.id };
-    return {
-      access_token: this.jwtService.sign(payload),
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        middleName: user.middleName,
-      },
-    };
+    // Создаем пользователя
+    await this.userService.create(createUserDto);
   }
 
   async login(loginDto: LoginDto) {
