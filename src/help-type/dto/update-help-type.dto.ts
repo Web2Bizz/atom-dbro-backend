@@ -1,11 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, MaxLength } from 'class-validator';
+import { z } from 'zod/v4';
 
-export class UpdateHelpTypeDto {
+export const updateHelpTypeSchema = z.object({
+  name: z.string().max(255, 'Название не должно превышать 255 символов').optional(),
+});
+
+export type UpdateHelpTypeDto = z.infer<typeof updateHelpTypeSchema>;
+
+export class UpdateHelpTypeDtoClass {
   @ApiProperty({ description: 'Название вида помощи', example: 'Материальная помощь', required: false })
-  @IsString()
-  @IsOptional()
-  @MaxLength(255)
   name?: string;
 }
 

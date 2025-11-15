@@ -10,8 +10,9 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { HelpTypeService } from './help-type.service';
-import { CreateHelpTypeDto } from './dto/create-help-type.dto';
-import { UpdateHelpTypeDto } from './dto/update-help-type.dto';
+import { CreateHelpTypeDto, createHelpTypeSchema, CreateHelpTypeDtoClass } from './dto/create-help-type.dto';
+import { UpdateHelpTypeDto, updateHelpTypeSchema, UpdateHelpTypeDtoClass } from './dto/update-help-type.dto';
+import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 
 @ApiTags('Виды помощи')
 @Controller('help-types')
@@ -19,8 +20,9 @@ export class HelpTypeController {
   constructor(private readonly helpTypeService: HelpTypeService) {}
 
   @Post()
+  @ZodValidation(createHelpTypeSchema)
   @ApiOperation({ summary: 'Создать вид помощи' })
-  @ApiResponse({ status: 201, description: 'Вид помощи успешно создан' })
+  @ApiResponse({ status: 201, description: 'Вид помощи успешно создан', type: CreateHelpTypeDtoClass })
   @ApiResponse({ status: 400, description: 'Вид помощи с таким названием уже существует' })
   create(@Body() createHelpTypeDto: CreateHelpTypeDto) {
     return this.helpTypeService.create(createHelpTypeDto);
@@ -42,8 +44,9 @@ export class HelpTypeController {
   }
 
   @Patch(':id')
+  @ZodValidation(updateHelpTypeSchema)
   @ApiOperation({ summary: 'Обновить вид помощи' })
-  @ApiResponse({ status: 200, description: 'Вид помощи обновлен' })
+  @ApiResponse({ status: 200, description: 'Вид помощи обновлен', type: UpdateHelpTypeDtoClass })
   @ApiResponse({ status: 400, description: 'Вид помощи с таким названием уже существует' })
   @ApiResponse({ status: 404, description: 'Вид помощи не найден' })
   update(

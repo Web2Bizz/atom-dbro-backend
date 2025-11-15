@@ -1,13 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsNotEmpty, Min } from 'class-validator';
-import { Type } from 'class-transformer';
+import { z } from 'zod/v4';
 
-export class AddExperienceDto {
+export const addExperienceSchema = z.object({
+  amount: z.number().int().min(1, 'Количество опыта должно быть не менее 1'),
+});
+
+export type AddExperienceDto = z.infer<typeof addExperienceSchema>;
+
+export class AddExperienceDtoClass {
   @ApiProperty({ description: 'Количество опыта для добавления', example: 100, minimum: 1 })
-  @IsNumber()
-  @Type(() => Number)
-  @IsNotEmpty()
-  @Min(1)
   amount: number;
 }
 

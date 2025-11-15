@@ -19,12 +19,13 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody
 import { Response } from 'express';
 import { OrganizationService } from './organization.service';
 import { S3Service } from './s3.service';
-import { CreateOrganizationDto } from './dto/create-organization.dto';
-import { UpdateOrganizationDto } from './dto/update-organization.dto';
-import { AddOwnerDto } from './dto/add-owner.dto';
-import { AddHelpTypeDto } from './dto/add-help-type.dto';
+import { CreateOrganizationDto, createOrganizationSchema, CreateOrganizationDtoClass } from './dto/create-organization.dto';
+import { UpdateOrganizationDto, updateOrganizationSchema, UpdateOrganizationDtoClass } from './dto/update-organization.dto';
+import { AddOwnerDto, addOwnerSchema, AddOwnerDtoClass } from './dto/add-owner.dto';
+import { AddHelpTypeDto, addHelpTypeSchema, AddHelpTypeDtoClass } from './dto/add-help-type.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 
 @ApiTags('Организации')
 @ApiBearerAuth()
@@ -37,8 +38,9 @@ export class OrganizationController {
   ) {}
 
   @Post()
+  @ZodValidation(createOrganizationSchema)
   @ApiOperation({ summary: 'Создать организацию' })
-  @ApiResponse({ status: 201, description: 'Организация успешно создана' })
+  @ApiResponse({ status: 201, description: 'Организация успешно создана', type: CreateOrganizationDtoClass })
   @ApiResponse({ status: 400, description: 'Неверные данные' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   create(
@@ -66,8 +68,9 @@ export class OrganizationController {
   }
 
   @Patch(':id')
+  @ZodValidation(updateOrganizationSchema)
   @ApiOperation({ summary: 'Обновить организацию' })
-  @ApiResponse({ status: 200, description: 'Организация обновлена' })
+  @ApiResponse({ status: 200, description: 'Организация обновлена', type: UpdateOrganizationDtoClass })
   @ApiResponse({ status: 404, description: 'Организация не найдена' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   update(
@@ -87,8 +90,9 @@ export class OrganizationController {
   }
 
   @Post(':id/owners')
+  @ZodValidation(addOwnerSchema)
   @ApiOperation({ summary: 'Добавить владельца организации' })
-  @ApiResponse({ status: 201, description: 'Владелец успешно добавлен' })
+  @ApiResponse({ status: 201, description: 'Владелец успешно добавлен', type: AddOwnerDtoClass })
   @ApiResponse({ status: 404, description: 'Организация или пользователь не найдены' })
   @ApiResponse({ status: 409, description: 'Пользователь уже является владельцем организации' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
@@ -112,8 +116,9 @@ export class OrganizationController {
   }
 
   @Post(':id/help-types')
+  @ZodValidation(addHelpTypeSchema)
   @ApiOperation({ summary: 'Добавить вид помощи организации' })
-  @ApiResponse({ status: 201, description: 'Вид помощи успешно добавлен' })
+  @ApiResponse({ status: 201, description: 'Вид помощи успешно добавлен', type: AddHelpTypeDtoClass })
   @ApiResponse({ status: 404, description: 'Организация или вид помощи не найдены' })
   @ApiResponse({ status: 409, description: 'Вид помощи уже добавлен к организации' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })

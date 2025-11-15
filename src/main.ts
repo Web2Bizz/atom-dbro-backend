@@ -1,5 +1,4 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
@@ -20,13 +19,7 @@ async function bootstrap() {
     // Устанавливаем глобальный префикс для версионирования API
     app.setGlobalPrefix('api/v1');
 
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
+    // Валидация теперь выполняется через декоратор @ZodValidation на уровне методов контроллеров
 
     const config = new DocumentBuilder()
       .setTitle('Atom DBRO Backend API')

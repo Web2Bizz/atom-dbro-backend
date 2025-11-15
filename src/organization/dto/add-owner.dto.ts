@@ -1,11 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber } from 'class-validator';
-import { Type } from 'class-transformer';
+import { z } from 'zod/v4';
 
-export class AddOwnerDto {
+export const addOwnerSchema = z.object({
+  userId: z.number().int().positive('ID пользователя должен быть положительным целым числом'),
+});
+
+export type AddOwnerDto = z.infer<typeof addOwnerSchema>;
+
+export class AddOwnerDtoClass {
   @ApiProperty({ description: 'ID пользователя', example: 1 })
-  @IsNumber()
-  @Type(() => Number)
   userId: number;
 }
 

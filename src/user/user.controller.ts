@@ -10,8 +10,9 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { UserService } from './user.service';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { CreateUserDto, createUserSchema, CreateUserDtoClass } from './dto/create-user.dto';
+import { UpdateUserDto, updateUserSchema, UpdateUserDtoClass } from './dto/update-user.dto';
+import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 
 @ApiTags('Пользователи')
 @Controller('users')
@@ -19,8 +20,9 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Post()
+  @ZodValidation(createUserSchema)
   @ApiOperation({ summary: 'Создать пользователя' })
-  @ApiResponse({ status: 201, description: 'Пользователь успешно создан' })
+  @ApiResponse({ status: 201, description: 'Пользователь успешно создан', type: CreateUserDtoClass })
   @ApiResponse({ status: 400, description: 'Неверные данные' })
   @ApiResponse({ status: 409, description: 'Пользователь с таким email уже существует' })
   create(@Body() createUserDto: CreateUserDto) {
@@ -43,8 +45,9 @@ export class UserController {
   }
 
   @Patch(':id')
+  @ZodValidation(updateUserSchema)
   @ApiOperation({ summary: 'Обновить пользователя' })
-  @ApiResponse({ status: 200, description: 'Пользователь обновлен' })
+  @ApiResponse({ status: 200, description: 'Пользователь обновлен', type: UpdateUserDtoClass })
   @ApiResponse({ status: 404, description: 'Пользователь не найден' })
   @ApiResponse({ status: 409, description: 'Пользователь с таким email уже существует' })
   update(

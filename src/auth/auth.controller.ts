@@ -1,8 +1,9 @@
 import { Controller, Post, Body, HttpCode } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
+import { RegisterDto, registerSchema, RegisterDtoClass } from './dto/register.dto';
+import { LoginDto, loginSchema, LoginDtoClass } from './dto/login.dto';
+import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 
 @ApiTags('Авторизация')
 @Controller('auth')
@@ -11,8 +12,9 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(201)
+  @ZodValidation(registerSchema)
   @ApiOperation({ summary: 'Регистрация пользователя' })
-  @ApiResponse({ status: 201, description: 'Пользователь успешно зарегистрирован' })
+  @ApiResponse({ status: 201, description: 'Пользователь успешно зарегистрирован', type: RegisterDtoClass })
   @ApiResponse({ status: 400, description: 'Неверные данные' })
   @ApiResponse({ status: 409, description: 'Пользователь с таким email уже существует' })
   async register(@Body() registerDto: RegisterDto): Promise<void> {
@@ -20,8 +22,9 @@ export class AuthController {
   }
 
   @Post('login')
+  @ZodValidation(loginSchema)
   @ApiOperation({ summary: 'Вход пользователя' })
-  @ApiResponse({ status: 200, description: 'Успешный вход' })
+  @ApiResponse({ status: 200, description: 'Успешный вход', type: LoginDtoClass })
   @ApiResponse({ status: 401, description: 'Неверный email или пароль' })
   login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);

@@ -1,27 +1,26 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsNumber, MaxLength } from 'class-validator';
-import { Type } from 'class-transformer';
+import { z } from 'zod/v4';
 
-export class CreateCityDto {
+export const createCitySchema = z.object({
+  name: z.string().min(1, 'Название города обязательно').max(255, 'Название не должно превышать 255 символов'),
+  latitude: z.number(),
+  longitude: z.number(),
+  regionId: z.number().int().positive('ID региона должен быть положительным целым числом'),
+});
+
+export type CreateCityDto = z.infer<typeof createCitySchema>;
+
+export class CreateCityDtoClass {
   @ApiProperty({ description: 'Название города', example: 'Москва' })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(255)
   name: string;
 
   @ApiProperty({ description: 'Широта', example: '55.7558' })
-  @IsNumber()
-  @Type(() => Number)
   latitude: number;
 
   @ApiProperty({ description: 'Долгота', example: '37.6173' })
-  @IsNumber()
-  @Type(() => Number)
   longitude: number;
 
   @ApiProperty({ description: 'ID региона', example: 1 })
-  @IsNumber()
-  @Type(() => Number)
   regionId: number;
 }
 

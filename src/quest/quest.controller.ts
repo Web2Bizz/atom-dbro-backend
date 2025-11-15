@@ -17,10 +17,11 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@ne
 import { Observable } from 'rxjs';
 import { QuestService } from './quest.service';
 import { QuestEventsService } from './quest.events';
-import { CreateQuestDto } from './dto/create-quest.dto';
-import { UpdateQuestDto } from './dto/update-quest.dto';
+import { CreateQuestDto, createQuestSchema, CreateQuestDtoClass } from './dto/create-quest.dto';
+import { UpdateQuestDto, updateQuestSchema, UpdateQuestDtoClass } from './dto/update-quest.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 
 @ApiTags('Квесты')
 @Controller('quests')
@@ -33,8 +34,9 @@ export class QuestController {
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @ZodValidation(createQuestSchema)
   @ApiOperation({ summary: 'Создать квест' })
-  @ApiResponse({ status: 201, description: 'Квест успешно создан' })
+  @ApiResponse({ status: 201, description: 'Квест успешно создан', type: CreateQuestDtoClass })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 403, description: 'Недостаточный уровень для создания квеста (требуется уровень 5+)' })
   create(
@@ -82,8 +84,9 @@ export class QuestController {
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @ZodValidation(updateQuestSchema)
   @ApiOperation({ summary: 'Обновить квест' })
-  @ApiResponse({ status: 200, description: 'Квест обновлен' })
+  @ApiResponse({ status: 200, description: 'Квест обновлен', type: UpdateQuestDtoClass })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 404, description: 'Квест не найден' })
   update(

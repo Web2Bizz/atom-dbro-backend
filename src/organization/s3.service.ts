@@ -32,14 +32,29 @@ export class S3Service {
     this.bucketName = this.configService.get<string>('S3_BUCKET_NAME') || '';
     this.publicUrlTemplate = this.configService.get<string>('S3_PUBLIC_URL_TEMPLATE');
 
+    // Получаем credentials
+    const accessKeyId = this.configService.get<string>('S3_ACCESS_KEY_ID') || 
+                        this.configService.get<string>('AWS_ACCESS_KEY_ID');
+    const secretAccessKey = this.configService.get<string>('S3_SECRET_ACCESS_KEY') || 
+                          this.configService.get<string>('AWS_SECRET_ACCESS_KEY');
+
+    // Валидация обязательных параметров
+    if (!this.bucketName) {
+      throw new Error('S3_BUCKET_NAME не указан в переменных окружения');
+    }
+
+    if (!accessKeyId || !secretAccessKey) {
+      throw new Error(
+        'S3 credentials не настроены. Укажите S3_ACCESS_KEY_ID и S3_SECRET_ACCESS_KEY (или AWS_ACCESS_KEY_ID и AWS_SECRET_ACCESS_KEY) в переменных окружения'
+      );
+    }
+
     // Настройка S3 клиента
     const s3Config: any = {
       region: this.region,
       credentials: {
-        accessKeyId: this.configService.get<string>('S3_ACCESS_KEY_ID') || 
-                     this.configService.get<string>('AWS_ACCESS_KEY_ID') || '',
-        secretAccessKey: this.configService.get<string>('S3_SECRET_ACCESS_KEY') || 
-                        this.configService.get<string>('AWS_SECRET_ACCESS_KEY') || '',
+        accessKeyId: accessKeyId.trim(),
+        secretAccessKey: secretAccessKey.trim(),
       },
     };
 

@@ -10,8 +10,9 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AchievementService } from './achievement.service';
-import { CreateAchievementDto } from './dto/create-achievement.dto';
-import { UpdateAchievementDto } from './dto/update-achievement.dto';
+import { CreateAchievementDto, createAchievementSchema, CreateAchievementDtoClass } from './dto/create-achievement.dto';
+import { UpdateAchievementDto, updateAchievementSchema, UpdateAchievementDtoClass } from './dto/update-achievement.dto';
+import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 
 @ApiTags('Достижения')
 @Controller('achievements')
@@ -20,8 +21,9 @@ export class AchievementController {
 
   @Post()
   @ApiBearerAuth()
+  @ZodValidation(createAchievementSchema)
   @ApiOperation({ summary: 'Создать достижение' })
-  @ApiResponse({ status: 201, description: 'Достижение успешно создано' })
+  @ApiResponse({ status: 201, description: 'Достижение успешно создано', type: CreateAchievementDtoClass })
   @ApiResponse({ status: 409, description: 'Достижение с таким названием уже существует' })
   create(@Body() createAchievementDto: CreateAchievementDto) {
     return this.achievementService.create(createAchievementDto);
@@ -44,8 +46,9 @@ export class AchievementController {
 
   @Patch(':id')
   @ApiBearerAuth()
+  @ZodValidation(updateAchievementSchema)
   @ApiOperation({ summary: 'Обновить достижение' })
-  @ApiResponse({ status: 200, description: 'Достижение обновлено' })
+  @ApiResponse({ status: 200, description: 'Достижение обновлено', type: UpdateAchievementDtoClass })
   @ApiResponse({ status: 404, description: 'Достижение не найдено' })
   @ApiResponse({ status: 409, description: 'Достижение с таким названием уже существует' })
   update(

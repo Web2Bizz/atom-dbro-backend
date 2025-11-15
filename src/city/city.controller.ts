@@ -11,9 +11,10 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { CityService } from './city.service';
-import { CreateCityDto } from './dto/create-city.dto';
-import { UpdateCityDto } from './dto/update-city.dto';
+import { CreateCityDto, createCitySchema, CreateCityDtoClass } from './dto/create-city.dto';
+import { UpdateCityDto, updateCitySchema, UpdateCityDtoClass } from './dto/update-city.dto';
 import { Public } from '../auth/decorators/public.decorator';
+import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 
 @ApiTags('Города')
 @Controller('cities')
@@ -21,8 +22,9 @@ export class CityController {
   constructor(private readonly cityService: CityService) {}
 
   @Post()
+  @ZodValidation(createCitySchema)
   @ApiOperation({ summary: 'Создать город' })
-  @ApiResponse({ status: 201, description: 'Город успешно создан' })
+  @ApiResponse({ status: 201, description: 'Город успешно создан', type: CreateCityDtoClass })
   @ApiResponse({ status: 400, description: 'Неверные данные' })
   @ApiResponse({ status: 404, description: 'Регион не найден' })
   create(@Body() createCityDto: CreateCityDto) {
@@ -49,8 +51,9 @@ export class CityController {
   }
 
   @Patch(':id')
+  @ZodValidation(updateCitySchema)
   @ApiOperation({ summary: 'Обновить город' })
-  @ApiResponse({ status: 200, description: 'Город обновлен' })
+  @ApiResponse({ status: 200, description: 'Город обновлен', type: UpdateCityDtoClass })
   @ApiResponse({ status: 404, description: 'Город не найден' })
   update(
     @Param('id', ParseIntPipe) id: number,

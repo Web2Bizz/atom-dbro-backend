@@ -1,35 +1,30 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsEmail, IsNumber, MaxLength } from 'class-validator';
-import { Type } from 'class-transformer';
+import { z } from 'zod/v4';
 
-export class UpdateUserDto {
+export const updateUserSchema = z.object({
+  firstName: z.string().max(255, 'Имя не должно превышать 255 символов').optional(),
+  lastName: z.string().max(255, 'Фамилия не должна превышать 255 символов').optional(),
+  middleName: z.string().max(255, 'Отчество не должно превышать 255 символов').optional(),
+  email: z.string().email('Некорректный формат email').optional(),
+  cityId: z.number().int().positive('ID города должен быть положительным числом').optional(),
+});
+
+export type UpdateUserDto = z.infer<typeof updateUserSchema>;
+
+export class UpdateUserDtoClass {
   @ApiProperty({ description: 'Имя', example: 'Иван', required: false })
-  @IsString()
-  @IsOptional()
-  @MaxLength(255)
   firstName?: string;
 
   @ApiProperty({ description: 'Фамилия', example: 'Иванов', required: false })
-  @IsString()
-  @IsOptional()
-  @MaxLength(255)
   lastName?: string;
 
   @ApiProperty({ description: 'Отчество', example: 'Иванович', required: false })
-  @IsString()
-  @IsOptional()
-  @MaxLength(255)
   middleName?: string;
 
   @ApiProperty({ description: 'Email', example: 'ivan@example.com', required: false })
-  @IsEmail()
-  @IsOptional()
   email?: string;
 
   @ApiProperty({ description: 'ID города', example: 1, required: false })
-  @IsNumber()
-  @Type(() => Number)
-  @IsOptional()
   cityId?: number;
 }
 
