@@ -1,12 +1,34 @@
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { json } from 'express';
 
 async function bootstrap() {
   try {
     console.log('Starting application...');
     const app = await NestFactory.create(AppModule);
     console.log('App created successfully');
+
+    // Явно настраиваем body parser для JSON
+    app.use(json({ limit: '10mb' }));
+
+    // Middleware для логирования parsed body (после парсинга)
+    app.use((req: any, res: any, next: any) => {
+      if (req.method === 'POST' && req.path.includes('/organizations')) {
+        console.log('=== Request Body (после парсинга) ===');
+        console.log('Path:', req.path);
+        console.log('Content-Type:', req.headers['content-type']);
+        console.log('req.body:', req.body);
+        if (req.body && typeof req.body === 'object') {
+          console.log('Keys:', Object.keys(req.body));
+          console.log('cityId:', req.body.cityId, typeof req.body.cityId);
+          console.log('typeId:', req.body.typeId, typeof req.body.typeId);
+          console.log('helpTypeIds:', req.body.helpTypeIds, Array.isArray(req.body.helpTypeIds));
+        }
+        console.log('=== Конец Request Body ===\n');
+      }
+      next();
+    });
 
     // Настраиваем CORS для всех источников
     app.enableCors({
