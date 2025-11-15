@@ -31,6 +31,8 @@ export const users = pgTable('users', {
   avatarUrls: jsonb('avatar_urls').$type<Record<number, string>>(),
   level: integer('level').default(1).notNull(),
   experience: integer('experience').default(0).notNull(),
+  questId: integer('quest_id').references(() => quests.id),
+  organisationId: integer('organisation_id').references(() => organizations.id),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -210,6 +212,14 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   achievements: many(userAchievements),
   quests: many(userQuests),
   ownedQuests: many(quests),
+  quest: one(quests, {
+    fields: [users.questId],
+    references: [quests.id],
+  }),
+  organisation: one(organizations, {
+    fields: [users.organisationId],
+    references: [organizations.id],
+  }),
 }));
 
 export const helpTypesRelations = relations(helpTypes, ({ many }) => ({
