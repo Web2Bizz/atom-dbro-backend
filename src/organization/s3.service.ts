@@ -59,7 +59,7 @@ export class S3Service {
    * @param organizationId - ID организации
    * @returns публичный URL загруженного изображения
    */
-  async uploadImage(file: Express.Multer.File, organizationId: number): Promise<string> {
+  async uploadImage(file: { buffer: Buffer; originalname: string; mimetype: string }, organizationId: number): Promise<string> {
     const fileExtension = file.originalname.split('.').pop();
     const fileName = `organizations/${organizationId}/${uuidv4()}.${fileExtension}`;
 
@@ -84,7 +84,7 @@ export class S3Service {
    * @returns массив публичных URL загруженных изображений
    */
   async uploadMultipleImages(
-    files: Express.Multer.File[],
+    files: Array<{ buffer: Buffer; originalname: string; mimetype: string }>,
     organizationId: number,
   ): Promise<string[]> {
     const uploadPromises = files.map((file) => this.uploadImage(file, organizationId));

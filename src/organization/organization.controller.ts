@@ -156,7 +156,7 @@ export class OrganizationController {
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   async uploadImages(
     @Param('id', ParseIntPipe) organizationId: number,
-    @UploadedFiles() files: Express.Multer.File[],
+    @UploadedFiles() files: Array<Express.Multer.File>,
   ) {
     if (!files || files.length === 0) {
       throw new BadRequestException('Необходимо загрузить хотя бы одно изображение');
