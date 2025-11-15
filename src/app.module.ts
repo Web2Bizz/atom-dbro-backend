@@ -9,6 +9,7 @@ import { OrganizationModule } from './organization/organization.module';
 import { AuthModule } from './auth/auth.module';
 import { ExperienceModule } from './experience/experience.module';
 import { AchievementModule } from './achievement/achievement.module';
+import { QuestModule } from './quest/quest.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -25,6 +26,7 @@ import { AppController } from './app.controller';
     AuthModule,
     ExperienceModule,
     AchievementModule,
+    QuestModule,
   ],
   controllers: [AppController],
 })

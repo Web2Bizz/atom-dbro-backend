@@ -104,6 +104,34 @@ export const userAchievements = pgTable('user_achievements', {
   uniqueUserAchievement: unique().on(table.userId, table.achievementId),
 }));
 
+// Квесты
+export const quests = pgTable('quests', {
+  id: serial('id').primaryKey(),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description'),
+  status: varchar('status', { length: 20 }).notNull().default('active'), // 'active' | 'completed' | 'archived'
+  experienceReward: integer('experience_reward').default(0).notNull(),
+  requirements: jsonb('requirements').$type<Record<string, any>>(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// Связующая таблица: выполнение квестов пользователями
+export const userQuests = pgTable('user_quests', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id')
+    .references(() => users.id)
+    .notNull(),
+  questId: integer('quest_id')
+    .references(() => quests.id)
+    .notNull(),
+  status: varchar('status', { length: 20 }).notNull().default('in_progress'), // 'in_progress' | 'completed' | 'failed'
+  startedAt: timestamp('started_at').defaultNow(),
+  completedAt: timestamp('completed_at'),
+}, (table) => ({
+  uniqueUserQuest: unique().on(table.userId, table.questId),
+}));
+
 // Relations
 export const regionsRelations = relations(regions, ({ many }) => ({
   cities: many(cities),
@@ -125,6 +153,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   }),
   ownedOrganizations: many(organizationOwners),
   achievements: many(userAchievements),
+  quests: many(userQuests),
 }));
 
 export const helpTypesRelations = relations(helpTypes, ({ many }) => ({
@@ -176,4 +205,20 @@ export const userAchievementsRelations = relations(userAchievements, ({ one }) =
     references: [achievements.id],
   }),
 }));
+
+export const questsRelations = relations(quests, ({ many }) => ({
+  userQuests: many(userQuests),
+}));
+
+export const userQuestsRelations = relations(userQuests, ({ one }) => ({
+  user: one(users, {
+    fields: [userQuests.userId],
+    references: [users.id],
+  }),
+  quest: one(quests, {
+    fields: [userQuests.questId],
+    references: [quests.id],
+  }),
+}));
+
 
