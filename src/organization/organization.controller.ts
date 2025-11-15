@@ -8,9 +8,14 @@ import {
   Delete,
   ParseIntPipe,
   UseGuards,
+  UseInterceptors,
+  UploadedFiles,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { OrganizationService } from './organization.service';
+import { S3Service } from './s3.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { AddOwnerDto } from './dto/add-owner.dto';
@@ -23,7 +28,10 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 @Controller('organizations')
 @UseGuards(JwtAuthGuard)
 export class OrganizationController {
-  constructor(private readonly organizationService: OrganizationService) {}
+  constructor(
+    private readonly organizationService: OrganizationService,
+    private readonly s3Service: S3Service,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Создать организацию' })
@@ -123,6 +131,51 @@ export class OrganizationController {
     @Param('helpTypeId', ParseIntPipe) helpTypeId: number,
   ) {
     return this.organizationService.removeHelpType(organizationId, helpTypeId);
+  }
+
+  @Post(':id/gallery')
+  @UseInterceptors(FilesInterceptor('images'))
+  @ApiOperation({ summary: 'Загрузить изображения в галерею организации' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        images: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Изображения успешно загружены' })
+  @ApiResponse({ status: 404, description: 'Организация не найдена' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
+  async uploadImages(
+    @Param('id', ParseIntPipe) organizationId: number,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('Необходимо загрузить хотя бы одно изображение');
+    }
+
+    const imageUrls = await this.s3Service.uploadMultipleImages(files, organizationId);
+    return this.organizationService.addImagesToGallery(organizationId, imageUrls);
+  }
+
+  @Delete(':id/gallery')
+  @ApiOperation({ summary: 'Удалить изображение из галереи организации' })
+  @ApiResponse({ status: 200, description: 'Изображение успешно удалено' })
+  @ApiResponse({ status: 404, description: 'Организация не найдена' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
+  removeImage(
+    @Param('id', ParseIntPipe) organizationId: number,
+    @Body('imageUrl') imageUrl: string,
+  ) {
+    return this.organizationService.removeImageFromGallery(organizationId, imageUrl);
   }
 }
 

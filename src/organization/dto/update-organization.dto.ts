@@ -66,5 +66,17 @@ export class UpdateOrganizationDto {
   @Type(() => ContactDto)
   @IsOptional()
   contacts?: ContactDto[];
+
+  @ApiProperty({ description: 'Типы организации', example: ['Благотворительный фонд', 'НКО'], required: false, type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  organizationTypes?: string[];
+
+  @ApiProperty({ description: 'Галерея изображений (URL)', example: ['https://example.com/image1.jpg'], required: false, type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  gallery?: string[];
 }
 

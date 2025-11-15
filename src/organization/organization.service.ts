@@ -59,6 +59,8 @@ export class OrganizationService {
         needs: createOrganizationDto.needs,
         address: createOrganizationDto.address,
         contacts: createOrganizationDto.contacts,
+        organizationTypes: createOrganizationDto.organizationTypes,
+        gallery: createOrganizationDto.gallery,
       })
       .returning();
 
@@ -86,6 +88,8 @@ export class OrganizationService {
         needs: organizations.needs,
         address: organizations.address,
         contacts: organizations.contacts,
+        organizationTypes: organizations.organizationTypes,
+        gallery: organizations.gallery,
         createdAt: organizations.createdAt,
         updatedAt: organizations.updatedAt,
         cityName: cities.name,
@@ -133,6 +137,8 @@ export class OrganizationService {
       needs: org.needs,
       address: org.address,
       contacts: org.contacts,
+      organizationTypes: org.organizationTypes,
+      gallery: org.gallery,
       createdAt: org.createdAt,
       updatedAt: org.updatedAt,
       city: org.cityName ? {
@@ -160,6 +166,8 @@ export class OrganizationService {
         needs: organizations.needs,
         address: organizations.address,
         contacts: organizations.contacts,
+        organizationTypes: organizations.organizationTypes,
+        gallery: organizations.gallery,
         createdAt: organizations.createdAt,
         updatedAt: organizations.updatedAt,
         cityName: cities.name,
@@ -195,6 +203,8 @@ export class OrganizationService {
       needs: orgData.needs,
       address: orgData.address,
       contacts: orgData.contacts,
+      organizationTypes: orgData.organizationTypes,
+      gallery: orgData.gallery,
       createdAt: orgData.createdAt,
       updatedAt: orgData.updatedAt,
       city: orgData.cityName ? {
@@ -260,6 +270,8 @@ export class OrganizationService {
     if (updateOrganizationDto.needs !== undefined) updateData.needs = updateOrganizationDto.needs;
     if (updateOrganizationDto.address !== undefined) updateData.address = updateOrganizationDto.address;
     if (updateOrganizationDto.contacts !== undefined) updateData.contacts = updateOrganizationDto.contacts;
+    if (updateOrganizationDto.organizationTypes !== undefined) updateData.organizationTypes = updateOrganizationDto.organizationTypes;
+    if (updateOrganizationDto.gallery !== undefined) updateData.gallery = updateOrganizationDto.gallery;
 
     const [organization] = await this.db
       .update(organizations)
@@ -392,6 +404,60 @@ export class OrganizationService {
       throw new NotFoundException('Связь не найдена');
     }
     return { message: 'Вид помощи успешно удален' };
+  }
+
+  async addImagesToGallery(organizationId: number, imageUrls: string[]) {
+    // Проверяем существование организации
+    const [organization] = await this.db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, organizationId));
+    if (!organization) {
+      throw new NotFoundException(`Организация с ID ${organizationId} не найдена`);
+    }
+
+    // Получаем текущую галерею или создаем пустой массив
+    const currentGallery = organization.gallery || [];
+    const updatedGallery = [...currentGallery, ...imageUrls];
+
+    // Обновляем галерею
+    const [updated] = await this.db
+      .update(organizations)
+      .set({
+        gallery: updatedGallery,
+        updatedAt: new Date(),
+      })
+      .where(eq(organizations.id, organizationId))
+      .returning();
+
+    return updated;
+  }
+
+  async removeImageFromGallery(organizationId: number, imageUrl: string) {
+    // Проверяем существование организации
+    const [organization] = await this.db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, organizationId));
+    if (!organization) {
+      throw new NotFoundException(`Организация с ID ${organizationId} не найдена`);
+    }
+
+    // Получаем текущую галерею
+    const currentGallery = organization.gallery || [];
+    const updatedGallery = currentGallery.filter((url) => url !== imageUrl);
+
+    // Обновляем галерею
+    const [updated] = await this.db
+      .update(organizations)
+      .set({
+        gallery: updatedGallery,
+        updatedAt: new Date(),
+      })
+      .where(eq(organizations.id, organizationId))
+      .returning();
+
+    return updated;
   }
 }
 

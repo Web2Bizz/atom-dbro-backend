@@ -57,6 +57,8 @@ export const organizations = pgTable('organizations', {
   needs: jsonb('needs').$type<string[]>(),
   address: text('address'),
   contacts: jsonb('contacts').$type<Array<{ name: string; value: string }>>(),
+  organizationTypes: jsonb('organization_types').$type<string[]>(),
+  gallery: jsonb('gallery').$type<string[]>(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
