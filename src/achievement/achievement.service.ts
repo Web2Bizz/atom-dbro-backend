@@ -23,10 +23,14 @@ export class AchievementService {
       throw new ConflictException('Достижение с таким названием уже существует');
     }
 
-    const [achievement] = await this.db
+    const result = await this.db
       .insert(achievements)
       .values(createAchievementDto)
       .returning();
+    const achievement = Array.isArray(result) ? result[0] : result;
+    if (!achievement) {
+      throw new Error('Не удалось создать достижение');
+    }
     return achievement;
   }
 
@@ -60,11 +64,12 @@ export class AchievementService {
       }
     }
 
-    const [achievement] = await this.db
+    const result = await this.db
       .update(achievements)
       .set({ ...updateAchievementDto, updatedAt: new Date() })
       .where(eq(achievements.id, id))
       .returning();
+    const achievement = Array.isArray(result) ? result[0] : result;
     if (!achievement) {
       throw new NotFoundException(`Достижение с ID ${id} не найдено`);
     }
@@ -72,10 +77,11 @@ export class AchievementService {
   }
 
   async remove(id: number) {
-    const [achievement] = await this.db
+    const result = await this.db
       .delete(achievements)
       .where(eq(achievements.id, id))
       .returning();
+    const achievement = Array.isArray(result) ? result[0] : result;
     if (!achievement) {
       throw new NotFoundException(`Достижение с ID ${id} не найдено`);
     }
@@ -116,13 +122,17 @@ export class AchievementService {
     }
 
     // Присваиваем достижение пользователю
-    const [userAchievement] = await this.db
+    const result = await this.db
       .insert(userAchievements)
       .values({
         userId,
         achievementId,
       })
       .returning();
+    const userAchievement = Array.isArray(result) ? result[0] : result;
+    if (!userAchievement) {
+      throw new Error('Не удалось присвоить достижение пользователю');
+    }
     return userAchievement;
   }
 

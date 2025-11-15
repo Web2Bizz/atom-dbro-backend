@@ -28,7 +28,7 @@ export class QuestService {
 
     // Создаем достижение с автоматической установкой rarity = 'private'
     // questId будет установлен после создания квеста
-    const [achievement] = await this.db
+    const achievementResult = await this.db
       .insert(achievements)
       .values({
         title: createQuestDto.achievement.title,
@@ -37,9 +37,13 @@ export class QuestService {
         rarity: 'private', // Всегда 'private' для достижений, создаваемых с квестами
       })
       .returning();
+    const achievement = Array.isArray(achievementResult) ? achievementResult[0] : achievementResult;
+    if (!achievement) {
+      throw new Error('Не удалось создать достижение');
+    }
 
     // Создаем квест с привязкой к достижению и владельцем
-    const [quest] = await this.db
+    const questResult = await this.db
       .insert(quests)
       .values({
         title: createQuestDto.title,
@@ -50,6 +54,10 @@ export class QuestService {
         ownerId: userId,
       })
       .returning();
+    const quest = Array.isArray(questResult) ? questResult[0] : questResult;
+    if (!quest) {
+      throw new Error('Не удалось создать квест');
+    }
 
     // Обновляем достижение с questId (так как rarity = 'private')
     await this.db
@@ -228,11 +236,12 @@ export class QuestService {
       updateData.achievementId = updateQuestDto.achievementId;
     }
 
-    const [quest] = await this.db
+    const result = await this.db
       .update(quests)
       .set(updateData)
       .where(eq(quests.id, id))
       .returning();
+    const quest = Array.isArray(result) ? result[0] : result;
     if (!quest) {
       throw new NotFoundException(`Квест с ID ${id} не найден`);
     }
@@ -240,10 +249,11 @@ export class QuestService {
   }
 
   async remove(id: number) {
-    const [quest] = await this.db
+    const result = await this.db
       .delete(quests)
       .where(eq(quests.id, id))
       .returning();
+    const quest = Array.isArray(result) ? result[0] : result;
     if (!quest) {
       throw new NotFoundException(`Квест с ID ${id} не найден`);
     }
@@ -289,7 +299,7 @@ export class QuestService {
     }
 
     // Присоединяемся к квесту
-    const [userQuest] = await this.db
+    const result = await this.db
       .insert(userQuests)
       .values({
         userId,
@@ -297,6 +307,10 @@ export class QuestService {
         status: 'in_progress',
       })
       .returning();
+    const userQuest = Array.isArray(result) ? result[0] : result;
+    if (!userQuest) {
+      throw new Error('Не удалось присоединиться к квесту');
+    }
     return userQuest;
   }
 
@@ -339,11 +353,14 @@ export class QuestService {
     }
 
     // Удаляем запись о участии в квесте
-    const [deletedUserQuest] = await this.db
+    const result = await this.db
       .delete(userQuests)
       .where(eq(userQuests.id, userQuest.id))
       .returning();
-    
+    const deletedUserQuest = Array.isArray(result) ? result[0] : result;
+    if (!deletedUserQuest) {
+      throw new Error('Не удалось покинуть квест');
+    }
     return deletedUserQuest;
   }
 
@@ -385,7 +402,7 @@ export class QuestService {
     }
 
     // Завершаем квест
-    const [completedQuest] = await this.db
+    const result = await this.db
       .update(userQuests)
       .set({
         status: 'completed',
@@ -393,6 +410,10 @@ export class QuestService {
       })
       .where(eq(userQuests.id, userQuest.id))
       .returning();
+    const completedQuest = Array.isArray(result) ? result[0] : result;
+    if (!completedQuest) {
+      throw new Error('Не удалось завершить квест');
+    }
 
     // Начисляем опыт пользователю
     const newExperience = user.experience + quest.experienceReward;
