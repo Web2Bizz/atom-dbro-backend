@@ -8,6 +8,7 @@ import { HelpTypeModule } from './help-type/help-type.module';
 import { OrganizationModule } from './organization/organization.module';
 import { AuthModule } from './auth/auth.module';
 import { ExperienceModule } from './experience/experience.module';
+import { AchievementModule } from './achievement/achievement.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -23,6 +24,7 @@ import { AppController } from './app.controller';
     OrganizationModule,
     AuthModule,
     ExperienceModule,
+    AchievementModule,
   ],
   controllers: [AppController],
 })

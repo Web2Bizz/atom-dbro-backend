@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, decimal, integer, timestamp, text, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, decimal, integer, timestamp, text, jsonb, unique } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // Регионы
@@ -79,6 +79,31 @@ export const organizationHelpTypes = pgTable('organization_help_types', {
     .notNull(),
 });
 
+// Достижения
+export const achievements = pgTable('achievements', {
+  id: serial('id').primaryKey(),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description'),
+  icon: varchar('icon', { length: 255 }),
+  rarity: varchar('rarity', { length: 20 }).notNull(), // 'common' | 'epic' | 'rare' | 'legendary'
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// Связующая таблица: достижения пользователей
+export const userAchievements = pgTable('user_achievements', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id')
+    .references(() => users.id)
+    .notNull(),
+  achievementId: integer('achievement_id')
+    .references(() => achievements.id)
+    .notNull(),
+  unlockedAt: timestamp('unlocked_at').defaultNow(),
+}, (table) => ({
+  uniqueUserAchievement: unique().on(table.userId, table.achievementId),
+}));
+
 // Relations
 export const regionsRelations = relations(regions, ({ many }) => ({
   cities: many(cities),
@@ -99,6 +124,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     references: [cities.id],
   }),
   ownedOrganizations: many(organizationOwners),
+  achievements: many(userAchievements),
 }));
 
 export const helpTypesRelations = relations(helpTypes, ({ many }) => ({
@@ -133,6 +159,21 @@ export const organizationHelpTypesRelations = relations(organizationHelpTypes, (
   helpType: one(helpTypes, {
     fields: [organizationHelpTypes.helpTypeId],
     references: [helpTypes.id],
+  }),
+}));
+
+export const achievementsRelations = relations(achievements, ({ many }) => ({
+  users: many(userAchievements),
+}));
+
+export const userAchievementsRelations = relations(userAchievements, ({ one }) => ({
+  user: one(users, {
+    fields: [userAchievements.userId],
+    references: [users.id],
+  }),
+  achievement: one(achievements, {
+    fields: [userAchievements.achievementId],
+    references: [achievements.id],
   }),
 }));
 
