@@ -8,6 +8,7 @@ import {
   users,
   helpTypes,
   cities,
+  organizationTypes,
 } from '../database/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
@@ -32,6 +33,27 @@ export class OrganizationService {
       throw new NotFoundException(`Город с ID ${createOrganizationDto.cityId} не найден`);
     }
 
+    // Проверяем существование типа организации
+    const [orgType] = await this.db
+      .select()
+      .from(organizationTypes)
+      .where(eq(organizationTypes.id, createOrganizationDto.typeId));
+    if (!orgType) {
+      throw new NotFoundException(`Тип организации с ID ${createOrganizationDto.typeId} не найден`);
+    }
+
+    // Проверяем существование видов помощи
+    const helpTypeIds = [...new Set(createOrganizationDto.helpTypeIds)]; // Убеждаемся в уникальности
+    const existingHelpTypes = await this.db
+      .select()
+      .from(helpTypes)
+      .where(inArray(helpTypes.id, helpTypeIds));
+    if (existingHelpTypes.length !== helpTypeIds.length) {
+      const foundIds = existingHelpTypes.map(ht => ht.id);
+      const missingIds = helpTypeIds.filter(id => !foundIds.includes(id));
+      throw new NotFoundException(`Виды помощи с ID ${missingIds.join(', ')} не найдены`);
+    }
+
     // Проверяем существование пользователя
     const [user] = await this.db.select().from(users).where(eq(users.id, userId));
     if (!user) {
@@ -52,6 +74,7 @@ export class OrganizationService {
       .values({
         name: createOrganizationDto.name,
         cityId: createOrganizationDto.cityId,
+        organizationTypeId: createOrganizationDto.typeId,
         latitude: latitude,
         longitude: longitude,
         summary: createOrganizationDto.summary,
@@ -61,7 +84,6 @@ export class OrganizationService {
         needs: createOrganizationDto.needs,
         address: createOrganizationDto.address,
         contacts: createOrganizationDto.contacts,
-        organizationTypes: createOrganizationDto.organizationTypes,
         gallery: createOrganizationDto.gallery,
       })
       .returning();
@@ -71,6 +93,16 @@ export class OrganizationService {
       organizationId: organization.id,
       userId: userId,
     });
+
+    // Добавляем виды помощи
+    if (helpTypeIds.length > 0) {
+      await this.db.insert(organizationHelpTypes).values(
+        helpTypeIds.map(helpTypeId => ({
+          organizationId: organization.id,
+          helpTypeId: helpTypeId,
+        }))
+      );
+    }
 
     return organization;
   }
@@ -90,16 +122,18 @@ export class OrganizationService {
         needs: organizations.needs,
         address: organizations.address,
         contacts: organizations.contacts,
-        organizationTypes: organizations.organizationTypes,
         gallery: organizations.gallery,
         createdAt: organizations.createdAt,
         updatedAt: organizations.updatedAt,
         cityName: cities.name,
         cityLatitude: cities.latitude,
         cityLongitude: cities.longitude,
+        organizationTypeId: organizationTypes.id,
+        organizationTypeName: organizationTypes.name,
       })
       .from(organizations)
-      .leftJoin(cities, eq(organizations.cityId, cities.id));
+      .leftJoin(cities, eq(organizations.cityId, cities.id))
+      .leftJoin(organizationTypes, eq(organizations.organizationTypeId, organizationTypes.id));
 
     // Получаем helpTypes для всех организаций
     const orgIds = orgs.map(org => org.id);
@@ -139,7 +173,6 @@ export class OrganizationService {
       needs: org.needs,
       address: org.address,
       contacts: org.contacts,
-      organizationTypes: org.organizationTypes,
       gallery: org.gallery ? this.s3Service.getImageUrls(org.gallery) : [],
       createdAt: org.createdAt,
       updatedAt: org.updatedAt,
@@ -148,6 +181,10 @@ export class OrganizationService {
         name: org.cityName,
         latitude: org.cityLatitude,
         longitude: org.cityLongitude,
+      } : null,
+      type: org.organizationTypeName ? {
+        id: org.organizationTypeId,
+        name: org.organizationTypeName,
       } : null,
       helpTypes: helpTypesByOrgId.get(org.id) || [],
     }));
@@ -168,16 +205,18 @@ export class OrganizationService {
         needs: organizations.needs,
         address: organizations.address,
         contacts: organizations.contacts,
-        organizationTypes: organizations.organizationTypes,
         gallery: organizations.gallery,
         createdAt: organizations.createdAt,
         updatedAt: organizations.updatedAt,
         cityName: cities.name,
         cityLatitude: cities.latitude,
         cityLongitude: cities.longitude,
+        organizationTypeId: organizationTypes.id,
+        organizationTypeName: organizationTypes.name,
       })
       .from(organizations)
       .leftJoin(cities, eq(organizations.cityId, cities.id))
+      .leftJoin(organizationTypes, eq(organizations.organizationTypeId, organizationTypes.id))
       .where(eq(organizations.id, id));
     if (!orgData) {
       throw new NotFoundException(`Организация с ID ${id} не найдена`);
@@ -205,7 +244,6 @@ export class OrganizationService {
       needs: orgData.needs,
       address: orgData.address,
       contacts: orgData.contacts,
-      organizationTypes: orgData.organizationTypes,
       gallery: orgData.gallery ? this.s3Service.getImageUrls(orgData.gallery) : [],
       createdAt: orgData.createdAt,
       updatedAt: orgData.updatedAt,
@@ -214,6 +252,10 @@ export class OrganizationService {
         name: orgData.cityName,
         latitude: orgData.cityLatitude,
         longitude: orgData.cityLongitude,
+      } : null,
+      type: orgData.organizationTypeName ? {
+        id: orgData.organizationTypeId,
+        name: orgData.organizationTypeName,
       } : null,
       helpTypes: orgHelpTypes,
     };
@@ -272,7 +314,17 @@ export class OrganizationService {
     if (updateOrganizationDto.needs !== undefined) updateData.needs = updateOrganizationDto.needs;
     if (updateOrganizationDto.address !== undefined) updateData.address = updateOrganizationDto.address;
     if (updateOrganizationDto.contacts !== undefined) updateData.contacts = updateOrganizationDto.contacts;
-    if (updateOrganizationDto.organizationTypes !== undefined) updateData.organizationTypes = updateOrganizationDto.organizationTypes;
+    if (updateOrganizationDto.organizationTypeId !== undefined) {
+      // Проверяем существование типа организации
+      const [orgType] = await this.db
+        .select()
+        .from(organizationTypes)
+        .where(eq(organizationTypes.id, updateOrganizationDto.organizationTypeId));
+      if (!orgType) {
+        throw new NotFoundException(`Тип организации с ID ${updateOrganizationDto.organizationTypeId} не найден`);
+      }
+      updateData.organizationTypeId = updateOrganizationDto.organizationTypeId;
+    }
     if (updateOrganizationDto.gallery !== undefined) updateData.gallery = updateOrganizationDto.gallery;
 
     const [organization] = await this.db

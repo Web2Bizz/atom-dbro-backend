@@ -7,8 +7,18 @@ export class ZodValidationPipe implements PipeTransform {
 
   transform(value: any, metadata: ArgumentMetadata) {
     try {
-      const parsedValue = this.schema.parse(value);
-      return parsedValue;
+      // Если value является строкой, пытаемся распарсить её как JSON
+      let parsedValue = value;
+      if (typeof value === 'string' && metadata.type === 'body') {
+        try {
+          parsedValue = JSON.parse(value);
+        } catch (e) {
+          // Если не удалось распарсить, используем исходное значение
+        }
+      }
+      
+      const validatedValue = this.schema.parse(parsedValue);
+      return validatedValue;
     } catch (error) {
       if (error instanceof ZodError) {
         const errorMessages = error.issues.map((err) => {

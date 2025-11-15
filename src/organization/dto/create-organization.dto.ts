@@ -19,6 +19,10 @@ export class ContactDtoClass {
 export const createOrganizationSchema = z.object({
   name: z.string().min(1, 'Название организации обязательно').max(255, 'Название не должно превышать 255 символов'),
   cityId: z.number().int().positive('ID города должен быть положительным целым числом'),
+  typeId: z.number().int().positive('ID типа организации должен быть положительным целым числом'),
+  helpTypeIds: z.array(z.number().int().positive('ID вида помощи должен быть положительным целым числом')).min(1, 'Необходимо указать хотя бы один вид помощи').refine((ids) => new Set(ids).size === ids.length, {
+    message: 'Виды помощи должны быть уникальными',
+  }),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   summary: z.string().optional(),
@@ -28,7 +32,6 @@ export const createOrganizationSchema = z.object({
   needs: z.array(z.string()).optional(),
   address: z.string().optional(),
   contacts: z.array(contactSchema).optional(),
-  organizationTypes: z.array(z.string()).optional(),
   gallery: z.array(z.string()).optional(),
 });
 
@@ -40,6 +43,12 @@ export class CreateOrganizationDtoClass {
 
   @ApiProperty({ description: 'ID города', example: 1 })
   cityId: number;
+
+  @ApiProperty({ description: 'ID типа организации', example: 1 })
+  typeId: number;
+
+  @ApiProperty({ description: 'ID видов помощи (уникальные значения)', example: [1, 2, 3], type: [Number] })
+  helpTypeIds: number[];
 
   @ApiProperty({ description: 'Широта (опционально, если не указана, будет взята из города)', example: '55.7558', required: false })
   latitude?: number;
@@ -67,9 +76,6 @@ export class CreateOrganizationDtoClass {
 
   @ApiProperty({ description: 'Контакты организации', example: [{ name: 'Телефон', value: '+7 (999) 123-45-67' }], required: false, type: [ContactDtoClass] })
   contacts?: ContactDtoClass[];
-
-  @ApiProperty({ description: 'Типы организации', example: ['Благотворительный фонд', 'НКО'], required: false, type: [String] })
-  organizationTypes?: string[];
 
   @ApiProperty({ description: 'Галерея изображений (URL)', example: ['https://example.com/image1.jpg'], required: false, type: [String] })
   gallery?: string[];

@@ -1,8 +1,8 @@
 import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { quests, userQuests, users, achievements, userAchievements } from '../database/schema';
-import { eq, and, ne } from 'drizzle-orm';
+import { quests, userQuests, users, achievements, userAchievements, cities, helpTypes, questHelpTypes } from '../database/schema';
+import { eq, and, ne, inArray } from 'drizzle-orm';
 import { CreateQuestDto } from './dto/create-quest.dto';
 import { UpdateQuestDto } from './dto/update-quest.dto';
 import { QuestEventsService } from './quest.events';
@@ -50,6 +50,33 @@ export class QuestService {
       achievementId = achievement.id;
     }
 
+    // Проверяем существование города, если указан
+    if (createQuestDto.cityId) {
+      const [city] = await this.db
+        .select()
+        .from(cities)
+        .where(eq(cities.id, createQuestDto.cityId));
+      if (!city) {
+        throw new NotFoundException(`Город с ID ${createQuestDto.cityId} не найден`);
+      }
+    }
+
+    // Проверяем существование типов помощи, если указаны
+    if (createQuestDto.helpTypeIds && createQuestDto.helpTypeIds.length > 0) {
+      const existingHelpTypes = await this.db
+        .select()
+        .from(helpTypes)
+        .where(inArray(helpTypes.id, createQuestDto.helpTypeIds));
+      if (existingHelpTypes.length !== createQuestDto.helpTypeIds.length) {
+        throw new NotFoundException('Один или несколько типов помощи не найдены');
+      }
+    }
+
+    // Валидация галереи (максимум 10 элементов)
+    if (createQuestDto.gallery && createQuestDto.gallery.length > 10) {
+      throw new BadRequestException('Галерея не может содержать более 10 изображений');
+    }
+
     // Создаем квест с привязкой к достижению (если указано) и владельцем
     const questResult = await this.db
       .insert(quests)
@@ -60,6 +87,10 @@ export class QuestService {
         experienceReward: createQuestDto.experienceReward || 0,
         achievementId: achievementId,
         ownerId: userId,
+        cityId: createQuestDto.cityId,
+        coverImage: createQuestDto.coverImage,
+        gallery: createQuestDto.gallery,
+        steps: createQuestDto.steps,
       })
       .returning();
     const quest = Array.isArray(questResult) ? questResult[0] : questResult;
@@ -75,7 +106,19 @@ export class QuestService {
         .where(eq(achievements.id, achievementId));
     }
 
-    // Возвращаем квест с информацией о достижении (если есть)
+    // Связываем квест с типами помощи, если указаны
+    if (createQuestDto.helpTypeIds && createQuestDto.helpTypeIds.length > 0) {
+      await this.db
+        .insert(questHelpTypes)
+        .values(
+          createQuestDto.helpTypeIds.map(helpTypeId => ({
+            questId: quest.id,
+            helpTypeId,
+          }))
+        );
+    }
+
+    // Возвращаем квест с информацией о достижении (если есть), городе и типах помощи
     const query = this.db
       .select({
         id: quests.id,
@@ -85,6 +128,10 @@ export class QuestService {
         experienceReward: quests.experienceReward,
         achievementId: quests.achievementId,
         ownerId: quests.ownerId,
+        cityId: quests.cityId,
+        coverImage: quests.coverImage,
+        gallery: quests.gallery,
+        steps: quests.steps,
         createdAt: quests.createdAt,
         updatedAt: quests.updatedAt,
         achievement: {
@@ -101,13 +148,33 @@ export class QuestService {
           lastName: users.lastName,
           email: users.email,
         },
+        city: {
+          id: cities.id,
+          name: cities.name,
+        },
       })
       .from(quests)
       .leftJoin(achievements, eq(quests.achievementId, achievements.id))
       .innerJoin(users, eq(quests.ownerId, users.id))
+      .leftJoin(cities, eq(quests.cityId, cities.id))
       .where(eq(quests.id, quest.id));
     
     const [questWithAchievement] = await query;
+
+    // Получаем типы помощи для квеста
+    const questHelpTypesData = await this.db
+      .select({
+        id: helpTypes.id,
+        name: helpTypes.name,
+      })
+      .from(questHelpTypes)
+      .innerJoin(helpTypes, eq(questHelpTypes.helpTypeId, helpTypes.id))
+      .where(eq(questHelpTypes.questId, quest.id));
+
+    const questWithAllData = {
+      ...questWithAchievement,
+      helpTypes: questHelpTypesData,
+    };
 
     // Автоматически присоединяем создателя к квесту
     const userQuestResult = await this.db
@@ -137,14 +204,14 @@ export class QuestService {
     }
 
     // Эмитим событие создания квеста
-    this.questEventsService.emitQuestCreated(quest.id, questWithAchievement);
+    this.questEventsService.emitQuestCreated(quest.id, questWithAllData);
 
-    return questWithAchievement;
+    return questWithAllData;
   }
 
-  async findAll() {
+  async findAll(cityId?: number, helpTypeId?: number) {
     try {
-      return await this.db
+      let query = this.db
         .select({
           id: quests.id,
           title: quests.title,
@@ -153,6 +220,10 @@ export class QuestService {
           experienceReward: quests.experienceReward,
           achievementId: quests.achievementId,
           ownerId: quests.ownerId,
+          cityId: quests.cityId,
+          coverImage: quests.coverImage,
+          gallery: quests.gallery,
+          steps: quests.steps,
           createdAt: quests.createdAt,
           updatedAt: quests.updatedAt,
           achievement: {
@@ -169,10 +240,61 @@ export class QuestService {
             lastName: users.lastName,
             email: users.email,
           },
+          city: {
+            id: cities.id,
+            name: cities.name,
+          },
         })
         .from(quests)
         .leftJoin(achievements, eq(quests.achievementId, achievements.id))
-        .innerJoin(users, eq(quests.ownerId, users.id));
+        .innerJoin(users, eq(quests.ownerId, users.id))
+        .leftJoin(cities, eq(quests.cityId, cities.id));
+
+      // Применяем фильтры
+      const conditions = [];
+      if (cityId) {
+        conditions.push(eq(quests.cityId, cityId));
+      }
+      if (helpTypeId) {
+        query = query.innerJoin(questHelpTypes, eq(quests.id, questHelpTypes.questId)) as any;
+        conditions.push(eq(questHelpTypes.helpTypeId, helpTypeId));
+      }
+      if (conditions.length > 0) {
+        query = query.where(conditions.length === 1 ? conditions[0] : and(...conditions)) as any;
+      }
+
+      const questsList = await query;
+
+      // Получаем типы помощи для всех квестов
+      const questIds = questsList.map(q => q.id);
+      const allHelpTypes = questIds.length > 0
+        ? await this.db
+            .select({
+              questId: questHelpTypes.questId,
+              id: helpTypes.id,
+              name: helpTypes.name,
+            })
+            .from(questHelpTypes)
+            .innerJoin(helpTypes, eq(questHelpTypes.helpTypeId, helpTypes.id))
+            .where(inArray(questHelpTypes.questId, questIds))
+        : [];
+
+      // Группируем типы помощи по questId
+      const helpTypesByQuestId = new Map<number, Array<{ id: number; name: string }>>();
+      for (const helpType of allHelpTypes) {
+        if (!helpTypesByQuestId.has(helpType.questId)) {
+          helpTypesByQuestId.set(helpType.questId, []);
+        }
+        helpTypesByQuestId.get(helpType.questId)!.push({
+          id: helpType.id,
+          name: helpType.name,
+        });
+      }
+
+      return questsList.map(quest => ({
+        ...quest,
+        helpTypes: helpTypesByQuestId.get(quest.id) || [],
+      }));
     } catch (error: any) {
       console.error('Ошибка в findAll:', error);
       console.error('Детали ошибки:', {
@@ -187,45 +309,8 @@ export class QuestService {
     }
   }
 
-  async findByStatus(status?: 'active' | 'archived' | 'completed') {
-    const baseQuery = this.db
-      .select({
-        id: quests.id,
-        title: quests.title,
-        description: quests.description,
-        status: quests.status,
-        experienceReward: quests.experienceReward,
-        achievementId: quests.achievementId,
-        ownerId: quests.ownerId,
-        createdAt: quests.createdAt,
-        updatedAt: quests.updatedAt,
-        achievement: {
-          id: achievements.id,
-          title: achievements.title,
-          description: achievements.description,
-          icon: achievements.icon,
-          rarity: achievements.rarity,
-          questId: achievements.questId,
-        },
-        owner: {
-          id: users.id,
-          firstName: users.firstName,
-          lastName: users.lastName,
-          email: users.email,
-        },
-      })
-      .from(quests)
-      .leftJoin(achievements, eq(quests.achievementId, achievements.id))
-      .innerJoin(users, eq(quests.ownerId, users.id));
-    
-    if (status) {
-      return baseQuery.where(eq(quests.status, status));
-    }
-    return baseQuery;
-  }
-
-  async findOne(id: number) {
-    const [quest] = await this.db
+  async findByStatus(status?: 'active' | 'archived' | 'completed', cityId?: number, helpTypeId?: number) {
+    let baseQuery = this.db
       .select({
         id: quests.id,
         title: quests.title,
@@ -254,11 +339,116 @@ export class QuestService {
       .from(quests)
       .leftJoin(achievements, eq(quests.achievementId, achievements.id))
       .innerJoin(users, eq(quests.ownerId, users.id))
+      .leftJoin(cities, eq(quests.cityId, cities.id));
+    
+    // Применяем фильтры
+    const conditions = [];
+    if (status) {
+      conditions.push(eq(quests.status, status));
+    }
+    if (cityId) {
+      conditions.push(eq(quests.cityId, cityId));
+    }
+    if (helpTypeId) {
+      baseQuery = baseQuery.innerJoin(questHelpTypes, eq(quests.id, questHelpTypes.questId)) as any;
+      conditions.push(eq(questHelpTypes.helpTypeId, helpTypeId));
+    }
+    if (conditions.length > 0) {
+      baseQuery = baseQuery.where(conditions.length === 1 ? conditions[0] : and(...conditions)) as any;
+    }
+
+    const questsList = await baseQuery;
+
+    // Получаем типы помощи для всех квестов
+    const questIds = questsList.map(q => q.id);
+    const allHelpTypes = questIds.length > 0
+      ? await this.db
+          .select({
+            questId: questHelpTypes.questId,
+            id: helpTypes.id,
+            name: helpTypes.name,
+          })
+          .from(questHelpTypes)
+          .innerJoin(helpTypes, eq(questHelpTypes.helpTypeId, helpTypes.id))
+          .where(inArray(questHelpTypes.questId, questIds))
+      : [];
+
+    // Группируем типы помощи по questId
+    const helpTypesByQuestId = new Map<number, Array<{ id: number; name: string }>>();
+    for (const helpType of allHelpTypes) {
+      if (!helpTypesByQuestId.has(helpType.questId)) {
+        helpTypesByQuestId.set(helpType.questId, []);
+      }
+      helpTypesByQuestId.get(helpType.questId)!.push({
+        id: helpType.id,
+        name: helpType.name,
+      });
+    }
+
+    return questsList.map(quest => ({
+      ...quest,
+      helpTypes: helpTypesByQuestId.get(quest.id) || [],
+    }));
+  }
+
+  async findOne(id: number) {
+    const [quest] = await this.db
+      .select({
+        id: quests.id,
+        title: quests.title,
+        description: quests.description,
+        status: quests.status,
+        experienceReward: quests.experienceReward,
+        achievementId: quests.achievementId,
+        ownerId: quests.ownerId,
+        cityId: quests.cityId,
+        coverImage: quests.coverImage,
+        gallery: quests.gallery,
+        steps: quests.steps,
+        createdAt: quests.createdAt,
+        updatedAt: quests.updatedAt,
+        achievement: {
+          id: achievements.id,
+          title: achievements.title,
+          description: achievements.description,
+          icon: achievements.icon,
+          rarity: achievements.rarity,
+          questId: achievements.questId,
+        },
+        owner: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+        },
+        city: {
+          id: cities.id,
+          name: cities.name,
+        },
+      })
+      .from(quests)
+      .leftJoin(achievements, eq(quests.achievementId, achievements.id))
+      .innerJoin(users, eq(quests.ownerId, users.id))
+      .leftJoin(cities, eq(quests.cityId, cities.id))
       .where(eq(quests.id, id));
     if (!quest) {
       throw new NotFoundException(`Квест с ID ${id} не найден`);
     }
-    return quest;
+
+    // Получаем типы помощи для квеста
+    const questHelpTypesData = await this.db
+      .select({
+        id: helpTypes.id,
+        name: helpTypes.name,
+      })
+      .from(questHelpTypes)
+      .innerJoin(helpTypes, eq(questHelpTypes.helpTypeId, helpTypes.id))
+      .where(eq(questHelpTypes.questId, id));
+
+    return {
+      ...quest,
+      helpTypes: questHelpTypesData,
+    };
   }
 
   async update(id: number, updateQuestDto: UpdateQuestDto) {
@@ -290,6 +480,32 @@ export class QuestService {
     if (updateQuestDto.achievementId !== undefined) {
       updateData.achievementId = updateQuestDto.achievementId;
     }
+    if (updateQuestDto.cityId !== undefined) {
+      // Проверяем существование города, если указан
+      if (updateQuestDto.cityId !== null) {
+        const [city] = await this.db
+          .select()
+          .from(cities)
+          .where(eq(cities.id, updateQuestDto.cityId));
+        if (!city) {
+          throw new NotFoundException(`Город с ID ${updateQuestDto.cityId} не найден`);
+        }
+      }
+      updateData.cityId = updateQuestDto.cityId;
+    }
+    if (updateQuestDto.coverImage !== undefined) {
+      updateData.coverImage = updateQuestDto.coverImage;
+    }
+    if (updateQuestDto.gallery !== undefined) {
+      // Валидация галереи (максимум 10 элементов)
+      if (updateQuestDto.gallery && updateQuestDto.gallery.length > 10) {
+        throw new BadRequestException('Галерея не может содержать более 10 изображений');
+      }
+      updateData.gallery = updateQuestDto.gallery;
+    }
+    if (updateQuestDto.steps !== undefined) {
+      updateData.steps = updateQuestDto.steps;
+    }
 
     const result = await this.db
       .update(quests)
@@ -300,7 +516,38 @@ export class QuestService {
     if (!quest) {
       throw new NotFoundException(`Квест с ID ${id} не найден`);
     }
-    return quest;
+
+    // Обновляем типы помощи, если указаны
+    if (updateQuestDto.helpTypeIds !== undefined) {
+      // Удаляем старые связи
+      await this.db
+        .delete(questHelpTypes)
+        .where(eq(questHelpTypes.questId, id));
+
+      // Проверяем существование типов помощи, если указаны
+      if (updateQuestDto.helpTypeIds.length > 0) {
+        const existingHelpTypes = await this.db
+          .select()
+          .from(helpTypes)
+          .where(inArray(helpTypes.id, updateQuestDto.helpTypeIds));
+        if (existingHelpTypes.length !== updateQuestDto.helpTypeIds.length) {
+          throw new NotFoundException('Один или несколько типов помощи не найдены');
+        }
+
+        // Создаем новые связи
+        await this.db
+          .insert(questHelpTypes)
+          .values(
+            updateQuestDto.helpTypeIds.map(helpTypeId => ({
+              questId: id,
+              helpTypeId,
+            }))
+          );
+      }
+    }
+
+    // Возвращаем обновленный квест с полной информацией
+    return this.findOne(id);
   }
 
   async remove(id: number) {
@@ -540,7 +787,7 @@ export class QuestService {
     }
 
     // Получаем все квесты пользователя с информацией о квесте и достижении
-    return this.db
+    const result = await this.db
       .select({
         id: userQuests.id,
         userId: userQuests.userId,
@@ -556,6 +803,10 @@ export class QuestService {
           experienceReward: quests.experienceReward,
           achievementId: quests.achievementId,
           ownerId: quests.ownerId,
+          cityId: quests.cityId,
+          coverImage: quests.coverImage,
+          gallery: quests.gallery,
+          steps: quests.steps,
           createdAt: quests.createdAt,
           updatedAt: quests.updatedAt,
         },
@@ -567,11 +818,49 @@ export class QuestService {
           rarity: achievements.rarity,
           questId: achievements.questId,
         },
+        city: {
+          id: cities.id,
+          name: cities.name,
+        },
       })
       .from(userQuests)
       .innerJoin(quests, eq(userQuests.questId, quests.id))
       .leftJoin(achievements, eq(quests.achievementId, achievements.id))
+      .leftJoin(cities, eq(quests.cityId, cities.id))
       .where(eq(userQuests.userId, userId));
+
+    // Получаем типы помощи для всех квестов
+    const questIds = result.map(r => r.questId);
+    const allHelpTypes = questIds.length > 0
+      ? await this.db
+          .select({
+            questId: questHelpTypes.questId,
+            id: helpTypes.id,
+            name: helpTypes.name,
+          })
+          .from(questHelpTypes)
+          .innerJoin(helpTypes, eq(questHelpTypes.helpTypeId, helpTypes.id))
+          .where(inArray(questHelpTypes.questId, questIds))
+      : [];
+
+    const helpTypesByQuestId = new Map<number, Array<{ id: number; name: string }>>();
+    for (const helpType of allHelpTypes) {
+      if (!helpTypesByQuestId.has(helpType.questId)) {
+        helpTypesByQuestId.set(helpType.questId, []);
+      }
+      helpTypesByQuestId.get(helpType.questId)!.push({
+        id: helpType.id,
+        name: helpType.name,
+      });
+    }
+
+    return result.map(item => ({
+      ...item,
+      quest: {
+        ...item.quest,
+        helpTypes: helpTypesByQuestId.get(item.questId) || [],
+      },
+    }));
   }
 
   async getAvailableQuests(userId: number) {
@@ -594,6 +883,10 @@ export class QuestService {
         experienceReward: quests.experienceReward,
         achievementId: quests.achievementId,
         ownerId: quests.ownerId,
+        cityId: quests.cityId,
+        coverImage: quests.coverImage,
+        gallery: quests.gallery,
+        steps: quests.steps,
         createdAt: quests.createdAt,
         updatedAt: quests.updatedAt,
         achievement: {
@@ -610,10 +903,15 @@ export class QuestService {
           lastName: users.lastName,
           email: users.email,
         },
+        city: {
+          id: cities.id,
+          name: cities.name,
+        },
       })
       .from(quests)
       .leftJoin(achievements, eq(quests.achievementId, achievements.id))
       .innerJoin(users, eq(quests.ownerId, users.id))
+      .leftJoin(cities, eq(quests.cityId, cities.id))
       .where(eq(quests.status, 'active'));
 
     // Получаем квесты, которые пользователь уже начал
@@ -625,7 +923,38 @@ export class QuestService {
     const startedQuestIds = new Set(userStartedQuests.map(uq => uq.questId));
 
     // Фильтруем квесты, которые пользователь еще не начал
-    return activeQuests.filter(quest => !startedQuestIds.has(quest.id));
+    const filteredQuests = activeQuests.filter(quest => !startedQuestIds.has(quest.id));
+
+    // Получаем типы помощи для всех квестов
+    const questIds = filteredQuests.map(q => q.id);
+    const allHelpTypes = questIds.length > 0
+      ? await this.db
+          .select({
+            questId: questHelpTypes.questId,
+            id: helpTypes.id,
+            name: helpTypes.name,
+          })
+          .from(questHelpTypes)
+          .innerJoin(helpTypes, eq(questHelpTypes.helpTypeId, helpTypes.id))
+          .where(inArray(questHelpTypes.questId, questIds))
+      : [];
+
+    // Группируем типы помощи по questId
+    const helpTypesByQuestId = new Map<number, Array<{ id: number; name: string }>>();
+    for (const helpType of allHelpTypes) {
+      if (!helpTypesByQuestId.has(helpType.questId)) {
+        helpTypesByQuestId.set(helpType.questId, []);
+      }
+      helpTypesByQuestId.get(helpType.questId)!.push({
+        id: helpType.id,
+        name: helpType.name,
+      });
+    }
+
+    return filteredQuests.map(quest => ({
+      ...quest,
+      helpTypes: helpTypesByQuestId.get(quest.id) || [],
+    }));
   }
 }
 

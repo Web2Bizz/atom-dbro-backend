@@ -52,26 +52,61 @@ export class QuestController {
 
   @Get()
   @ApiOperation({ summary: 'Получить все квесты' })
+  @ApiQuery({ 
+    name: 'cityId', 
+    required: false, 
+    type: Number,
+    description: 'ID города для фильтрации' 
+  })
+  @ApiQuery({ 
+    name: 'helpTypeId', 
+    required: false, 
+    type: Number,
+    description: 'ID типа помощи для фильтрации' 
+  })
   @ApiResponse({ status: 200, description: 'Список квестов' })
-  findAll() {
-    return this.questService.findAll();
+  findAll(
+    @Query('cityId') cityId?: string,
+    @Query('helpTypeId') helpTypeId?: string,
+  ) {
+    const cityIdNum = cityId ? parseInt(cityId, 10) : undefined;
+    const helpTypeIdNum = helpTypeId ? parseInt(helpTypeId, 10) : undefined;
+    return this.questService.findAll(cityIdNum, helpTypeIdNum);
   }
 
   @Get('filter')
-  @ApiOperation({ summary: 'Получить квесты с фильтрацией по статусу' })
+  @ApiOperation({ summary: 'Получить квесты с фильтрацией по статусу, городу и типу помощи' })
   @ApiQuery({ 
     name: 'status', 
     required: false, 
     enum: ['active', 'archived', 'completed'],
     description: 'Статус квеста для фильтрации' 
   })
-  @ApiResponse({ status: 200, description: 'Список квестов с примененным фильтром' })
-  filter(@Query('status') status?: 'active' | 'archived' | 'completed') {
+  @ApiQuery({ 
+    name: 'cityId', 
+    required: false, 
+    type: Number,
+    description: 'ID города для фильтрации' 
+  })
+  @ApiQuery({ 
+    name: 'helpTypeId', 
+    required: false, 
+    type: Number,
+    description: 'ID типа помощи для фильтрации' 
+  })
+  @ApiResponse({ status: 200, description: 'Список квестов с примененными фильтрами' })
+  filter(
+    @Query('status') status?: 'active' | 'archived' | 'completed',
+    @Query('cityId') cityId?: string,
+    @Query('helpTypeId') helpTypeId?: string,
+  ) {
     // Валидация статуса
     if (status && !['active', 'archived', 'completed'].includes(status)) {
       throw new BadRequestException('Недопустимый статус. Допустимые значения: active, archived, completed');
     }
-    return this.questService.findByStatus(status);
+    const cityIdNum = cityId ? parseInt(cityId, 10) : undefined;
+    const helpTypeIdNum = helpTypeId ? parseInt(helpTypeId, 10) : undefined;
+    return this.questService.findByStatus(status, cityIdNum, helpTypeIdNum);
   }
 
   @Get(':id')

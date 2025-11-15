@@ -43,11 +43,20 @@ export const helpTypes = pgTable('help_types', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+// Типы организаций
+export const organizationTypes = pgTable('organization_types', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 255 }).notNull().unique(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 // Организации
 export const organizations = pgTable('organizations', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
   cityId: integer('city_id').references(() => cities.id).notNull(),
+  organizationTypeId: integer('organization_type_id').references(() => organizationTypes.id).notNull(),
   latitude: decimal('latitude', { precision: 10, scale: 8 }),
   longitude: decimal('longitude', { precision: 11, scale: 8 }),
   summary: text('summary'),
@@ -57,7 +66,6 @@ export const organizations = pgTable('organizations', {
   needs: jsonb('needs').$type<string[]>(),
   address: text('address'),
   contacts: jsonb('contacts').$type<Array<{ name: string; value: string }>>(),
-  organizationTypes: jsonb('organization_types').$type<string[]>(),
   gallery: jsonb('gallery').$type<string[]>(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
@@ -116,8 +124,29 @@ export const quests = pgTable('quests', {
   experienceReward: integer('experience_reward').default(0).notNull(),
   achievementId: integer('achievement_id').references(() => achievements.id),
   ownerId: integer('owner_id').references(() => users.id).notNull(),
+  cityId: integer('city_id').references(() => cities.id),
+  coverImage: varchar('cover_image', { length: 500 }),
+  gallery: jsonb('gallery').$type<string[]>(),
+  steps: jsonb('steps').$type<Array<{
+    title: string;
+    description?: string;
+    status: string;
+    progress: number;
+    requirement?: any;
+    deadline?: Date | string;
+  }>>(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// Связующая таблица: типы помощи квестов
+export const questHelpTypes = pgTable('quest_help_types', {
+  questId: integer('quest_id')
+    .references(() => quests.id)
+    .notNull(),
+  helpTypeId: integer('help_type_id')
+    .references(() => helpTypes.id)
+    .notNull(),
 });
 
 // Связующая таблица: выполнение квестов пользователями
@@ -148,6 +177,7 @@ export const citiesRelations = relations(cities, ({ one, many }) => ({
   }),
   users: many(users),
   organizations: many(organizations),
+  quests: many(quests),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -163,12 +193,21 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 
 export const helpTypesRelations = relations(helpTypes, ({ many }) => ({
   organizations: many(organizationHelpTypes),
+  quests: many(questHelpTypes),
+}));
+
+export const organizationTypesRelations = relations(organizationTypes, ({ many }) => ({
+  organizations: many(organizations),
 }));
 
 export const organizationsRelations = relations(organizations, ({ one, many }) => ({
   city: one(cities, {
     fields: [organizations.cityId],
     references: [cities.id],
+  }),
+  organizationType: one(organizationTypes, {
+    fields: [organizations.organizationTypeId],
+    references: [organizationTypes.id],
   }),
   owners: many(organizationOwners),
   helpTypes: many(organizationHelpTypes),
@@ -224,7 +263,23 @@ export const questsRelations = relations(quests, ({ one, many }) => ({
     fields: [quests.ownerId],
     references: [users.id],
   }),
+  city: one(cities, {
+    fields: [quests.cityId],
+    references: [cities.id],
+  }),
   userQuests: many(userQuests),
+  helpTypes: many(questHelpTypes),
+}));
+
+export const questHelpTypesRelations = relations(questHelpTypes, ({ one }) => ({
+  quest: one(quests, {
+    fields: [questHelpTypes.questId],
+    references: [quests.id],
+  }),
+  helpType: one(helpTypes, {
+    fields: [questHelpTypes.helpTypeId],
+    references: [helpTypes.id],
+  }),
 }));
 
 export const userQuestsRelations = relations(userQuests, ({ one }) => ({
