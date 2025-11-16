@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   ParseIntPipe,
+  Version,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { UserService } from './user.service';
@@ -47,20 +48,7 @@ export class UserController {
   }
 
   @Patch(':id')
-  @ZodValidation(updateUserSchema)
-  @ApiOperation({ summary: 'Обновить пользователя' })
-  @ApiBody({ type: UpdateUserDtoClass })
-  @ApiResponse({ status: 200, description: 'Пользователь обновлен', type: UpdateUserDtoClass })
-  @ApiResponse({ status: 404, description: 'Пользователь не найден' })
-  @ApiResponse({ status: 409, description: 'Пользователь с таким email уже существует' })
-  update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateUserDto: UpdateUserDto,
-  ) {
-    return this.userService.update(id, updateUserDto);
-  }
-
-  @Patch(':id/v2')
+  @Version('2')
   @ZodValidation(updateUserV2Schema)
   @ApiOperation({ summary: 'Обновить пользователя (v2) - принимает одну ссылку на аватар' })
   @ApiBody({ type: UpdateUserV2DtoClass })
@@ -72,6 +60,21 @@ export class UserController {
     @Body() updateUserV2Dto: UpdateUserV2Dto,
   ) {
     return this.userService.updateV2(id, updateUserV2Dto);
+  }
+
+  @Patch(':id')
+  @Version('1')
+  @ZodValidation(updateUserSchema)
+  @ApiOperation({ summary: 'Обновить пользователя (v1) - принимает объект avatarUrls' })
+  @ApiBody({ type: UpdateUserDtoClass })
+  @ApiResponse({ status: 200, description: 'Пользователь обновлен', type: UpdateUserDtoClass })
+  @ApiResponse({ status: 404, description: 'Пользователь не найден' })
+  @ApiResponse({ status: 409, description: 'Пользователь с таким email уже существует' })
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    return this.userService.update(id, updateUserDto);
   }
 
   @Delete(':id')
