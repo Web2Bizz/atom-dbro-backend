@@ -14,11 +14,14 @@ interface PaletteResponse {
 }
 
 interface GenerateAvatarResponse {
+  id?: string;
   url?: string;
   imageUrl?: string;
   image_url?: string;
   avatarUrl?: string;
   avatar_url?: string;
+  createdAt?: string;
+  version?: string;
   [key: string]: any; // Для поддержки других возможных форматов
 }
 
@@ -153,6 +156,54 @@ export class AvatarService {
         }
         else if ('avatar_url' in data && typeof data.avatar_url === 'string') {
           avatarUrl = data.avatar_url;
+        }
+        // Если API возвращает ID, делаем дополнительный запрос для получения URL
+        else if ('id' in data && typeof data.id === 'string' && data.id.trim() !== '') {
+          try {
+            // Пробуем получить URL через GET запрос к /api/v3/{id}
+            const getResponse = await fetch(`${this.API_BASE_URL}/api/v3/${data.id}`, {
+              method: 'GET',
+              headers: {
+                'accept': '*/*',
+              },
+            });
+
+            if (getResponse.ok) {
+              const getData = await getResponse.json();
+              console.log('Avatar GET response:', JSON.stringify(getData, null, 2));
+              
+              // Проверяем различные поля в ответе
+              if (getData && typeof getData === 'object') {
+                if ('url' in getData && typeof getData.url === 'string') {
+                  avatarUrl = getData.url;
+                } else if ('imageUrl' in getData && typeof getData.imageUrl === 'string') {
+                  avatarUrl = getData.imageUrl;
+                } else if ('image_url' in getData && typeof getData.image_url === 'string') {
+                  avatarUrl = getData.image_url;
+                }
+              }
+            }
+            
+            // Если не получили URL из GET запроса, формируем URL на основе ID
+            // Возможные варианты: /api/v3/{id}, /api/v3/{id}/image, /api/v3/images/{id}
+            if (!avatarUrl) {
+              // Пробуем разные варианты формирования URL
+              const possibleUrls = [
+                `${this.API_BASE_URL}/api/v3/${data.id}/image`,
+                `${this.API_BASE_URL}/api/v3/images/${data.id}`,
+                `${this.API_BASE_URL}/api/v3/${data.id}`,
+              ];
+              
+              // Используем первый вариант как основной
+              avatarUrl = possibleUrls[0];
+              console.log(`Generated avatar URL from ID: ${avatarUrl}`);
+            }
+          } catch (fetchError) {
+            console.error('Error fetching avatar URL by ID:', fetchError);
+            // В случае ошибки все равно формируем URL на основе ID
+            avatarUrl = `${this.API_BASE_URL}/api/v3/${data.id}`;
+            console.log(`Fallback: Generated avatar URL from ID: ${avatarUrl}`);
+          }
         }
       }
       
