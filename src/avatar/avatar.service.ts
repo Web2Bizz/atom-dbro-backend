@@ -14,7 +14,12 @@ interface PaletteResponse {
 }
 
 interface GenerateAvatarResponse {
-  url: string;
+  url?: string;
+  imageUrl?: string;
+  image_url?: string;
+  avatarUrl?: string;
+  avatar_url?: string;
+  [key: string]: any; // Для поддержки других возможных форматов
 }
 
 @Injectable()
@@ -109,13 +114,54 @@ export class AvatarService {
         throw new Error(`Failed to generate avatar: ${response.status} ${response.statusText}. Response: ${errorText}`);
       }
 
-      const data: GenerateAvatarResponse = await response.json();
+      const responseText = await response.text();
+      console.log('Avatar API response text:', responseText);
       
-      if (!data || !data.url || typeof data.url !== 'string' || data.url.trim() === '') {
-        throw new Error('Invalid response from avatar API: missing or empty URL');
+      let data: GenerateAvatarResponse;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse avatar API response as JSON:', parseError);
+        console.error('Response text:', responseText);
+        throw new Error(`Invalid JSON response from avatar API: ${responseText.substring(0, 200)}`);
+      }
+      
+      console.log('Parsed avatar API response:', JSON.stringify(data, null, 2));
+      
+      // Проверяем различные возможные форматы ответа
+      let avatarUrl: string | undefined;
+      
+      // Если ответ - это просто строка URL
+      if (typeof data === 'string') {
+        avatarUrl = data;
+      }
+      // Если ответ - это объект
+      else if (data && typeof data === 'object') {
+        // Проверяем поле url
+        if ('url' in data && typeof data.url === 'string') {
+          avatarUrl = data.url;
+        }
+        // Проверяем другие возможные варианты
+        else if ('imageUrl' in data && typeof data.imageUrl === 'string') {
+          avatarUrl = data.imageUrl;
+        }
+        else if ('image_url' in data && typeof data.image_url === 'string') {
+          avatarUrl = data.image_url;
+        }
+        else if ('avatarUrl' in data && typeof data.avatarUrl === 'string') {
+          avatarUrl = data.avatarUrl;
+        }
+        else if ('avatar_url' in data && typeof data.avatar_url === 'string') {
+          avatarUrl = data.avatar_url;
+        }
+      }
+      
+      if (!avatarUrl || typeof avatarUrl !== 'string' || avatarUrl.trim() === '') {
+        console.error('Avatar API response structure:', data);
+        throw new Error(`Invalid response from avatar API: missing or empty URL. Response structure: ${JSON.stringify(data)}`);
       }
 
-      const baseUrl = data.url.trim();
+      const baseUrl = avatarUrl.trim();
 
       // Формируем объект с URL для размеров 4-9
       // Предполагаем, что API возвращает базовый URL, который можно использовать для разных размеров
