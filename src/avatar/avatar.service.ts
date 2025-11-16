@@ -132,98 +132,60 @@ export class AvatarService {
       console.log('Parsed avatar API response:', JSON.stringify(data, null, 2));
       
       // Проверяем различные возможные форматы ответа
-      let avatarUrl: string | undefined;
+      let avatarId: string | undefined;
+      let directUrl: string | undefined;
       
       // Если ответ - это просто строка URL
       if (typeof data === 'string') {
-        avatarUrl = data;
+        directUrl = data;
       }
       // Если ответ - это объект
       else if (data && typeof data === 'object') {
-        // Проверяем поле url
+        // Проверяем поле url (прямой URL)
         if ('url' in data && typeof data.url === 'string') {
-          avatarUrl = data.url;
+          directUrl = data.url;
         }
-        // Проверяем другие возможные варианты
+        // Проверяем другие возможные варианты прямых URL
         else if ('imageUrl' in data && typeof data.imageUrl === 'string') {
-          avatarUrl = data.imageUrl;
+          directUrl = data.imageUrl;
         }
         else if ('image_url' in data && typeof data.image_url === 'string') {
-          avatarUrl = data.image_url;
+          directUrl = data.image_url;
         }
         else if ('avatarUrl' in data && typeof data.avatarUrl === 'string') {
-          avatarUrl = data.avatarUrl;
+          directUrl = data.avatarUrl;
         }
         else if ('avatar_url' in data && typeof data.avatar_url === 'string') {
-          avatarUrl = data.avatar_url;
+          directUrl = data.avatar_url;
         }
-        // Если API возвращает ID, делаем дополнительный запрос для получения URL
+        // Если API возвращает ID, используем его для формирования URL
+        // Формат: /api/v1/{id}?size={size}, где size от 4 до 9
         else if ('id' in data && typeof data.id === 'string' && data.id.trim() !== '') {
-          try {
-            // Пробуем получить URL через GET запрос к /api/v3/{id}
-            const getResponse = await fetch(`${this.API_BASE_URL}/api/v3/${data.id}`, {
-              method: 'GET',
-              headers: {
-                'accept': '*/*',
-              },
-            });
-
-            if (getResponse.ok) {
-              const getData = await getResponse.json();
-              console.log('Avatar GET response:', JSON.stringify(getData, null, 2));
-              
-              // Проверяем различные поля в ответе
-              if (getData && typeof getData === 'object') {
-                if ('url' in getData && typeof getData.url === 'string') {
-                  avatarUrl = getData.url;
-                } else if ('imageUrl' in getData && typeof getData.imageUrl === 'string') {
-                  avatarUrl = getData.imageUrl;
-                } else if ('image_url' in getData && typeof getData.image_url === 'string') {
-                  avatarUrl = getData.image_url;
-                }
-              }
-            }
-            
-            // Если не получили URL из GET запроса, формируем URL на основе ID
-            // Возможные варианты: /api/v3/{id}, /api/v3/{id}/image, /api/v3/images/{id}
-            if (!avatarUrl) {
-              // Пробуем разные варианты формирования URL
-              const possibleUrls = [
-                `${this.API_BASE_URL}/api/v3/${data.id}/image`,
-                `${this.API_BASE_URL}/api/v3/images/${data.id}`,
-                `${this.API_BASE_URL}/api/v3/${data.id}`,
-              ];
-              
-              // Используем первый вариант как основной
-              avatarUrl = possibleUrls[0];
-              console.log(`Generated avatar URL from ID: ${avatarUrl}`);
-            }
-          } catch (fetchError) {
-            console.error('Error fetching avatar URL by ID:', fetchError);
-            // В случае ошибки все равно формируем URL на основе ID
-            avatarUrl = `${this.API_BASE_URL}/api/v3/${data.id}`;
-            console.log(`Fallback: Generated avatar URL from ID: ${avatarUrl}`);
-          }
+          avatarId = data.id.trim();
+          console.log(`Avatar ID received: ${avatarId}`);
         }
       }
       
-      if (!avatarUrl || typeof avatarUrl !== 'string' || avatarUrl.trim() === '') {
-        console.error('Avatar API response structure:', data);
-        throw new Error(`Invalid response from avatar API: missing or empty URL. Response structure: ${JSON.stringify(data)}`);
-      }
-
-      const baseUrl = avatarUrl.trim();
-
       // Формируем объект с URL для размеров 4-9
-      // Предполагаем, что API возвращает базовый URL, который можно использовать для разных размеров
-      // Если API возвращает URL с параметром размера, нужно будет адаптировать логику
       const avatarUrls: Record<number, string> = {};
       
-      // Если API возвращает URL с возможностью указать размер через параметр
-      // Или если нужно делать отдельные запросы для каждого размера
-      // Пока используем один URL для всех размеров (можно будет адаптировать позже)
-      for (let size = 4; size <= 9; size++) {
-        avatarUrls[size] = baseUrl;
+      if (avatarId) {
+        // Если есть ID, формируем URL для каждого размера с параметром size
+        // Формат: /api/v1/{id}?size={size}
+        for (let size = 4; size <= 9; size++) {
+          avatarUrls[size] = `${this.API_BASE_URL}/api/v1/${avatarId}?size=${size}`;
+        }
+        console.log(`Generated avatar URLs for sizes 4-9 using ID: ${avatarId}`);
+      } else if (directUrl) {
+        // Если есть прямой URL, используем его для всех размеров
+        // (на случай, если API вернул прямой URL без параметра size)
+        for (let size = 4; size <= 9; size++) {
+          avatarUrls[size] = directUrl;
+        }
+        console.log(`Using direct URL for all sizes: ${directUrl}`);
+      } else {
+        console.error('Avatar API response structure:', data);
+        throw new Error(`Invalid response from avatar API: missing ID or URL. Response structure: ${JSON.stringify(data)}`);
       }
 
       if (Object.keys(avatarUrls).length === 0) {
