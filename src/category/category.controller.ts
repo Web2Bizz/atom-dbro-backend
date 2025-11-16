@@ -7,11 +7,14 @@ import {
   Param,
   Delete,
   ParseIntPipe,
+  Version,
+  HttpCode,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { CategoryService } from './category.service';
 import { CreateCategoryDto, createCategorySchema, CreateCategoryDtoClass } from './dto/create-category.dto';
 import { UpdateCategoryDto, updateCategorySchema, UpdateCategoryDtoClass } from './dto/update-category.dto';
+import { CreateCategoriesBulkDto, createCategoriesBulkSchema } from './dto/create-categories-bulk.dto';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 
 @ApiTags('Категории')
@@ -64,6 +67,37 @@ export class CategoryController {
   @ApiResponse({ status: 404, description: 'Категория не найдена' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.categoryService.remove(id);
+  }
+
+  @Post()
+  @Version('2')
+  @HttpCode(201)
+  @ZodValidation(createCategoriesBulkSchema)
+  @ApiOperation({ summary: 'Массовое добавление категорий (v2)' })
+  @ApiBody({ 
+    type: [CreateCategoryDtoClass],
+    description: 'Массив категорий для добавления',
+    examples: {
+      example1: {
+        value: [
+          {
+            name: 'Экология'
+          },
+          {
+            name: 'Образование'
+          }
+        ]
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'Категории успешно созданы',
+    type: [CreateCategoryDtoClass]
+  })
+  @ApiResponse({ status: 400, description: 'Неверные данные или категории с такими названиями уже существуют' })
+  createMany(@Body() createCategoriesDto: CreateCategoriesBulkDto) {
+    return this.categoryService.createMany(createCategoriesDto);
   }
 }
 

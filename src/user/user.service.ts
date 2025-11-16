@@ -18,6 +18,39 @@ export class UserService {
     private avatarService: AvatarService,
   ) {}
 
+  /**
+   * Преобразует роль из базы данных в читаемый формат для вывода
+   */
+  private formatRole(role: string): string {
+    if (role === 'USER') {
+      return 'пользователь';
+    }
+    if (role === 'MODERATOR') {
+      return 'модератор';
+    }
+    return role;
+  }
+
+  /**
+   * Преобразует объект пользователя, заменяя роль на читаемый формат
+   */
+  private formatUser(user: any): any {
+    if (!user) {
+      return user;
+    }
+    return {
+      ...user,
+      role: this.formatRole(user.role),
+    };
+  }
+
+  /**
+   * Преобразует массив пользователей, заменяя роль на читаемый формат
+   */
+  private formatUsers(users: any[]): any[] {
+    return users.map(user => this.formatUser(user));
+  }
+
   async create(createUserDto: CreateUserDto) {
     // Проверяем уникальность email
     const [existingUser] = await this.db
@@ -64,11 +97,11 @@ export class UserService {
         organisationId: createUserDto.organisationId ?? null,
       })
       .returning();
-    return user;
+    return this.formatUser(user);
   }
 
   async findAll() {
-    return this.db
+    const usersList = await this.db
       .select({
         id: users.id,
         firstName: users.firstName,
@@ -85,6 +118,7 @@ export class UserService {
         updatedAt: users.updatedAt,
       })
       .from(users);
+    return this.formatUsers(usersList);
   }
 
   async findOne(id: number) {
@@ -109,7 +143,7 @@ export class UserService {
     if (!user) {
       throw new NotFoundException(`Пользователь с ID ${id} не найден`);
     }
-    return user;
+    return this.formatUser(user);
   }
 
   async findByEmail(email: string) {
@@ -194,7 +228,7 @@ export class UserService {
     if (!user) {
       throw new NotFoundException(`Пользователь с ID ${id} не найден`);
     }
-    return user;
+    return this.formatUser(user);
   }
 
   async updateV2(id: number, updateUserV2Dto: UpdateUserV2Dto) {
@@ -230,7 +264,7 @@ export class UserService {
     if (!user) {
       throw new NotFoundException(`Пользователь с ID ${id} не найден`);
     }
-    return user;
+    return this.formatUser(user);
   }
 
   /**
