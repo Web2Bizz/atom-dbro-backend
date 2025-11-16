@@ -133,9 +133,22 @@ export class UserService {
     const { experience, level, ...updateData } = updateUserDto as any;
 
     const updateValues: any = { ...updateData, updatedAt: new Date() };
-    // Если avatarUrls передан в DTO, используем его, иначе не изменяем аватарку
+    // Если avatarUrls передан в DTO, нормализуем его в формат с ключами 4-9 и одинаковым URL
     if (updateUserDto.avatarUrls !== undefined) {
-      updateValues.avatarUrls = updateUserDto.avatarUrls;
+      const avatarUrls = updateUserDto.avatarUrls;
+      // Получаем первый доступный URL из объекта
+      const firstUrl = Object.values(avatarUrls)[0];
+      if (firstUrl && typeof firstUrl === 'string') {
+        // Создаем объект с ключами 4-9 и одинаковым URL
+        const normalizedAvatarUrls: Record<number, string> = {};
+        for (let size = 4; size <= 9; size++) {
+          normalizedAvatarUrls[size] = firstUrl;
+        }
+        updateValues.avatarUrls = normalizedAvatarUrls;
+      } else {
+        // Если URL не найден, используем переданный объект как есть
+        updateValues.avatarUrls = avatarUrls;
+      }
     }
 
     const [user] = await this.db

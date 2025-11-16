@@ -31,8 +31,8 @@ export class UpdateUserDtoClass {
   email?: string;
 
   @ApiProperty({ 
-    description: 'URL аватарок (объект с ключами-числами и значениями-строками)', 
-    example: { 1: 'https://example.com/avatar1.png', 2: 'https://example.com/avatar2.png' }, 
+    description: 'URL аватарок. При обновлении будет преобразован в формат с ключами 4-9 и одинаковым URL', 
+    example: { 4: 'https://example.com/avatar.png', 5: 'https://example.com/avatar.png', 6: 'https://example.com/avatar.png', 7: 'https://example.com/avatar.png', 8: 'https://example.com/avatar.png', 9: 'https://example.com/avatar.png' }, 
     required: false 
   })
   avatarUrls?: Record<number, string>;
