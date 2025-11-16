@@ -7,7 +7,7 @@ interface PaletteColor {
 }
 
 interface PaletteResponse {
-  palettes: Array<{
+  items: Array<{
     primaryColor: string;
     foreignColor: string;
   }>;
@@ -48,7 +48,7 @@ export class AvatarService {
       }
 
       const data: PaletteResponse = await response.json();
-      this.paletteCache = data.palettes.map(p => ({
+      this.paletteCache = data.items.map(p => ({
         primaryColor: p.primaryColor,
         foreignColor: p.foreignColor,
       }));
