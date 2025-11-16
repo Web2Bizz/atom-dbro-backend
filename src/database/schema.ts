@@ -1,5 +1,6 @@
 import { pgTable, serial, varchar, decimal, integer, timestamp, text, jsonb, unique } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { UserRole } from '../user/user.types';
 
 // Регионы
 export const regions = pgTable('regions', {
@@ -29,6 +30,7 @@ export const users = pgTable('users', {
   email: varchar('email', { length: 255 }).notNull().unique(),
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
   avatarUrls: jsonb('avatar_urls').$type<Record<number, string>>(),
+  role: varchar('role', { length: 20 }).default('USER').notNull(),
   level: integer('level').default(1).notNull(),
   experience: integer('experience').default(0).notNull(),
   questId: integer('quest_id').references(() => quests.id),

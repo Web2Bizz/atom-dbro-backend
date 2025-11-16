@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { z } from 'zod/v4';
+import { UserRole } from '../user.types';
 
 export const updateUserSchema = z.object({
   firstName: z.string().max(255, 'Имя не должно превышать 255 символов').optional(),
@@ -7,6 +8,9 @@ export const updateUserSchema = z.object({
   middleName: z.string().max(255, 'Отчество не должно превышать 255 символов').optional(),
   email: z.string().email('Некорректный формат email').optional(),
   avatarUrls: z.record(z.number(), z.string()).optional(),
+  role: z.nativeEnum(UserRole, {
+    message: 'Роль должна быть одним из: USER, MODERATOR',
+  }).optional(),
   questId: z.number().int().positive('ID квеста должен быть положительным числом').nullable().optional(),
   organisationId: z.number().int().positive('ID организации должен быть положительным числом').nullable().optional(),
 });
@@ -32,6 +36,9 @@ export class UpdateUserDtoClass {
     required: false 
   })
   avatarUrls?: Record<number, string>;
+
+  @ApiProperty({ description: 'Роль пользователя', enum: UserRole, example: UserRole.USER, required: false })
+  role?: UserRole;
 
   @ApiProperty({ description: 'ID квеста', example: 1, required: false, nullable: true })
   questId?: number | null;
