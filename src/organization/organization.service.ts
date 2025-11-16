@@ -343,6 +343,39 @@ export class OrganizationService {
       updateData.organizationTypeId = organizationTypeId;
     }
 
+    // Обработка helpTypeIds: обновляем типы помощи организации
+    if (updateOrganizationDto.helpTypeIds !== undefined) {
+      const helpTypeIds = [...new Set(updateOrganizationDto.helpTypeIds)]; // Убеждаемся в уникальности
+      
+      // Проверяем существование всех видов помощи
+      if (helpTypeIds.length > 0) {
+        const existingHelpTypes = await this.db
+          .select()
+          .from(helpTypes)
+          .where(inArray(helpTypes.id, helpTypeIds));
+        if (existingHelpTypes.length !== helpTypeIds.length) {
+          const foundIds = existingHelpTypes.map(ht => ht.id);
+          const missingIds = helpTypeIds.filter(id => !foundIds.includes(id));
+          throw new NotFoundException(`Виды помощи с ID ${missingIds.join(', ')} не найдены`);
+        }
+      }
+
+      // Удаляем все старые связи с видами помощи
+      await this.db
+        .delete(organizationHelpTypes)
+        .where(eq(organizationHelpTypes.organizationId, id));
+
+      // Добавляем новые связи с видами помощи
+      if (helpTypeIds.length > 0) {
+        await this.db.insert(organizationHelpTypes).values(
+          helpTypeIds.map(helpTypeId => ({
+            organizationId: id,
+            helpTypeId: helpTypeId,
+          }))
+        );
+      }
+    }
+
     // Обработка галереи: сравниваем старую и новую, удаляем неиспользуемые файлы из S3
     if (updateOrganizationDto.gallery !== undefined) {
       const oldGallery = existingOrg.gallery || [];

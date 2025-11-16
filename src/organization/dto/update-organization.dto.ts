@@ -6,6 +6,9 @@ export const updateOrganizationSchema = z.object({
   name: z.string().max(255, 'Название не должно превышать 255 символов').optional(),
   cityId: z.number().int().positive('ID города должен быть положительным целым числом').optional(),
   organizationTypeId: z.number().int().positive('ID типа организации должен быть положительным целым числом').optional(),
+  helpTypeIds: z.array(z.number().int().positive('ID вида помощи должен быть положительным целым числом')).optional().refine((ids) => !ids || new Set(ids).size === ids.length, {
+    message: 'Виды помощи должны быть уникальными',
+  }),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   summary: z.string().optional(),
@@ -29,6 +32,9 @@ export class UpdateOrganizationDtoClass {
 
   @ApiProperty({ description: 'ID типа организации', example: 1, required: false })
   organizationTypeId?: number;
+
+  @ApiProperty({ description: 'ID видов помощи', example: [1, 2, 3], required: false, type: [Number] })
+  helpTypeIds?: number[];
 
   @ApiProperty({ description: 'Широта', example: '55.7558', required: false })
   latitude?: number;
