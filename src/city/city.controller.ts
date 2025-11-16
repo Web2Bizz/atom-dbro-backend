@@ -8,11 +8,14 @@ import {
   Delete,
   ParseIntPipe,
   Query,
+  Version,
+  HttpCode,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { CityService } from './city.service';
 import { CreateCityDto, createCitySchema, CreateCityDtoClass } from './dto/create-city.dto';
 import { UpdateCityDto, updateCitySchema, UpdateCityDtoClass } from './dto/update-city.dto';
+import { CreateCitiesBulkDto, createCitiesBulkSchema } from './dto/create-cities-bulk.dto';
 import { Public } from '../auth/decorators/public.decorator';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 
@@ -70,6 +73,44 @@ export class CityController {
   @ApiResponse({ status: 404, description: 'Город не найден' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.cityService.remove(id);
+  }
+
+  @Post()
+  @Version('2')
+  @HttpCode(201)
+  @ZodValidation(createCitiesBulkSchema)
+  @ApiOperation({ summary: 'Массовое добавление городов (v2)' })
+  @ApiBody({ 
+    type: [CreateCityDtoClass],
+    description: 'Массив городов для добавления',
+    examples: {
+      example1: {
+        value: [
+          {
+            name: 'Ангарск',
+            latitude: 52.5444,
+            longitude: 103.8883,
+            regionId: 1
+          },
+          {
+            name: 'Байкальск',
+            latitude: 51.5167,
+            longitude: 104.1333,
+            regionId: 1
+          }
+        ]
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'Города успешно созданы',
+    type: [CreateCityDtoClass]
+  })
+  @ApiResponse({ status: 400, description: 'Неверные данные' })
+  @ApiResponse({ status: 404, description: 'Один или несколько регионов не найдены' })
+  createMany(@Body() createCitiesDto: CreateCitiesBulkDto) {
+    return this.cityService.createMany(createCitiesDto);
   }
 }
 

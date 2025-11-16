@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { VersioningType } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { json } from 'express';
 
@@ -38,8 +39,14 @@ async function bootstrap() {
       allowedHeaders: ['Content-Type', 'Authorization'],
     });
 
-    // Устанавливаем глобальный префикс для версионирования API
-    app.setGlobalPrefix('api/v1');
+    // Настраиваем версионирование API
+    app.enableVersioning({
+      type: VersioningType.URI,
+      defaultVersion: '1',
+    });
+
+    // Устанавливаем глобальный префикс для API
+    app.setGlobalPrefix('api');
 
     // Валидация теперь выполняется через декоратор @ZodValidation на уровне методов контроллеров
 
@@ -58,7 +65,8 @@ async function bootstrap() {
     await app.listen(port, '0.0.0.0');
     console.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
     console.log(`📚 Swagger API docs: http://0.0.0.0:${port}/api`);
-    console.log(`🌐 API endpoints: http://0.0.0.0:${port}/api/v1`);
+    console.log(`🌐 API v1 endpoints: http://0.0.0.0:${port}/api/v1`);
+    console.log(`🌐 API v2 endpoints: http://0.0.0.0:${port}/api/v2`);
   } catch (error) {
     console.error('❌ Error starting application:', error);
     process.exit(1);

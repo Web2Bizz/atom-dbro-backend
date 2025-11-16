@@ -1,10 +1,11 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { cities, regions } from '../database/schema';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { CreateCityDto } from './dto/create-city.dto';
 import { UpdateCityDto } from './dto/update-city.dto';
+import { CreateCitiesBulkDto } from './dto/create-cities-bulk.dto';
 
 @Injectable()
 export class CityService {
@@ -123,6 +124,46 @@ export class CityService {
       throw new NotFoundException(`Город с ID ${id} не найден`);
     }
     return city;
+  }
+
+  async createMany(createCitiesDto: CreateCitiesBulkDto) {
+    if (createCitiesDto.length === 0) {
+      throw new BadRequestException('Массив городов не может быть пустым');
+    }
+
+    // Получаем все уникальные regionId из запроса
+    const regionIds = [...new Set(createCitiesDto.map(city => city.regionId))];
+
+    // Проверяем существование всех регионов
+    const existingRegions = await this.db
+      .select()
+      .from(regions)
+      .where(inArray(regions.id, regionIds));
+
+    const existingRegionIds = new Set(existingRegions.map(r => r.id));
+    const missingRegionIds = regionIds.filter(id => !existingRegionIds.has(id));
+
+    if (missingRegionIds.length > 0) {
+      throw new NotFoundException(
+        `Регионы с ID ${missingRegionIds.join(', ')} не найдены`
+      );
+    }
+
+    // Подготавливаем данные для вставки
+    const citiesToInsert = createCitiesDto.map(city => ({
+      name: city.name,
+      latitude: city.latitude.toString(),
+      longitude: city.longitude.toString(),
+      regionId: city.regionId,
+    }));
+
+    // Вставляем все города одним запросом
+    const insertedCities = await this.db
+      .insert(cities)
+      .values(citiesToInsert)
+      .returning();
+
+    return insertedCities;
   }
 }
 

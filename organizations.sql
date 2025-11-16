@@ -23,7 +23,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'ОО ТОС АГО "12а микрорайон"',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Ангарск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Ангарск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     2,
     52.5444,
     103.8883,
@@ -66,7 +69,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'Благотворительный общественно полезный фонд помощи социально незащищенным слоям населения "Платформа добрых дел"',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Волгодонск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Волгодонск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     4,
     47.5167,
     42.15,
@@ -109,7 +115,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'МБУ "Молодежный центр"',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Глазов') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Глазов')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     2,
     58.1333,
     52.6667,
@@ -152,7 +161,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'Культурная база "Короленко 8" (МБУ "ЦМиТО УКСиМП")',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Глазов') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Глазов')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     9,
     58.1333,
     52.6667,
@@ -195,7 +207,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'КРОМО "Экологический союз"',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Железногорск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Железногорск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     5,
     56.25,
     93.5333,
@@ -238,7 +253,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'Федерация картинга',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Зеленогорск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Зеленогорск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     6,
     56.1167,
     94.5833,
@@ -281,7 +299,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'НКО "Резервный фонд поддержки гражданских инициатив города Зеленогорска"',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Зеленогорск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Зеленогорск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     2,
     56.1167,
     94.5833,
@@ -324,7 +345,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'АНО "Клуб компьютерного спорта и фиджитал-спорта "Кибер-атом"',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Зеленогорск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Зеленогорск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     6,
     56.1167,
     94.5833,
@@ -367,7 +391,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'АНО РАЗВИВАЮЩИЙ ЦЕНТР "СОЛНЕЧНЫЙ ГОРОД"',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Зеленогорск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Зеленогорск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     4,
     56.1167,
     94.5833,
@@ -410,7 +437,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'АНО КРЦРМСИГ ЕЛЕНЫ ЖИВАЕВОЙ',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Зеленогорск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Зеленогорск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     2,
     56.1167,
     94.5833,
@@ -453,7 +483,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'АНО Ресурсный центр',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Зеленогорск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Зеленогорск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     2,
     56.1167,
     94.5833,
@@ -496,7 +529,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'АНО СС "Линия жизни"',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Зеленогорск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Зеленогорск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     4,
     56.1167,
     94.5833,
@@ -539,7 +575,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'АНО Центр досуга и развития детей',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Зеленогорск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Зеленогорск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     7,
     56.1167,
     94.5833,
@@ -582,7 +621,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'БФ «Планета кошек»',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Нижний Новгород') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Нижний Новгород')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     8,
     56.2965,
     43.9361,
@@ -625,7 +667,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'АНО ДПО "Техническая академия Росатома"',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Обнинск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Обнинск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     9,
     55.1,
     36.6,
@@ -668,7 +713,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'АНО СЦСА НАШИ ДЕТИ',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Омск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Омск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     4,
     54.9885,
     73.3242,
@@ -711,7 +759,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'ТРОО "ВПЦ" МИРНЫЙ ВОИН"',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Северск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Северск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     4,
     56.6,
     84.8833,
@@ -754,7 +805,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'СГОО БУМЕРАНГ ДОБРА',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Снежинск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Снежинск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     4,
     56.0851,
     60.7314,
@@ -797,7 +851,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'ДоброЦентр при СО НКО Бумеранг добра',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Снежинск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Снежинск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     4,
     56.0851,
     60.7314,
@@ -840,7 +897,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'Снежинская городская общественная организация "Союз женщин Снежинска"',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Снежинск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Снежинск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     2,
     56.0851,
     60.7314,
@@ -883,7 +943,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'БФМС Новое Усолье',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Усолье-Сибирское') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Усолье-Сибирское')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     2,
     52.75,
     103.6333,
@@ -926,7 +989,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'УГМО ИОРОООО ВОИ',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Усолье-Сибирское') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Усолье-Сибирское')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     9,
     52.75,
     103.6333,
@@ -969,7 +1035,10 @@ WITH inserted_org AS (
     updated_at
   ) VALUES (
     'АНО «Твердыми шагами»',
-    (SELECT id FROM cities WHERE LOWER(name) = LOWER('Озерск') LIMIT 1),
+    COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM('Озерск')) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      ),
     9,
     55.7558,
     60.7029,

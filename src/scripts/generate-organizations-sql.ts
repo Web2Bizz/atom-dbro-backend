@@ -109,6 +109,7 @@ function generateSql() {
   console.log(`Генерируем SQL запросы...\n`);
 
   const sqlLines: string[] = [];
+  const warnings: string[] = [];
   
   // Добавляем заголовок
   sqlLines.push('-- SQL запросы для вставки организаций');
@@ -127,10 +128,17 @@ function generateSql() {
     if (org.cityId > 0) {
       cityIdSql = org.cityId.toString();
     } else if (cityName) {
-      cityIdSql = `(SELECT id FROM cities WHERE LOWER(name) = LOWER(${escapeSqlString(cityName)}) LIMIT 1)`;
+      // Используем COALESCE для обработки случая, когда город не найден
+      // Если город не найден, используем первый доступный город как fallback
+      cityIdSql = `COALESCE(
+        (SELECT id FROM cities WHERE LOWER(TRIM(name)) = LOWER(TRIM(${escapeSqlString(cityName)})) LIMIT 1),
+        (SELECT id FROM cities ORDER BY id LIMIT 1)
+      )`;
+      warnings.push(`Организация "${org.name}": если город "${cityName}" не найден, будет использован первый доступный город`);
     } else {
-      cityIdSql = 'NULL';
-      console.warn(`⚠ Организация "${org.name}": не удалось определить город`);
+      // Если нет адреса, используем первый доступный город
+      cityIdSql = `(SELECT id FROM cities ORDER BY id LIMIT 1)`;
+      warnings.push(`Организация "${org.name}": не удалось определить город из адреса, будет использован первый доступный город`);
     }
 
     // Генерируем подзапрос для organization_type_id
@@ -253,6 +261,12 @@ function generateSql() {
 
   console.log(`✓ SQL запросы сгенерированы и сохранены в: ${outputPath}`);
   console.log(`✓ Всего организаций: ${organizationsData.length}`);
+  
+  if (warnings.length > 0) {
+    console.log(`\n⚠ Предупреждения (${warnings.length}):`);
+    warnings.forEach(warning => console.log(`  - ${warning}`));
+  }
+  
   console.log(`\nДля выполнения SQL запросов используйте:`);
   console.log(`  psql -d your_database -f ${outputPath}`);
   console.log(`или`);
