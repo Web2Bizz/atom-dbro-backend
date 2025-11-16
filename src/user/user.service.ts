@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { users } from '../database/schema';
@@ -29,23 +29,21 @@ export class UserService {
     // Хешируем пароль
     const passwordHash = await bcrypt.hash(createUserDto.password, 10);
 
-    // Генерируем аватарку
-    let avatarUrls: Record<number, string> | null = null;
+    // Генерируем аватарку - ожидаем ответ от сервиса, в случае ошибки возвращаем 400
+    let avatarUrls: Record<number, string>;
     try {
       avatarUrls = await this.avatarService.generateAvatar();
       if (!avatarUrls || Object.keys(avatarUrls).length === 0) {
-        console.warn('Avatar generation returned empty result');
-        avatarUrls = null;
-      } else {
-        console.log(`Avatar generated successfully with ${Object.keys(avatarUrls).length} sizes`);
+        throw new BadRequestException('Не удалось сгенерировать аватарку: сервис вернул пустой результат');
       }
+      console.log(`Avatar generated successfully with ${Object.keys(avatarUrls).length} sizes`);
     } catch (error) {
-      console.error('Failed to generate avatar, continuing without avatar:', error);
-      if (error instanceof Error) {
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
+      console.error('Failed to generate avatar:', error);
+      if (error instanceof BadRequestException) {
+        throw error;
       }
-      avatarUrls = null;
+      const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка при генерации аватарки';
+      throw new BadRequestException(`Не удалось сгенерировать аватарку: ${errorMessage}`);
     }
 
     const [user] = await this.db
@@ -56,7 +54,7 @@ export class UserService {
         middleName: createUserDto.middleName,
         email: createUserDto.email,
         passwordHash,
-        avatarUrls: avatarUrls || null,
+        avatarUrls,
         level: 1,
         experience: 0,
         questId: createUserDto.questId ?? null,
