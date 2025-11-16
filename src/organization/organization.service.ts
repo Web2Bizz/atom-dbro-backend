@@ -10,9 +10,10 @@ import {
   cities,
   organizationTypes,
 } from '../database/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, ilike } from 'drizzle-orm';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
+import { CreateOrganizationsBulkDto } from './dto/create-organizations-bulk.dto';
 import { S3Service } from './s3.service';
 
 @Injectable()
@@ -603,6 +604,231 @@ export class OrganizationService {
 
     const gallery = organization.gallery || [];
     return gallery.includes(fileName);
+  }
+
+  /**
+   * Извлечь название города из адреса
+   */
+  private extractCityName(address: string | undefined): string | null {
+    if (!address) return null;
+
+    const trimmed = address.trim();
+    const patterns = [
+      /^г\.\s*(.+?)(?:,|$)/i,
+      /^г\s+(.+?)(?:,|$)/i,
+      /^(.+?)(?:,|$)/,
+    ];
+
+    for (const pattern of patterns) {
+      const match = trimmed.match(pattern);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+    }
+
+    return trimmed;
+  }
+
+  /**
+   * Найти город по названию
+   */
+  private async findCityByName(cityName: string): Promise<number | null> {
+    if (!cityName) return null;
+
+    const [exactMatch] = await this.db
+      .select()
+      .from(cities)
+      .where(ilike(cities.name, cityName));
+
+    if (exactMatch) {
+      return exactMatch.id;
+    }
+
+    const [partialMatch] = await this.db
+      .select()
+      .from(cities)
+      .where(ilike(cities.name, `%${cityName}%`));
+
+    if (partialMatch) {
+      return partialMatch.id;
+    }
+
+    return null;
+  }
+
+  async createMany(createOrganizationsDto: CreateOrganizationsBulkDto, userId: number) {
+    if (createOrganizationsDto.length === 0) {
+      throw new BadRequestException('Массив организаций не может быть пустым');
+    }
+
+    // Проверяем существование пользователя
+    const [user] = await this.db.select().from(users).where(eq(users.id, userId));
+    if (!user) {
+      throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
+    }
+
+    // Собираем все уникальные cityId, typeId и helpTypeIds
+    const cityIds = new Set<number>();
+    const typeIds = new Set<number>();
+    const helpTypeIds = new Set<number>();
+    const cityNamesToResolve = new Map<number, string>(); // индекс в массиве -> название города
+
+    createOrganizationsDto.forEach((org, index) => {
+      if (org.cityId > 0) {
+        cityIds.add(org.cityId);
+      } else if (org.address) {
+        // Если cityId = 0, пытаемся найти город по адресу
+        const cityName = this.extractCityName(org.address);
+        if (cityName) {
+          cityNamesToResolve.set(index, cityName);
+        }
+      }
+      typeIds.add(org.typeId);
+      org.helpTypeIds.forEach(id => helpTypeIds.add(id));
+    });
+
+    // Проверяем существование всех городов
+    if (cityIds.size > 0) {
+      const existingCities = await this.db
+        .select()
+        .from(cities)
+        .where(inArray(cities.id, Array.from(cityIds)));
+
+      const existingCityIds = new Set(existingCities.map(c => c.id));
+      const missingCityIds = Array.from(cityIds).filter(id => !existingCityIds.has(id));
+
+      if (missingCityIds.length > 0) {
+        throw new NotFoundException(`Города с ID ${missingCityIds.join(', ')} не найдены`);
+      }
+    }
+
+    // Разрешаем города по названиям
+    const cityNameToIdMap = new Map<string, number>();
+    for (const [index, cityName] of cityNamesToResolve) {
+      if (!cityNameToIdMap.has(cityName)) {
+        const cityId = await this.findCityByName(cityName);
+        if (!cityId) {
+          throw new NotFoundException(`Город "${cityName}" не найден в базе данных`);
+        }
+        cityNameToIdMap.set(cityName, cityId);
+      }
+    }
+
+    // Проверяем существование всех типов организаций
+    const existingTypes = await this.db
+      .select()
+      .from(organizationTypes)
+      .where(inArray(organizationTypes.id, Array.from(typeIds)));
+
+    const existingTypeIds = new Set(existingTypes.map(t => t.id));
+    const missingTypeIds = Array.from(typeIds).filter(id => !existingTypeIds.has(id));
+
+    if (missingTypeIds.length > 0) {
+      throw new NotFoundException(`Типы организаций с ID ${missingTypeIds.join(', ')} не найдены`);
+    }
+
+    // Проверяем существование всех видов помощи
+    if (helpTypeIds.size > 0) {
+      const existingHelpTypes = await this.db
+        .select()
+        .from(helpTypes)
+        .where(inArray(helpTypes.id, Array.from(helpTypeIds)));
+
+      const existingHelpTypeIds = new Set(existingHelpTypes.map(ht => ht.id));
+      const missingHelpTypeIds = Array.from(helpTypeIds).filter(id => !existingHelpTypeIds.has(id));
+
+      if (missingHelpTypeIds.length > 0) {
+        throw new NotFoundException(`Виды помощи с ID ${missingHelpTypeIds.join(', ')} не найдены`);
+      }
+    }
+
+    // Получаем данные всех городов для использования координат по умолчанию
+    const allCityIds = new Set([...cityIds, ...cityNameToIdMap.values()]);
+    const citiesData = allCityIds.size > 0
+      ? await this.db
+          .select()
+          .from(cities)
+          .where(inArray(cities.id, Array.from(allCityIds)))
+      : [];
+    const citiesMap = new Map(citiesData.map(c => [c.id, c]));
+
+    // Подготавливаем данные для вставки
+    const organizationsToInsert = createOrganizationsDto.map((org, index) => {
+      let finalCityId = org.cityId;
+      if (finalCityId === 0) {
+        if (cityNamesToResolve.has(index)) {
+          const cityName = cityNamesToResolve.get(index)!;
+          finalCityId = cityNameToIdMap.get(cityName)!;
+        } else {
+          throw new BadRequestException(`Для организации "${org.name}" cityId = 0, но не удалось найти город по адресу`);
+        }
+      }
+
+      const city = citiesMap.get(finalCityId);
+      if (!city) {
+        throw new NotFoundException(`Город с ID ${finalCityId} не найден`);
+      }
+
+      const latitude = org.latitude !== undefined
+        ? org.latitude.toString()
+        : city.latitude;
+      const longitude = org.longitude !== undefined
+        ? org.longitude.toString()
+        : city.longitude;
+
+      return {
+        name: org.name,
+        cityId: finalCityId,
+        organizationTypeId: org.typeId,
+        latitude: latitude,
+        longitude: longitude,
+        summary: org.summary,
+        mission: org.mission,
+        description: org.description,
+        goals: org.goals,
+        needs: org.needs,
+        address: org.address,
+        contacts: org.contacts,
+        gallery: org.gallery,
+      };
+    });
+
+    // Вставляем все организации
+    const insertedOrganizations = await this.db
+      .insert(organizations)
+      .values(organizationsToInsert)
+      .returning();
+
+    // Назначаем пользователя владельцем всех организаций
+    if (insertedOrganizations.length > 0) {
+      await this.db.insert(organizationOwners).values(
+        insertedOrganizations.map(org => ({
+          organizationId: org.id,
+          userId: userId,
+        }))
+      );
+    }
+
+    // Добавляем связи с видами помощи
+    const helpTypeRelations = [];
+    for (let i = 0; i < insertedOrganizations.length; i++) {
+      const org = createOrganizationsDto[i];
+      const organizationId = insertedOrganizations[i].id;
+      const uniqueHelpTypeIds = [...new Set(org.helpTypeIds)];
+
+      for (const helpTypeId of uniqueHelpTypeIds) {
+        helpTypeRelations.push({
+          organizationId: organizationId,
+          helpTypeId: helpTypeId,
+        });
+      }
+    }
+
+    if (helpTypeRelations.length > 0) {
+      await this.db.insert(organizationHelpTypes).values(helpTypeRelations);
+    }
+
+    return insertedOrganizations;
   }
 }
 
