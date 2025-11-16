@@ -32,7 +32,7 @@ export const users = pgTable('users', {
   level: integer('level').default(1).notNull(),
   experience: integer('experience').default(0).notNull(),
   questId: integer('quest_id').references(() => quests.id),
-  organisationId: integer('organisation_id').references(() => organizations.id, { onDelete: 'setNull' }),
+  organisationId: integer('organisation_id').references(() => organizations.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
