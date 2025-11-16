@@ -1,13 +1,18 @@
 /**
- * Скрипт для прямого импорта организаций в базу данных (без API)
+ * Скрипт для импорта организаций из JSON файла напрямую в базу данных
  * 
  * Использование:
- *   npm run import:organizations-direct [JSON_FILE_PATH] [USER_ID]
+ *   npm run import:organizations-direct [PATH_TO_JSON]
  * 
  * Пример:
- *   npm run import:organizations-direct mock/organizations\ \(2\).json 1
+ *   npm run import:organizations-direct mock/organizations.json
  * 
- * USER_ID - ID пользователя, который будет владельцем всех импортированных организаций
+ * Скрипт:
+ * - Находит города по адресу (если cityId = 0)
+ * - Находит или создает тип организации (если typeId = 0)
+ * - Вставляет организации напрямую в БД
+ * - Создает связи с типами помощи
+ * - Пропускает организации, которые уже существуют (по имени и городу)
  */
 
 import { NestFactory } from '@nestjs/core';
@@ -16,17 +21,15 @@ import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   organizations,
-  organizationOwners,
-  organizationHelpTypes,
   cities,
   organizationTypes,
-  helpTypes,
+  organizationHelpTypes,
 } from '../database/schema';
-import { eq, inArray } from 'drizzle-orm';
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { eq, ilike, and } from 'drizzle-orm';
+import * as fs from 'fs';
+import * as path from 'path';
 
-interface OrganizationData {
+interface OrganizationJsonData {
   name: string;
   cityId: number;
   typeId: number;
@@ -43,105 +46,158 @@ interface OrganizationData {
   gallery?: string[];
 }
 
+/**
+ * Извлечь название города из адреса
+ * Примеры: "г. Ангарск" -> "Ангарск", "г. Волгодонск" -> "Волгодонск"
+ */
+function extractCityName(address: string): string | null {
+  if (!address) return null;
+
+  // Убираем лишние пробелы
+  const trimmed = address.trim();
+
+  // Паттерны для извлечения названия города
+  const patterns = [
+    /^г\.\s*(.+?)(?:,|$)/i, // "г. Название" или "г. Название, ..."
+    /^г\s+(.+?)(?:,|$)/i, // "г Название" (без точки)
+    /^(.+?)(?:,|$)/, // Просто название (если нет префикса)
+  ];
+
+  for (const pattern of patterns) {
+    const match = trimmed.match(pattern);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+
+  return trimmed;
+}
+
+/**
+ * Найти город по названию (с учетом возможных вариаций)
+ */
+async function findCityByName(
+  db: NodePgDatabase,
+  cityName: string,
+): Promise<number | null> {
+  if (!cityName) return null;
+
+  // Пробуем точное совпадение (без учета регистра)
+  const [exactMatch] = await db
+    .select()
+    .from(cities)
+    .where(ilike(cities.name, cityName));
+
+  if (exactMatch) {
+    return exactMatch.id;
+  }
+
+  // Пробуем найти по частичному совпадению
+  const [partialMatch] = await db
+    .select()
+    .from(cities)
+    .where(ilike(cities.name, `%${cityName}%`));
+
+  if (partialMatch) {
+    return partialMatch.id;
+  }
+
+  return null;
+}
+
+/**
+ * Найти или создать тип организации
+ * Если typeId = 0, используем дефолтный тип или создаем новый
+ */
+async function findOrCreateOrganizationType(
+  db: NodePgDatabase,
+  typeId: number,
+  organizationName: string,
+): Promise<number> {
+  // Если указан конкретный ID и он не равен 0, используем его
+  if (typeId > 0) {
+    const [existingType] = await db
+      .select()
+      .from(organizationTypes)
+      .where(eq(organizationTypes.id, typeId));
+
+    if (existingType) {
+      return existingType.id;
+    } else {
+      console.warn(`  ⚠ Тип организации с ID ${typeId} не найден, используем дефолтный`);
+    }
+  }
+
+  // Если typeId = 0 или не найден, используем дефолтный тип "НКО"
+  const [defaultType] = await db
+    .select()
+    .from(organizationTypes)
+    .where(ilike(organizationTypes.name, 'НКО'));
+
+  if (defaultType) {
+    return defaultType.id;
+  }
+
+  // Если дефолтного типа нет, создаем его
+  const [newType] = await db
+    .insert(organizationTypes)
+    .values({ name: 'НКО' })
+    .returning();
+
+  console.log(`  ✓ Создан тип организации: НКО (ID: ${newType.id})`);
+  return newType.id;
+}
+
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
   const db = app.get<NodePgDatabase>(DATABASE_CONNECTION);
 
-  // Получаем параметры
-  const jsonFilePath = process.env.JSON_FILE_PATH || process.argv[2] || 'mock/organizations (2).json';
-  const ownerUserId = parseInt(process.env.USER_ID || process.argv[3] || '1', 10);
-
-  if (isNaN(ownerUserId) || ownerUserId <= 0) {
-    console.error('Ошибка: USER_ID должен быть положительным числом');
-    console.error('Использование:');
-    console.error('  npm run import:organizations-direct [JSON_FILE_PATH] [USER_ID]');
+  // Получаем путь к JSON файлу из аргументов командной строки
+  const jsonPathArg = process.argv[2];
+  if (!jsonPathArg) {
+    console.error('Ошибка: необходимо указать путь к JSON файлу');
+    console.error('Использование: npm run import:organizations-direct [PATH_TO_JSON]');
+    await app.close();
     process.exit(1);
   }
 
-  // Загружаем данные из JSON файла
-  let organizationsData: OrganizationData[];
+  // Определяем полный путь к файлу
+  const jsonPath = path.isAbsolute(jsonPathArg)
+    ? jsonPathArg
+    : path.join(process.cwd(), jsonPathArg);
+
+  if (!fs.existsSync(jsonPath)) {
+    console.error(`Ошибка: файл ${jsonPath} не найден`);
+    await app.close();
+    process.exit(1);
+  }
+
+  console.log('Начинаем импорт организаций из JSON...\n');
+  console.log(`Путь к файлу: ${jsonPath}\n`);
+
+  // Читаем JSON файл
+  const jsonContent = fs.readFileSync(jsonPath, 'utf-8');
+  let organizationsData: OrganizationJsonData[];
+  
   try {
-    const filePath = join(process.cwd(), jsonFilePath);
-    console.log(`Загрузка данных из файла: ${filePath}`);
-    const fileContent = readFileSync(filePath, 'utf-8');
-    organizationsData = JSON.parse(fileContent);
-    console.log(`✓ Загружено ${organizationsData.length} организаций из файла\n`);
+    organizationsData = JSON.parse(jsonContent);
   } catch (error) {
-    console.error(`Ошибка при загрузке файла ${jsonFilePath}:`, error);
+    console.error('Ошибка при парсинге JSON файла:', error);
+    await app.close();
     process.exit(1);
   }
 
-  // Загружаем справочники
-  console.log('Загрузка справочников...');
-  const allCities = await db.select().from(cities);
-  const allOrganizationTypes = await db.select().from(organizationTypes);
-  const allHelpTypes = await db.select().from(helpTypes);
-
-  const cityMap = new Map<number, typeof allCities[0]>();
-  for (const city of allCities) {
-    cityMap.set(city.id, city);
+  if (!Array.isArray(organizationsData)) {
+    console.error('Ошибка: JSON файл должен содержать массив организаций');
+    await app.close();
+    process.exit(1);
   }
 
-  const cityNameMap = new Map<string, typeof allCities[0]>();
-  for (const city of allCities) {
-    const key = city.name.toLowerCase().trim();
-    if (!cityNameMap.has(key)) {
-      cityNameMap.set(key, city);
-    }
-  }
-
-  const organizationTypeMap = new Map<number, typeof allOrganizationTypes[0]>();
-  for (const orgType of allOrganizationTypes) {
-    organizationTypeMap.set(orgType.id, orgType);
-  }
-
-  const helpTypeMap = new Map<number, typeof allHelpTypes[0]>();
-  for (const helpType of allHelpTypes) {
-    helpTypeMap.set(helpType.id, helpType);
-  }
-
-  console.log(`✓ Загружено ${allCities.length} городов`);
-  console.log(`✓ Загружено ${allOrganizationTypes.length} типов организаций`);
-  console.log(`✓ Загружено ${allHelpTypes.length} типов помощи\n`);
-
-  /**
-   * Извлечь название города из адреса
-   */
-  function extractCityNameFromAddress(address: string): string | null {
-    if (!address) return null;
-    const match = address.match(/г\.\s*([^,]+)|^([^,]+)/);
-    if (match) {
-      return (match[1] || match[2]).trim();
-    }
-    return null;
-  }
-
-  /**
-   * Найти город
-   */
-  function findCity(orgData: OrganizationData): typeof allCities[0] | null {
-    // Если cityId > 0, ищем по ID
-    if (orgData.cityId > 0) {
-      return cityMap.get(orgData.cityId) || null;
-    }
-
-    // Если cityId = 0, пытаемся найти по адресу
-    if (orgData.address) {
-      const cityName = extractCityNameFromAddress(orgData.address);
-      if (cityName) {
-        const key = cityName.toLowerCase().trim();
-        return cityNameMap.get(key) || null;
-      }
-    }
-
-    return null;
-  }
-
-  // Импортируем организации
-  console.log(`Начинаем импорт ${organizationsData.length} организаций...\n`);
+  console.log(`Найдено ${organizationsData.length} организаций в JSON\n`);
 
   let successCount = 0;
   let errorCount = 0;
+  let skippedCount = 0;
   const errors: Array<{ name: string; error: string }> = [];
 
   for (let i = 0; i < organizationsData.length; i++) {
@@ -149,76 +205,117 @@ async function bootstrap() {
     console.log(`[${i + 1}/${organizationsData.length}] Обработка: ${orgData.name}`);
 
     try {
-      // Находим город
-      const city = findCity(orgData);
-      if (!city) {
+      // 1. Находим город
+      let cityId: number | null = null;
+
+      if (orgData.cityId > 0) {
+        // Если указан cityId, проверяем его существование
+        const [city] = await db
+          .select()
+          .from(cities)
+          .where(eq(cities.id, orgData.cityId));
+
+        if (city) {
+          cityId = city.id;
+        }
+      }
+
+      // Если cityId не найден или равен 0, пытаемся найти по адресу
+      if (!cityId && orgData.address) {
+        const cityName = extractCityName(orgData.address);
+        if (cityName) {
+          cityId = await findCityByName(db, cityName);
+          if (cityId) {
+            console.log(`  ✓ Найден город: ${cityName} (ID: ${cityId})`);
+          } else {
+            console.warn(`  ⚠ Город "${cityName}" не найден в базе данных`);
+          }
+        }
+      }
+
+      if (!cityId) {
         throw new Error(
-          `Город не найден. cityId=${orgData.cityId}, address="${orgData.address}"`
+          `Не удалось определить город для организации. cityId: ${orgData.cityId}, address: ${orgData.address}`,
         );
       }
 
-      // Проверяем тип организации
-      if (!organizationTypeMap.has(orgData.typeId)) {
-        throw new Error(`Тип организации с ID ${orgData.typeId} не найден`);
+      // 2. Находим или создаем тип организации
+      const organizationTypeId = await findOrCreateOrganizationType(
+        db,
+        orgData.typeId,
+        orgData.name,
+      );
+
+      // 3. Проверяем, существует ли уже организация с таким именем в этом городе
+      const existingOrgs = await db
+        .select()
+        .from(organizations)
+        .where(
+          and(
+            eq(organizations.name, orgData.name),
+            eq(organizations.cityId, cityId),
+          ),
+        );
+
+      if (existingOrgs.length > 0) {
+        console.log(`  ⚠ Организация уже существует (ID: ${existingOrgs[0].id}), пропускаем`);
+        skippedCount++;
+        continue;
       }
 
-      // Проверяем типы помощи
-      const missingHelpTypes: number[] = [];
-      for (const helpTypeId of orgData.helpTypeIds || []) {
-        if (!helpTypeMap.has(helpTypeId)) {
-          missingHelpTypes.push(helpTypeId);
-        }
-      }
-      if (missingHelpTypes.length > 0) {
-        throw new Error(`Типы помощи с ID ${missingHelpTypes.join(', ')} не найдены`);
-      }
-
-      // Используем координаты из данных или из города
-      const latitude = orgData.latitude !== undefined
-        ? orgData.latitude.toString()
-        : city.latitude;
-      const longitude = orgData.longitude !== undefined
-        ? orgData.longitude.toString()
-        : city.longitude;
-
-      // Создаем организацию
-      const [organization] = await db
+      // 4. Вставляем организацию
+      const [newOrganization] = await db
         .insert(organizations)
         .values({
           name: orgData.name,
-          cityId: city.id,
-          organizationTypeId: orgData.typeId,
-          latitude: latitude,
-          longitude: longitude,
+          cityId: cityId,
+          organizationTypeId: organizationTypeId,
+          latitude: orgData.latitude?.toString(),
+          longitude: orgData.longitude?.toString(),
           summary: orgData.summary,
           mission: orgData.mission,
           description: orgData.description,
-          goals: orgData.goals,
-          needs: orgData.needs,
+          goals: orgData.goals || [],
+          needs: orgData.needs || [],
           address: orgData.address,
-          contacts: orgData.contacts,
-          gallery: orgData.gallery,
+          contacts: orgData.contacts || [],
+          gallery: orgData.gallery || [],
         })
         .returning();
 
-      // Назначаем владельца
-      await db.insert(organizationOwners).values({
-        organizationId: organization.id,
-        userId: ownerUserId,
-      });
+      console.log(`  ✓ Организация создана (ID: ${newOrganization.id})`);
 
-      // Добавляем типы помощи
+      // 5. Вставляем связи с типами помощи
       if (orgData.helpTypeIds && orgData.helpTypeIds.length > 0) {
-        await db.insert(organizationHelpTypes).values(
-          orgData.helpTypeIds.map(helpTypeId => ({
-            organizationId: organization.id,
+        const helpTypeValues = orgData.helpTypeIds
+          .filter((id) => id > 0) // Фильтруем невалидные ID
+          .map((helpTypeId) => ({
+            organizationId: newOrganization.id,
             helpTypeId: helpTypeId,
-          }))
-        );
+          }));
+
+        if (helpTypeValues.length > 0) {
+          // Вставляем связи по одной, чтобы обработать возможные дубликаты
+          let addedCount = 0;
+          for (const helpTypeValue of helpTypeValues) {
+            try {
+              await db.insert(organizationHelpTypes).values(helpTypeValue);
+              addedCount++;
+            } catch (error: any) {
+              // Игнорируем ошибки дубликатов (если связи уже существуют)
+              if (!error.message?.includes('duplicate') && !error.code?.includes('23505')) {
+                console.warn(`  ⚠ Ошибка при добавлении типа помощи ${helpTypeValue.helpTypeId}: ${error.message}`);
+              }
+            }
+          }
+          if (addedCount > 0) {
+            console.log(`  ✓ Добавлено ${addedCount} типов помощи`);
+          }
+        }
       }
 
       successCount++;
-      console.log(`  ✓ Организация создана (ID: ${organization.id})\n`);
+      console.log('');
     } catch (error) {
       errorCount++;
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -230,8 +327,8 @@ async function bootstrap() {
   // Выводим итоги
   console.log('\n=== Итоги импорта ===');
   console.log(`Успешно: ${successCount}`);
+  console.log(`Пропущено (уже существуют): ${skippedCount}`);
   console.log(`Ошибок: ${errorCount}`);
-  console.log(`Владелец всех организаций: USER_ID=${ownerUserId}`);
 
   if (errors.length > 0) {
     console.log('\nОшибки:');
@@ -248,4 +345,3 @@ bootstrap().catch((error) => {
   console.error('Критическая ошибка при импорте:', error);
   process.exit(1);
 });
-
