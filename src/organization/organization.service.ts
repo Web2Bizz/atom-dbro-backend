@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
@@ -325,16 +325,22 @@ export class OrganizationService {
     if (updateOrganizationDto.needs !== undefined) updateData.needs = updateOrganizationDto.needs;
     if (updateOrganizationDto.address !== undefined) updateData.address = updateOrganizationDto.address;
     if (updateOrganizationDto.contacts !== undefined) updateData.contacts = updateOrganizationDto.contacts;
+    
+    // Обработка organizationTypeId
     if (updateOrganizationDto.organizationTypeId !== undefined) {
+      const organizationTypeId = Number(updateOrganizationDto.organizationTypeId);
+      if (isNaN(organizationTypeId) || organizationTypeId <= 0) {
+        throw new BadRequestException('ID типа организации должен быть положительным целым числом');
+      }
       // Проверяем существование типа организации
       const [orgType] = await this.db
         .select()
         .from(organizationTypes)
-        .where(eq(organizationTypes.id, updateOrganizationDto.organizationTypeId));
+        .where(eq(organizationTypes.id, organizationTypeId));
       if (!orgType) {
-        throw new NotFoundException(`Тип организации с ID ${updateOrganizationDto.organizationTypeId} не найден`);
+        throw new NotFoundException(`Тип организации с ID ${organizationTypeId} не найден`);
       }
-      updateData.organizationTypeId = updateOrganizationDto.organizationTypeId;
+      updateData.organizationTypeId = organizationTypeId;
     }
 
     // Обработка галереи: сравниваем старую и новую, удаляем неиспользуемые файлы из S3
