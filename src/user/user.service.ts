@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { users } from '../database/schema';
@@ -7,6 +7,7 @@ import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserV2Dto } from './dto/update-user-v2.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { AvatarService } from '../avatar/avatar.service';
 
 @Injectable()
@@ -117,6 +118,39 @@ export class UserService {
       .from(users)
       .where(eq(users.email, email));
     return user;
+  }
+
+  async changePassword(userId: number, changePasswordDto: ChangePasswordDto) {
+    // Получаем пользователя с паролем
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId));
+    
+    if (!user) {
+      throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
+    }
+
+    // Проверяем старый пароль
+    const isOldPasswordValid = await bcrypt.compare(changePasswordDto.oldPassword, user.passwordHash);
+    if (!isOldPasswordValid) {
+      throw new UnauthorizedException('Неверный старый пароль');
+    }
+
+    // Хешируем новый пароль
+    const newPasswordHash = await bcrypt.hash(changePasswordDto.newPassword, 10);
+
+    // Обновляем пароль
+    const [updatedUser] = await this.db
+      .update(users)
+      .set({
+        passwordHash: newPasswordHash,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+
+    return { message: 'Пароль успешно изменен' };
   }
 
   async update(id: number, updateUserDto: UpdateUserDto) {
