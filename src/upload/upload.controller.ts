@@ -8,7 +8,6 @@ import {
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
-import type { File } from 'multer';
 import { S3Service } from '../organization/s3.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -64,7 +63,7 @@ export class UploadController {
   @ApiResponse({ status: 400, description: 'Неверные данные или файлы не загружены' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   async uploadImages(
-    @UploadedFiles() files: Array<File>,
+    @UploadedFiles() files: Array<Express.Multer.File>,
   ): Promise<Array<{ fileName: string; url: string }>> {
     if (!files || files.length === 0) {
       throw new BadRequestException('Необходимо загрузить хотя бы одно изображение');

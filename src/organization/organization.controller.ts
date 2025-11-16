@@ -17,7 +17,6 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { Response } from 'express';
-import type { File } from 'multer';
 import { OrganizationService } from './organization.service';
 import { S3Service } from './s3.service';
 import { CreateOrganizationDto, createOrganizationSchema, CreateOrganizationDtoClass } from './dto/create-organization.dto';
@@ -171,7 +170,7 @@ export class OrganizationController {
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   async uploadImages(
     @Param('id', ParseIntPipe) organizationId: number,
-    @UploadedFiles() files: Array<File>,
+    @UploadedFiles() files: Array<Express.Multer.File>,
   ) {
     if (!files || files.length === 0) {
       throw new BadRequestException('Необходимо загрузить хотя бы одно изображение');
