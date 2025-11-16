@@ -6,6 +6,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
+import type { File } from 'multer';
 
 /**
  * Интерцептор для валидации загружаемых файлов
@@ -31,7 +32,7 @@ export class FileValidationInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest();
-    const files = request.files as Express.Multer.File[];
+    const files = request.files as File[];
 
     if (files && files.length > 0) {
       files.forEach((file, index) => {
