@@ -1,5 +1,3 @@
-/// <reference types="multer" />
-
 import {
   Controller,
   Get,
@@ -28,6 +26,18 @@ import { AddHelpTypeDto, addHelpTypeSchema, AddHelpTypeDtoClass } from './dto/ad
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
+
+interface MulterFile {
+  fieldname: string;
+  originalname: string;
+  encoding: string;
+  mimetype: string;
+  size: number;
+  destination: string;
+  filename: string;
+  path: string;
+  buffer: Buffer;
+}
 
 @ApiTags('Организации')
 @ApiBearerAuth()
@@ -172,7 +182,7 @@ export class OrganizationController {
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   async uploadImages(
     @Param('id', ParseIntPipe) organizationId: number,
-    @UploadedFiles() files: Array<Express.Multer.File>,
+    @UploadedFiles() files: Array<MulterFile>,
   ) {
     if (!files || files.length === 0) {
       throw new BadRequestException('Необходимо загрузить хотя бы одно изображение');

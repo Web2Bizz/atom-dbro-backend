@@ -16,7 +16,8 @@
     "db:studio": "drizzle-kit studio",
     "import:cities": "ts-node src/scripts/import-cities.ts",
     "import:organizations": "ts-node src/scripts/import-organizations.ts",
-    "import:organizations-direct": "ts-node src/scripts/import-organizations-direct.ts"
+    "import:organizations-direct": "ts-node src/scripts/import-organizations-direct.ts",
+    "generate:organizations-sql": "ts-node src/scripts/generate-organizations-sql.ts"
   },
   "repository": {
     "type": "git",
