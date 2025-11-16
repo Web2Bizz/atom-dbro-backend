@@ -44,10 +44,21 @@ export class AvatarService {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch palette: ${response.status}`);
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`Failed to fetch palette: ${response.status} ${response.statusText}. Response: ${errorText}`);
       }
 
       const data: PaletteResponse = await response.json();
+      
+      if (!data || !data.items || !Array.isArray(data.items) || data.items.length === 0) {
+        console.warn('Invalid palette response, using default palette');
+        return [
+          { primaryColor: '#3B82F6', foreignColor: '#EF4444' },
+          { primaryColor: '#10B981', foreignColor: '#F59E0B' },
+          { primaryColor: '#8B5CF6', foreignColor: '#EC4899' },
+        ];
+      }
+
       this.paletteCache = data.items.map(p => ({
         primaryColor: p.primaryColor,
         foreignColor: p.foreignColor,
@@ -94,11 +105,17 @@ export class AvatarService {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to generate avatar: ${response.status}`);
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`Failed to generate avatar: ${response.status} ${response.statusText}. Response: ${errorText}`);
       }
 
       const data: GenerateAvatarResponse = await response.json();
-      const baseUrl = data.url;
+      
+      if (!data || !data.url || typeof data.url !== 'string' || data.url.trim() === '') {
+        throw new Error('Invalid response from avatar API: missing or empty URL');
+      }
+
+      const baseUrl = data.url.trim();
 
       // Формируем объект с URL для размеров 4-9
       // Предполагаем, что API возвращает базовый URL, который можно использовать для разных размеров
@@ -112,10 +129,21 @@ export class AvatarService {
         avatarUrls[size] = baseUrl;
       }
 
+      if (Object.keys(avatarUrls).length === 0) {
+        throw new Error('Failed to create avatar URLs object');
+      }
+
       return avatarUrls;
     } catch (error) {
       console.error('Error generating avatar:', error);
-      throw new Error('Failed to generate avatar');
+      if (error instanceof Error) {
+        console.error('Error details:', {
+          message: error.message,
+          stack: error.stack,
+        });
+        throw error;
+      }
+      throw new Error(`Failed to generate avatar: ${String(error)}`);
     }
   }
 }

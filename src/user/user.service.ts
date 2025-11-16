@@ -30,12 +30,22 @@ export class UserService {
     const passwordHash = await bcrypt.hash(createUserDto.password, 10);
 
     // Генерируем аватарку
-    let avatarUrls: Record<number, string> | undefined;
+    let avatarUrls: Record<number, string> | null = null;
     try {
       avatarUrls = await this.avatarService.generateAvatar();
+      if (!avatarUrls || Object.keys(avatarUrls).length === 0) {
+        console.warn('Avatar generation returned empty result');
+        avatarUrls = null;
+      } else {
+        console.log(`Avatar generated successfully with ${Object.keys(avatarUrls).length} sizes`);
+      }
     } catch (error) {
       console.error('Failed to generate avatar, continuing without avatar:', error);
-      // Продолжаем создание пользователя даже если аватарка не сгенерировалась
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+      avatarUrls = null;
     }
 
     const [user] = await this.db
@@ -46,7 +56,7 @@ export class UserService {
         middleName: createUserDto.middleName,
         email: createUserDto.email,
         passwordHash,
-        avatarUrls,
+        avatarUrls: avatarUrls || null,
         level: 1,
         experience: 0,
         questId: createUserDto.questId ?? null,
