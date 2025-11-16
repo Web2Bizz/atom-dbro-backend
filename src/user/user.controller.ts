@@ -12,6 +12,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nes
 import { UserService } from './user.service';
 import { CreateUserDto, createUserSchema, CreateUserDtoClass } from './dto/create-user.dto';
 import { UpdateUserDto, updateUserSchema, UpdateUserDtoClass } from './dto/update-user.dto';
+import { UpdateUserV2Dto, updateUserV2Schema, UpdateUserV2DtoClass } from './dto/update-user-v2.dto';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 
 @ApiTags('Пользователи')
@@ -57,6 +58,20 @@ export class UserController {
     @Body() updateUserDto: UpdateUserDto,
   ) {
     return this.userService.update(id, updateUserDto);
+  }
+
+  @Patch(':id/v2')
+  @ZodValidation(updateUserV2Schema)
+  @ApiOperation({ summary: 'Обновить пользователя (v2) - принимает одну ссылку на аватар' })
+  @ApiBody({ type: UpdateUserV2DtoClass })
+  @ApiResponse({ status: 200, description: 'Пользователь обновлен', type: UpdateUserV2DtoClass })
+  @ApiResponse({ status: 404, description: 'Пользователь не найден' })
+  @ApiResponse({ status: 409, description: 'Пользователь с таким email уже существует' })
+  updateV2(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateUserV2Dto: UpdateUserV2Dto,
+  ) {
+    return this.userService.updateV2(id, updateUserV2Dto);
   }
 
   @Delete(':id')

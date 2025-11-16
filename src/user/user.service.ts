@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserV2Dto } from './dto/update-user-v2.dto';
 import { AvatarService } from '../avatar/avatar.service';
 
 @Injectable()
@@ -149,6 +150,42 @@ export class UserService {
         // Если URL не найден, используем переданный объект как есть
         updateValues.avatarUrls = avatarUrls;
       }
+    }
+
+    const [user] = await this.db
+      .update(users)
+      .set(updateValues)
+      .where(eq(users.id, id))
+      .returning();
+    if (!user) {
+      throw new NotFoundException(`Пользователь с ID ${id} не найден`);
+    }
+    return user;
+  }
+
+  async updateV2(id: number, updateUserV2Dto: UpdateUserV2Dto) {
+    if (updateUserV2Dto.email) {
+      const [existingUser] = await this.db
+        .select()
+        .from(users)
+        .where(eq(users.email, updateUserV2Dto.email));
+      if (existingUser && existingUser.id !== id) {
+        throw new ConflictException('Пользователь с таким email уже существует');
+      }
+    }
+
+    // Исключаем experience и level из обновления (они обновляются только через ExperienceService)
+    const { experience, level, avatarUrl, ...updateData } = updateUserV2Dto as any;
+
+    const updateValues: any = { ...updateData, updatedAt: new Date() };
+    
+    // Если avatarUrl передан, преобразуем его в объект с ключами 4-9 и одинаковым URL
+    if (avatarUrl !== undefined && avatarUrl !== null) {
+      const normalizedAvatarUrls: Record<number, string> = {};
+      for (let size = 4; size <= 9; size++) {
+        normalizedAvatarUrls[size] = avatarUrl;
+      }
+      updateValues.avatarUrls = normalizedAvatarUrls;
     }
 
     const [user] = await this.db
