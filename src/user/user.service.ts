@@ -121,18 +121,10 @@ export class UserService {
     // Исключаем experience и level из обновления (они обновляются только через ExperienceService)
     const { experience, level, ...updateData } = updateUserDto as any;
 
-    // Генерируем новую аватарку при обновлении
-    let avatarUrls: Record<number, string> | undefined;
-    try {
-      avatarUrls = await this.avatarService.generateAvatar();
-    } catch (error) {
-      console.error('Failed to generate avatar, continuing without avatar update:', error);
-      // Продолжаем обновление даже если аватарка не сгенерировалась
-    }
-
     const updateValues: any = { ...updateData, updatedAt: new Date() };
-    if (avatarUrls) {
-      updateValues.avatarUrls = avatarUrls;
+    // Если avatarUrls передан в DTO, используем его, иначе не изменяем аватарку
+    if (updateUserDto.avatarUrls !== undefined) {
+      updateValues.avatarUrls = updateUserDto.avatarUrls;
     }
 
     const [user] = await this.db
