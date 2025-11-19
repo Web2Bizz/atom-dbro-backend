@@ -68,7 +68,7 @@ export class OrganizationController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Получить все организации' })
+  @ApiOperation({ summary: 'Получить все организации1' })
   @ApiResponse({ status: 200, description: 'Список организаций' })
   findAll() {
     return this.organizationService.findAll();
