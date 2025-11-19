@@ -121,6 +121,21 @@ jobs:
           
           echo "✅ Insecure registry configured: $REGISTRY_URL"
 
+      - name: Debug variables
+        run: |
+          echo "Registry URL: ${{ needs.validate.outputs.registry_url }}"
+          echo "Image Name: ${{ needs.validate.outputs.image_name }}"
+          if [ -z "${{ needs.validate.outputs.registry_url }}" ]; then
+            echo "❌ ERROR: registry_url is empty!"
+            exit 1
+          fi
+          if [ -z "${{ needs.validate.outputs.image_name }}" ]; then
+            echo "❌ ERROR: image_name is empty!"
+            exit 1
+          fi
+          FULL_IMAGE="${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}"
+          echo "Full image: $FULL_IMAGE"
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -130,6 +145,11 @@ jobs:
             type=ref,event=branch
             type=sha,prefix=sha-,format=short
 
+      - name: Debug metadata outputs
+        run: |
+          echo "Meta tags: ${{ steps.meta.outputs.tags }}"
+          echo "Meta json: ${{ steps.meta.outputs.json }}"
+
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
@@ -137,7 +157,9 @@ jobs:
           file: ./Dockerfile
           push: false
           load: true
-          tags: ${{ steps.meta.outputs.tags }},${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}:latest
+          tags: |
+            ${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}:latest
+            ${{ steps.meta.outputs.tags }}
           cache-from: type=registry,ref=${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}:buildcache
           cache-to: type=registry,ref=${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}:buildcache,mode=max
         env:
@@ -224,6 +246,21 @@ jobs:
         env:
           DOCKER_TLS_CERTDIR: ${{ env.DOCKER_TLS_CERTDIR || '' }}
 
+      - name: Debug variables
+        run: |
+          echo "Registry URL: ${{ needs.validate.outputs.registry_url }}"
+          echo "Image Name: ${{ needs.validate.outputs.image_name }}"
+          if [ -z "${{ needs.validate.outputs.registry_url }}" ]; then
+            echo "❌ ERROR: registry_url is empty!"
+            exit 1
+          fi
+          if [ -z "${{ needs.validate.outputs.image_name }}" ]; then
+            echo "❌ ERROR: image_name is empty!"
+            exit 1
+          fi
+          FULL_IMAGE="${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}"
+          echo "Full image: $FULL_IMAGE"
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -233,13 +270,20 @@ jobs:
             type=ref,event=branch
             type=sha,prefix=sha-,format=short
 
+      - name: Debug metadata outputs
+        run: |
+          echo "Meta tags: ${{ steps.meta.outputs.tags }}"
+          echo "Meta json: ${{ steps.meta.outputs.json }}"
+
       - name: Push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }},${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}:latest
+          tags: |
+            ${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}:latest
+            ${{ steps.meta.outputs.tags }}
           cache-from: type=registry,ref=${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}:buildcache
         env:
           DOCKER_TLS_CERTDIR: ${{ env.DOCKER_TLS_CERTDIR || '' }}
