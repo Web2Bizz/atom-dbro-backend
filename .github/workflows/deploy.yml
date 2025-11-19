@@ -8,7 +8,7 @@ on:
 
 env:
   NODE_VERSION: '20'
-  IMAGE_NAME: ${{ secrets.DEPLOY_IMAGE_NAME || 'atom-dbro-backend' }}
+  IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME || 'atom-dbro-backend' }}
 
 jobs:
   build:
@@ -124,12 +124,13 @@ jobs:
       - name: Deploy application
         run: |
           SSH_PORT="${DEPLOY_SSH_PORT:-22}"
-          ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "export PROJECT_DIR_VALUE='$PROJECT_DIR_VALUE' CONTAINER_NAME='$CONTAINER_NAME' IMAGE_NAME='$IMAGE_NAME'; bash -s" << 'REMOTE_SCRIPT'
+          ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "export PROJECT_DIR_VALUE='$PROJECT_DIR_VALUE' CONTAINER_NAME='$CONTAINER_NAME' IMAGE_NAME='$IMAGE_NAME' SERVICE_NAME='$SERVICE_NAME'; bash -s" << 'REMOTE_SCRIPT'
             set -e
             
             IMAGE_NAME="${IMAGE_NAME:-atom-dbro-backend}"
             PROJECT_DIR="$PROJECT_DIR_VALUE"
             CONTAINER_NAME="${CONTAINER_NAME:-atom-dbro-app}"
+            SERVICE_NAME="${SERVICE_NAME:-app}"
             
             # Проверяем, что переменная PROJECT_DIR установлена
             if [ -z "$PROJECT_DIR" ]; then
@@ -198,8 +199,21 @@ jobs:
             docker stop "$CONTAINER_NAME" 2>/dev/null || echo "Container $CONTAINER_NAME is not running"
             docker rm "$CONTAINER_NAME" 2>/dev/null || echo "Container $CONTAINER_NAME does not exist"
             
-            # Запускаем только сервис app с новым образом (без перезапуска зависимостей)
-            docker compose -f "$PROJECT_DIR/docker-compose.yml" up -d --no-deps app
+            # Устанавливаем переменную DOCKER_IMAGE для docker-compose
+            export DOCKER_IMAGE="$IMAGE_NAME:latest"
+            echo "Using Docker image: $DOCKER_IMAGE"
+            echo "Using service name: $SERVICE_NAME"
+            
+            # Проверяем, что docker-compose.yml существует и содержит указанный сервис
+            if ! grep -q "^  $SERVICE_NAME:" "$PROJECT_DIR/docker-compose.yml"; then
+              echo "❌ ERROR: Service '$SERVICE_NAME' not found in docker-compose.yml"
+              echo "Available services:"
+              grep -E "^  [a-zA-Z-]+:" "$PROJECT_DIR/docker-compose.yml" || echo "No services found"
+              exit 1
+            fi
+            
+            # Запускаем только указанный сервис с новым образом (без перезапуска зависимостей)
+            docker compose -f "$PROJECT_DIR/docker-compose.yml" up -d --no-deps "$SERVICE_NAME"
             
             # Ожидание готовности контейнера
             echo "⏳ Waiting for application container to be ready..."
@@ -306,3 +320,4 @@ jobs:
           DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
           PROJECT_DIR_VALUE: ${{ secrets.DEPLOY_PROJECT_PATH }}
           CONTAINER_NAME: ${{ secrets.DEPLOY_CONTAINER_NAME || 'atom-dbro-app' }}
+          SERVICE_NAME: ${{ secrets.DEPLOY_SERVICE_NAME || 'app' }}
