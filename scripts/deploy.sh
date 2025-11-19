@@ -29,6 +29,7 @@ DOCKER_REGISTRY=${DOCKER_REGISTRY:-""}
 DOCKER_IMAGE_NAME=${DOCKER_IMAGE_NAME:-"atom-dbro-backend"}
 DOCKER_REGISTRY_USERNAME=${DOCKER_REGISTRY_USERNAME:-""}
 DOCKER_REGISTRY_PASSWORD=${DOCKER_REGISTRY_PASSWORD:-""}
+DOCKER_REGISTRY_INSECURE=${DOCKER_REGISTRY_INSECURE:-"false"}
 PROJECT_DIR=${PROJECT_DIR:-"$HOME/atom-dbro-backend"}
 
 log "🚀 Starting deployment process..."
@@ -56,7 +57,33 @@ fi
 
 # Авторизация в Docker registry
 log "🔐 Logging in to Docker registry: $DOCKER_REGISTRY"
-echo "$DOCKER_REGISTRY_PASSWORD" | docker login "$DOCKER_REGISTRY" -u "$DOCKER_REGISTRY_USERNAME" --password-stdin
+
+# Настройка insecure registry, если необходимо
+if [ "$DOCKER_REGISTRY_INSECURE" = "true" ]; then
+    warning "Using insecure registry (TLS verification disabled)"
+    # Проверяем, настроен ли insecure registry в Docker daemon
+    if ! docker info 2>/dev/null | grep -q "Insecure Registries:.*$DOCKER_REGISTRY"; then
+        warning "Registry $DOCKER_REGISTRY needs to be added to Docker daemon insecure-registries"
+        warning "Please add it to /etc/docker/daemon.json and restart Docker daemon:"
+        warning '  {"insecure-registries": ["'$DOCKER_REGISTRY'"]}'
+        warning "Attempting login anyway (may fail if registry not configured)..."
+    fi
+fi
+
+# Выполняем вход в registry
+# Docker daemon автоматически использует insecure режим, если registry настроен в daemon.json
+echo "$DOCKER_REGISTRY_PASSWORD" | docker login "$DOCKER_REGISTRY" -u "$DOCKER_REGISTRY_USERNAME" --password-stdin || {
+    if [ "$DOCKER_REGISTRY_INSECURE" = "true" ]; then
+        error "Failed to login to insecure registry. Please ensure:"
+        error "1. Registry is added to /etc/docker/daemon.json as insecure-registry"
+        error "2. Docker daemon has been restarted"
+        error "3. Registry URL is correct: $DOCKER_REGISTRY"
+        exit 1
+    else
+        error "Failed to login to registry. Check credentials and network connectivity."
+        exit 1
+    fi
+}
 
 # Pull latest image
 log "📥 Pulling latest image from registry..."

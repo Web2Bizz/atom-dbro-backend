@@ -324,8 +324,10 @@ docker-compose up -d --build app
 
 - **`DOCKER_REGISTRY_INSECURE`** - Использовать insecure registry (для самоподписанных сертификатов)
   - Установите в `true`, если ваш registry использует самоподписанный сертификат или IP-адрес
+  - **⚠️ ОБЯЗАТЕЛЬНО установите, если получаете ошибку**: `x509: certificate signed by unknown authority` или `tls: failed to verify certificate`
   - По умолчанию: не установлен (используется HTTPS с проверкой сертификата)
-  - ⚠️ **ВНИМАНИЕ**: Использование insecure registry снижает безопасность!
+  - Workflow автоматически настроит Docker daemon для работы с insecure registry
+  - ⚠️ **ВНИМАНИЕ**: Использование insecure registry снижает безопасность! Используйте только в доверенных сетях.
 
 ### Настройка сервера для деплоя
 
@@ -639,36 +641,66 @@ Workflow автоматически валидирует и очищает зн�
 
 #### Проблема: Ошибка TLS сертификата при работе с registry
 
-**Ошибка**: `x509: certificate signed by unknown authority` или `tls: failed to verify certificate`
+**Ошибка**: `x509: certificate signed by unknown authority` или `tls: failed to verify certificate` или `Error response from daemon: Get "https://***/v2/": tls: failed to verify certificate`
 
 **Причина**: Registry использует самоподписанный сертификат или IP-адрес вместо домена.
 
 **Решение**:
 
-1. **Если registry использует самоподписанный сертификат**:
-   - Добавьте секрет `DOCKER_REGISTRY_INSECURE` со значением `true` в GitHub Secrets
-   - Это позволит использовать insecure registry (без проверки сертификата)
+##### Для GitHub Actions (автоматический деплой):
 
-2. **Если registry использует IP-адрес**:
-   - Также установите `DOCKER_REGISTRY_INSECURE=true`
-   - Или настройте DNS для использования доменного имени
+1. **Добавьте секрет `DOCKER_REGISTRY_INSECURE` со значением `true` в GitHub Secrets**
+   - Перейдите в репозиторий → **Settings** → **Secrets and variables** → **Actions**
+   - Создайте секрет `DOCKER_REGISTRY_INSECURE` со значением `true`
+   - GitHub Actions workflow автоматически настроит Docker daemon для работы с insecure registry
 
-3. **Настройка на сервере** (для деплоя):
+2. **Workflow автоматически настроит insecure registry** перед push образа
+   - Не требуется дополнительная настройка на стороне GitHub Actions runner
+   - Docker daemon будет настроен автоматически через `/etc/docker/daemon.json`
+
+##### Для ручного деплоя (на сервере):
+
+1. **Если registry использует самоподписанный сертификат или IP-адрес**:
+   - Установите переменную окружения `DOCKER_REGISTRY_INSECURE=true` перед запуском `deploy.sh`
+   - Скрипт проверит настройку Docker daemon и выведет инструкции при необходимости
+
+2. **Настройка Docker daemon на сервере** (если скрипт выдает предупреждение):
    ```bash
    # На сервере создайте или отредактируйте /etc/docker/daemon.json
    sudo mkdir -p /etc/docker
+   
+   # Замените REGISTRY_URL на ваш registry URL
    sudo tee /etc/docker/daemon.json <<EOF
    {
-     "insecure-registries": ["${{ secrets.DOCKER_REGISTRY_URL }}"]
+     "insecure-registries": ["REGISTRY_URL"]
    }
    EOF
+   
+   # Перезапустите Docker daemon
    sudo systemctl restart docker
+   # Или для некоторых систем:
+   sudo service docker restart
    ```
 
-4. **Проверка подключения**:
+3. **Проверка настройки**:
    ```bash
-   # Локально (если insecure)
-   docker login --insecure-registry ${{ secrets.DOCKER_REGISTRY_URL }}
+   # Проверьте, что registry добавлен в insecure registries
+   docker info | grep -A 5 "Insecure Registries"
+   
+   # Попробуйте авторизоваться
+   docker login REGISTRY_URL -u USERNAME -p PASSWORD
+   ```
+
+4. **Использование скрипта deploy.sh с insecure registry**:
+   ```bash
+   export DOCKER_REGISTRY="registry.example.com"
+   export DOCKER_IMAGE_NAME="atom-dbro-backend"
+   export DOCKER_REGISTRY_USERNAME="your-username"
+   export DOCKER_REGISTRY_PASSWORD="your-password"
+   export DOCKER_REGISTRY_INSECURE="true"  # Важно!
+   export PROJECT_DIR="~/atom-dbro-backend"
+   
+   bash scripts/deploy.sh
    ```
 
 **⚠️ ВНИМАНИЕ**: Использование insecure registry снижает безопасность. Используйте только в доверенных сетях или для тестирования.

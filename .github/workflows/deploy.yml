@@ -1,466 +1,171 @@
-name: CI/CD Pipeline
+name: Build and Deploy
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 env:
-  DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY_URL }}
-  DOCKER_IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME }}
-  DOCKER_REGISTRY_INSECURE: ${{ secrets.DOCKER_REGISTRY_INSECURE }}
+  NODE_VERSION: '20'
 
 jobs:
-  # Build: сборка Docker образа
-  build:
-    name: Build Docker Image
+  build-and-push:
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    outputs:
-      image-tags: ${{ steps.meta.outputs.tags }}
-      image-digest: ${{ steps.build.outputs.digest }}
-      commit-sha: ${{ steps.commit.outputs.sha }}
-      full-image-name: ${{ steps.validate.outputs.full_image }}:latest
-      registry: ${{ steps.validate.outputs.registry }}
-      image-name: ${{ steps.validate.outputs.image_name }}
     
     steps:
-      - name: Validate and sanitize environment variables
-        id: validate
-        run: |
-          # Проверка наличия переменных
-          if [ -z "${{ env.DOCKER_REGISTRY }}" ]; then
-            echo "❌ ERROR: DOCKER_REGISTRY_URL secret is not set"
-            exit 1
-          fi
-          if [ -z "${{ env.DOCKER_IMAGE_NAME }}" ]; then
-            echo "❌ ERROR: DOCKER_IMAGE_NAME secret is not set"
-            exit 1
-          fi
-          
-          # Очистка от пробелов и переносов строк
-          REGISTRY=$(echo "${{ env.DOCKER_REGISTRY }}" | tr -d '[:space:]' | sed 's|^https\?://||' | sed 's|/$||')
-          IMAGE_NAME=$(echo "${{ env.DOCKER_IMAGE_NAME }}" | tr -d '[:space:]')
-          
-          # Валидация формата registry (не должен содержать протокол)
-          if [[ "$REGISTRY" =~ ^https?:// ]]; then
-            echo "❌ ERROR: DOCKER_REGISTRY_URL should not include protocol (http:// or https://)"
-            echo "   Current value: ${{ env.DOCKER_REGISTRY }}"
-            echo "   Should be: registry.example.com"
-            exit 1
-          fi
-          
-          # Валидация формата имени образа (только буквы, цифры, дефисы, подчеркивания, точки, слэши)
-          if [[ ! "$IMAGE_NAME" =~ ^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$ ]]; then
-            echo "❌ ERROR: DOCKER_IMAGE_NAME contains invalid characters"
-            echo "   Current value: ${{ env.DOCKER_IMAGE_NAME }}"
-            echo "   Allowed: lowercase letters, numbers, dots, dashes, underscores"
-            echo "   Example: atom-dbro-backend or my-registry/atom-dbro-backend"
-            exit 1
-          fi
-          
-          # Проверка длины
-          if [ ${#REGISTRY} -eq 0 ]; then
-            echo "❌ ERROR: DOCKER_REGISTRY_URL is empty after sanitization"
-            exit 1
-          fi
-          if [ ${#IMAGE_NAME} -eq 0 ]; then
-            echo "❌ ERROR: DOCKER_IMAGE_NAME is empty after sanitization"
-            exit 1
-          fi
-          
-          echo "✅ DOCKER_REGISTRY (sanitized): $REGISTRY"
-          echo "✅ DOCKER_IMAGE_NAME (sanitized): $IMAGE_NAME"
-          echo "✅ Full image name: $REGISTRY/$IMAGE_NAME"
-          
-          # Сохраняем очищенные значения
-          echo "registry=$REGISTRY" >> $GITHUB_OUTPUT
-          echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
-          echo "full_image=$REGISTRY/$IMAGE_NAME" >> $GITHUB_OUTPUT
-
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Generate BuildKit config
-        if: env.DOCKER_REGISTRY_INSECURE == 'true'
-        id: buildkit-config
-        run: |
-          REGISTRY="${{ steps.validate.outputs.registry }}"
-          CONFIG="[registry.\"$REGISTRY\"]"$'\n'"  http = true"$'\n'"  insecure = true"
-          echo "config<<EOF" >> $GITHUB_OUTPUT
-          echo "$CONFIG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        id: buildx
-        with:
-          driver-opts: |
-            network=host
-            env.BUILDKIT_STEP_LOG_MAX_SIZE=10485760
-          config-inline: ${{ steps.buildkit-config.outputs.config || '' }}
-        env:
-          BUILDKIT_CONFIG: ${{ steps.buildkit-config.outputs.config || 'No config (secure registry)' }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ steps.validate.outputs.full_image }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix={{branch}}-,format=short
-
-      - name: Build Docker image
-        id: build
-        uses: docker/build-push-action@v5
-        env:
-          BUILDKIT_PROGRESS: plain
-        with:
-          context: .
-          file: ./Dockerfile
-          push: false  # Только сборка, без отправки
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: ${{ env.DOCKER_REGISTRY_INSECURE != 'true' && format('type=registry,ref={0}:buildcache', steps.validate.outputs.full_image) || 'type=gha' }}
-          cache-to: ${{ env.DOCKER_REGISTRY_INSECURE != 'true' && format('type=registry,ref={0}:buildcache,mode=max', steps.validate.outputs.full_image) || 'type=gha,mode=max' }}
-          build-args: |
-            BUILDKIT_INLINE_CACHE=1
-
-      - name: Get commit SHA
-        id: commit
-        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
-      - name: Build Summary
-        if: success()
-        run: |
-          echo "✅ Build completed successfully!"
-          echo "📦 Image built locally"
-          echo "🏷️ Tags: ${{ steps.meta.outputs.tags }}"
-          echo "📝 Commit: ${{ steps.commit.outputs.sha }}"
-
-  # Push: отправка образа в registry
-  push:
-    name: Push to Registry
-    runs-on: ubuntu-latest
-    needs: build
-    if: success() && needs.build.result == 'success'
-    
-    steps:
       - name: Validate and sanitize environment variables
         id: validate
         run: |
-          # Проверка наличия переменных
-          if [ -z "${{ env.DOCKER_REGISTRY }}" ]; then
-            echo "❌ ERROR: DOCKER_REGISTRY_URL secret is not set"
-            exit 1
-          fi
-          if [ -z "${{ env.DOCKER_IMAGE_NAME }}" ]; then
-            echo "❌ ERROR: DOCKER_IMAGE_NAME secret is not set"
-            exit 1
-          fi
+          # Получаем и очищаем DOCKER_REGISTRY_URL
+          REGISTRY_URL="${DOCKER_REGISTRY_URL}"
+          REGISTRY_URL=$(echo "$REGISTRY_URL" | sed 's|^https\?://||' | sed 's|/$||')
           
-          # Очистка от пробелов и переносов строк
-          REGISTRY=$(echo "${{ env.DOCKER_REGISTRY }}" | tr -d '[:space:]' | sed 's|^https\?://||' | sed 's|/$||')
-          IMAGE_NAME=$(echo "${{ env.DOCKER_IMAGE_NAME }}" | tr -d '[:space:]')
+          # Получаем и очищаем DOCKER_IMAGE_NAME
+          IMAGE_NAME="${DOCKER_IMAGE_NAME}"
+          # Убираем все символы, кроме строчных букв, цифр, дефисов, подчеркиваний и точек
+          IMAGE_NAME=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]//g')
           
-          # Валидация формата registry
-          if [[ "$REGISTRY" =~ ^https?:// ]]; then
-            echo "❌ ERROR: DOCKER_REGISTRY_URL should not include protocol"
-            exit 1
-          fi
-          
-          # Валидация формата имени образа
-          if [[ ! "$IMAGE_NAME" =~ ^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$ ]]; then
-            echo "❌ ERROR: DOCKER_IMAGE_NAME contains invalid characters"
-            exit 1
-          fi
-          
-          echo "✅ DOCKER_REGISTRY (sanitized): $REGISTRY"
-          echo "✅ DOCKER_IMAGE_NAME (sanitized): $IMAGE_NAME"
-          
-          # Сохраняем очищенные значения
-          echo "registry=$REGISTRY" >> $GITHUB_OUTPUT
+          echo "registry_url=$REGISTRY_URL" >> $GITHUB_OUTPUT
           echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
-          echo "full_image=$REGISTRY/$IMAGE_NAME" >> $GITHUB_OUTPUT
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Generate BuildKit config
-        if: env.DOCKER_REGISTRY_INSECURE == 'true'
-        id: buildkit-config
-        run: |
-          REGISTRY="${{ steps.validate.outputs.registry }}"
-          CONFIG="[registry.\"$REGISTRY\"]"$'\n'"  http = true"$'\n'"  insecure = true"
-          echo "🔧 Generated BuildKit config for registry: $REGISTRY"
-          echo "Config content:"
-          echo "$CONFIG"
-          echo "config<<EOF" >> $GITHUB_OUTPUT
-          echo "$CONFIG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        id: buildx
-        with:
-          config-inline: ${{ steps.buildkit-config.outputs.config || '' }}
+          
+          # Проверяем, что значения не пустые
+          if [ -z "$REGISTRY_URL" ]; then
+            echo "❌ Error: DOCKER_REGISTRY_URL is empty or not set"
+            exit 1
+          fi
+          
+          if [ -z "$IMAGE_NAME" ]; then
+            echo "❌ Error: DOCKER_IMAGE_NAME is empty or not set"
+            exit 1
+          fi
+          
+          echo "✅ Registry URL: $REGISTRY_URL"
+          echo "✅ Image Name: $IMAGE_NAME"
         env:
-          BUILDKIT_CONFIG: ${{ steps.buildkit-config.outputs.config || 'No config (secure registry)' }}
+          DOCKER_REGISTRY_URL: ${{ secrets.DOCKER_REGISTRY_URL }}
+          DOCKER_IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME }}
+
+      - name: Configure Docker for insecure registry (if needed)
+        if: ${{ secrets.DOCKER_REGISTRY_INSECURE == 'true' }}
+        run: |
+          echo "⚠️ Configuring Docker for insecure registry..."
+          REGISTRY_URL="${{ steps.validate.outputs.registry_url }}"
+          
+          # Настраиваем insecure registry в Docker daemon
+          sudo mkdir -p /etc/docker
+          
+          # Проверяем, существует ли уже daemon.json
+          if [ -f /etc/docker/daemon.json ]; then
+            echo "📋 Existing daemon.json found, backing up..."
+            sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
+            # Объединяем с существующим конфигом (простая версия)
+            echo "{\"insecure-registries\": [\"$REGISTRY_URL\"]}" | sudo tee /etc/docker/daemon.json
+          else
+            echo "{\"insecure-registries\": [\"$REGISTRY_URL\"]}" | sudo tee /etc/docker/daemon.json
+          fi
+          
+          # Перезапускаем Docker daemon
+          echo "🔄 Restarting Docker daemon..."
+          if command -v systemctl &> /dev/null; then
+            sudo systemctl restart docker || true
+          elif command -v service &> /dev/null; then
+            sudo service docker restart || true
+          else
+            # В GitHub Actions runner Docker может управляться по-другому
+            echo "⚠️ Could not restart Docker daemon automatically"
+            echo "⚠️ Please ensure Docker daemon is restarted manually if needed"
+          fi
+          
+          # Даем время на перезапуск и проверяем, что Docker работает
+          sleep 5
+          docker info > /dev/null 2>&1 || {
+            echo "⚠️ Docker may not have restarted properly, but continuing..."
+          }
+          
+          echo "✅ Insecure registry configured: $REGISTRY_URL"
 
       - name: Log in to Docker Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ steps.validate.outputs.registry }}
+          registry: ${{ steps.validate.outputs.registry_url }}
           username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
-          insecure: ${{ env.DOCKER_REGISTRY_INSECURE == 'true' }}
 
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.validate.outputs.full_image }}
+          images: ${{ steps.validate.outputs.registry_url }}/${{ steps.validate.outputs.image_name }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix={{branch}}-,format=short
+            type=ref,event=branch
+            type=sha,prefix=sha-,format=short
 
       - name: Build and push Docker image
-        id: push
-        env:
-          BUILDKIT_PROGRESS: plain
-          DOCKER_BUILDKIT: 1
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
-          push: true  # Отправка в registry
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: ${{ env.DOCKER_REGISTRY_INSECURE != 'true' && format('type=registry,ref={0}:buildcache', steps.validate.outputs.full_image) || 'type=gha' }}
-          cache-to: ${{ env.DOCKER_REGISTRY_INSECURE != 'true' && format('type=registry,ref={0}:buildcache,mode=max', steps.validate.outputs.full_image) || 'type=gha,mode=max' }}
-          build-args: |
-            BUILDKIT_INLINE_CACHE=1
-
-      - name: Push Summary
-        if: success()
+          push: true
+          tags: ${{ steps.meta.outputs.tags }},${{ steps.validate.outputs.registry_url }}/${{ steps.validate.outputs.image_name }}:latest
+          cache-from: type=registry,ref=${{ steps.validate.outputs.registry_url }}/${{ steps.validate.outputs.image_name }}:buildcache
+          cache-to: type=registry,ref=${{ steps.validate.outputs.registry_url }}/${{ steps.validate.outputs.image_name }}:buildcache,mode=max
+      
+      - name: Set job outputs
+        id: job_outputs
         run: |
-          echo "✅ Push completed successfully!"
-          echo "📦 Image pushed to registry"
-          echo "🏷️ Tags: ${{ steps.meta.outputs.tags }}"
-          echo "🔗 Full image: ${{ steps.validate.outputs.full_image }}:latest"
+          echo "registry_url=${{ steps.validate.outputs.registry_url }}" >> $GITHUB_OUTPUT
+          echo "image_name=${{ steps.validate.outputs.image_name }}" >> $GITHUB_OUTPUT
 
-  # SSH Connect: настройка SSH соединения
-  ssh-connect:
-    name: SSH Connection Setup
-    runs-on: ubuntu-latest
-    
-    env:
-      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-      DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
-    
-    steps:
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+    outputs:
+      registry_url: ${{ steps.job_outputs.outputs.registry_url }}
+      image_name: ${{ steps.job_outputs.outputs.image_name }}
 
-      - name: Add server to known hosts
-        run: |
-          ssh-keyscan -p ${{ env.DEPLOY_SSH_PORT }} -H ${{ env.DEPLOY_HOST }} >> ~/.ssh/known_hosts
-
-      - name: Validate SSH configuration
-        run: |
-          echo "🔍 Validating SSH configuration..."
-          if [ -z "${{ env.DEPLOY_HOST }}" ]; then
-            echo "❌ ERROR: DEPLOY_HOST secret is not set"
-            exit 1
-          fi
-          if [ -z "${{ env.DEPLOY_USER }}" ]; then
-            echo "❌ ERROR: DEPLOY_USER secret is not set"
-            exit 1
-          fi
-          echo "✅ DEPLOY_HOST: ${{ env.DEPLOY_HOST }}"
-          echo "✅ DEPLOY_USER: ${{ env.DEPLOY_USER }}"
-          echo "✅ DEPLOY_SSH_PORT: ${{ env.DEPLOY_SSH_PORT }}"
-
-      - name: Check SSH key format
-        run: |
-          echo "🔑 Checking SSH key format..."
-          if [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]; then
-            echo "❌ ERROR: DEPLOY_SSH_KEY secret is not set"
-            echo "💡 Please add your private SSH key to GitHub Secrets"
-            exit 1
-          fi
-          # Проверяем, что ключ начинается с правильного заголовка
-          KEY_START=$(echo "${{ secrets.DEPLOY_SSH_KEY }}" | head -c 30)
-          if [[ ! "$KEY_START" =~ ^(-----BEGIN|ssh-rsa|ssh-ed25519) ]]; then
-            echo "⚠️ WARNING: SSH key format might be incorrect"
-            echo "Expected format: -----BEGIN ... PRIVATE KEY----- or ssh-rsa/ssh-ed25519"
-          else
-            echo "✅ SSH key format looks correct"
-          fi
-
-      - name: Test SSH connection
-        run: |
-          echo "🔌 Testing SSH connection..."
-          echo "Connecting to ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_SSH_PORT }}"
-          
-          # Пробуем подключиться с детальным выводом ошибок
-          ssh -v -p ${{ env.DEPLOY_SSH_PORT }} \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            -o ConnectTimeout=10 \
-            ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} \
-            "echo '✅ SSH connection successful' && hostname && uname -a" || {
-            echo ""
-            echo "❌ SSH connection failed!"
-            echo ""
-            echo "🔧 Troubleshooting steps:"
-            echo "1. Verify that DEPLOY_SSH_KEY contains the correct private key"
-            echo "2. Ensure the public key is added to ~/.ssh/authorized_keys on the server"
-            echo "3. Check that DEPLOY_USER has the correct permissions"
-            echo "4. Verify DEPLOY_HOST is reachable: ping ${{ env.DEPLOY_HOST }}"
-            echo "5. Check firewall settings on the server"
-            echo "6. Verify SSH service is running on the server: sudo systemctl status ssh"
-            exit 1
-          }
-
-      - name: SSH Connection Summary
-        if: success()
-        run: |
-          echo "✅ SSH connection established!"
-          echo "🌐 Server: ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_SSH_PORT }}"
-
-  # Deploy: деплой на сервер
   deploy:
     name: Deploy to Server
+    needs: build-and-push
     runs-on: ubuntu-latest
-    needs: [push, ssh-connect]  # Запускается после успешного push и настройки SSH
-    if: success() && needs.push.result == 'success' && needs.ssh-connect.result == 'success'
-    
-    env:
-      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-      DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
-      DEPLOY_PROJECT_PATH: ${{ secrets.DEPLOY_PROJECT_PATH }}
-      DOCKER_REGISTRY: ${{ needs.build.outputs.registry }}
-      # Используем данные из build job
-      FULL_IMAGE_NAME: ${{ needs.build.outputs.full-image-name }}
-      IMAGE_TAGS: ${{ needs.build.outputs.image-tags }}
-      COMMIT_SHA: ${{ needs.build.outputs.commit-sha }}
+    if: github.ref == 'refs/heads/main'
     
     steps:
-      - name: Setup SSH
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
-      - name: Add server to known hosts
+      - name: Validate SSH connection
         run: |
-          ssh-keyscan -p ${{ env.DEPLOY_SSH_PORT }} -H ${{ env.DEPLOY_HOST }} >> ~/.ssh/known_hosts
-
-      - name: Display deployment info
-        run: |
-          echo "🚀 Starting deployment..."
-          echo "📦 Image: ${{ env.FULL_IMAGE_NAME }}"
-          echo "🏷️ Tags: ${{ env.IMAGE_TAGS }}"
-          echo "📝 Commit: ${{ env.COMMIT_SHA }}"
-          echo "🌐 Target: ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_SSH_PORT }}"
-          echo "📁 Project path: ${{ env.DEPLOY_PROJECT_PATH }}"
+          ssh -o StrictHostKeyChecking=no -p ${DEPLOY_SSH_PORT:-22} ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "echo 'SSH connection successful' && hostname"
 
       - name: Deploy to server
         run: |
-          ssh -p ${{ env.DEPLOY_SSH_PORT }} -o StrictHostKeyChecking=no ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << ENDSSH
+          ssh -o StrictHostKeyChecking=no -p ${DEPLOY_SSH_PORT:-22} ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << EOF
             set -e
-            FULL_IMAGE_NAME="${{ env.FULL_IMAGE_NAME }}"
             
-            echo "🚀 Starting deployment..."
+            # Переменные окружения
+            export DOCKER_REGISTRY="${{ needs.build-and-push.outputs.registry_url }}"
+            export DOCKER_IMAGE_NAME="${{ needs.build-and-push.outputs.image_name }}"
+            export DOCKER_REGISTRY_USERNAME="${{ secrets.DOCKER_REGISTRY_USERNAME }}"
+            export DOCKER_REGISTRY_PASSWORD="${{ secrets.DOCKER_REGISTRY_PASSWORD }}"
+            export DOCKER_REGISTRY_INSECURE="${{ secrets.DOCKER_REGISTRY_INSECURE || 'false' }}"
+            export PROJECT_DIR="${{ secrets.DEPLOY_PROJECT_PATH }}"
             
-            # Navigate to project directory
-            PROJECT_PATH="${{ env.DEPLOY_PROJECT_PATH }}"
-            if [ -z "\$PROJECT_PATH" ]; then
-              echo "❌ DEPLOY_PROJECT_PATH is not set"
-              exit 1
-            fi
-            echo "📁 Navigating to project directory: \$PROJECT_PATH"
-            cd "\$PROJECT_PATH" || { echo "❌ Project directory not found: \$PROJECT_PATH"; exit 1; }
-            echo "✅ Current directory: \$(pwd)"
+            # Переходим в директорию проекта
+            cd "\$PROJECT_DIR" || exit 1
             
-            # Login to Docker registry
-            echo "🔐 Logging in to Docker registry..."
-            REGISTRY_URL="${{ env.DOCKER_REGISTRY }}"
-            # Если используется insecure registry, настраиваем Docker daemon
-            if [ "${{ env.DOCKER_REGISTRY_INSECURE }}" = "true" ]; then
-              echo "⚠️ Configuring insecure registry..."
-              # Настройка Docker daemon для insecure registry
-              sudo mkdir -p /etc/docker
-              # Проверяем, есть ли уже insecure-registries в daemon.json
-              if [ -f /etc/docker/daemon.json ] && grep -q "insecure-registries" /etc/docker/daemon.json; then
-                echo "⚠️ insecure-registries already configured in daemon.json"
-                echo "⚠️ Please manually add \$REGISTRY_URL to /etc/docker/daemon.json if needed"
-              else
-                # Создаем или обновляем файл
-                if [ -f /etc/docker/daemon.json ]; then
-                  # Если файл существует, добавляем insecure-registries (простой способ)
-                  sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
-                  echo "⚠️ Backed up existing daemon.json"
-                  echo "⚠️ You may need to manually merge insecure-registries"
-                fi
-                # Создаем минимальный файл с insecure registry
-                echo "{\"insecure-registries\": [\"\$REGISTRY_URL\"]}" | sudo tee /etc/docker/daemon.json
-                sudo systemctl restart docker || echo "⚠️ Could not restart docker, continuing..."
-              fi
-            fi
-            echo '${{ secrets.DOCKER_REGISTRY_PASSWORD }}' | docker login "\$REGISTRY_URL" -u '${{ secrets.DOCKER_REGISTRY_USERNAME }}' --password-stdin
-            
-            # Pull latest image
-            echo "📥 Pulling latest image: \$FULL_IMAGE_NAME"
-            docker pull "\$FULL_IMAGE_NAME"
-            
-            # Stop old containers (only app service, keep postgres running)
-            echo "🛑 Stopping old application container..."
-            docker-compose stop app || true
-            docker-compose rm -f app || true
-            
-            # Start new container with image from registry
-            echo "▶️ Starting new container with image from registry..."
-            DOCKER_IMAGE="\$FULL_IMAGE_NAME" docker-compose up -d app
-            
-            # Wait for container to be ready
-            echo "⏳ Waiting for container to be ready..."
-            sleep 10
-            
-            # Run database migrations
-            echo "🗄️ Running database migrations..."
-            docker exec atom-dbro-app npm run db:migrate || { echo "⚠️ Migration failed, but continuing..."; }
-            
-            # Health check
-            echo "🏥 Performing health check..."
-            max_attempts=30
-            attempt=0
-            while [ \$attempt -lt \$max_attempts ]; do
-              if curl -f http://localhost:3000/api > /dev/null 2>&1; then
-                echo "✅ Application is healthy!"
-                exit 0
-              fi
-              attempt=\$((attempt + 1))
-              echo "Attempt \$attempt/\$max_attempts failed, retrying in 2 seconds..."
-              sleep 2
-            done
-            
-            echo "❌ Health check failed after \$max_attempts attempts"
-            echo "📋 Container logs:"
-            docker logs atom-dbro-app --tail 50
-            exit 1
-          ENDSSH
-
-      - name: Deployment summary
-        if: success()
-        run: |
-          echo "✅ Deployment completed successfully!"
-          echo "📦 Deployed image: ${{ env.FULL_IMAGE_NAME }}"
-          echo "📝 Commit: ${{ env.COMMIT_SHA }}"
-          echo "🌐 Application should be available at: http://${{ env.DEPLOY_HOST }}:3000"
-          echo "📚 Swagger docs: http://${{ env.DEPLOY_HOST }}:3000/api"
-
+            # Запускаем скрипт деплоя
+            bash scripts/deploy.sh
+          EOF
+        env:
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
