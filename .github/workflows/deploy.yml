@@ -13,6 +13,8 @@ jobs:
   build-and-push:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
+    env:
+      DOCKER_REGISTRY_INSECURE: ${{ secrets.DOCKER_REGISTRY_INSECURE }}
     
     steps:
       - name: Checkout code
@@ -54,8 +56,12 @@ jobs:
           DOCKER_IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME }}
 
       - name: Configure Docker for insecure registry (if needed)
-        if: ${{ secrets.DOCKER_REGISTRY_INSECURE == 'true' }}
         run: |
+          if [ "$DOCKER_REGISTRY_INSECURE" != "true" ]; then
+            echo "ℹ️ DOCKER_REGISTRY_INSECURE not set to 'true', skipping insecure registry configuration"
+            exit 0
+          fi
+          
           echo "⚠️ Configuring Docker for insecure registry..."
           REGISTRY_URL="${{ steps.validate.outputs.registry_url }}"
           
@@ -133,6 +139,9 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    env:
+      DOCKER_REGISTRY_INSECURE: ${{ secrets.DOCKER_REGISTRY_INSECURE }}
+      DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
     
     steps:
       - name: Checkout code
@@ -145,27 +154,35 @@ jobs:
 
       - name: Validate SSH connection
         run: |
-          ssh -o StrictHostKeyChecking=no -p ${DEPLOY_SSH_PORT:-22} ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+          SSH_PORT="${DEPLOY_SSH_PORT:-22}"
+          ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
             "echo 'SSH connection successful' && hostname"
 
       - name: Deploy to server
         run: |
-          ssh -o StrictHostKeyChecking=no -p ${DEPLOY_SSH_PORT:-22} ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << EOF
+          SSH_PORT="${DEPLOY_SSH_PORT:-22}"
+          DOCKER_REGISTRY_INSECURE_VALUE="${DOCKER_REGISTRY_INSECURE:-false}"
+          ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'REMOTE_SCRIPT'
             set -e
             
             # Переменные окружения
-            export DOCKER_REGISTRY="${{ needs.build-and-push.outputs.registry_url }}"
-            export DOCKER_IMAGE_NAME="${{ needs.build-and-push.outputs.image_name }}"
-            export DOCKER_REGISTRY_USERNAME="${{ secrets.DOCKER_REGISTRY_USERNAME }}"
-            export DOCKER_REGISTRY_PASSWORD="${{ secrets.DOCKER_REGISTRY_PASSWORD }}"
-            export DOCKER_REGISTRY_INSECURE="${{ secrets.DOCKER_REGISTRY_INSECURE || 'false' }}"
-            export PROJECT_DIR="${{ secrets.DEPLOY_PROJECT_PATH }}"
+            export DOCKER_REGISTRY="$DOCKER_REGISTRY_VALUE"
+            export DOCKER_IMAGE_NAME="$DOCKER_IMAGE_NAME_VALUE"
+            export DOCKER_REGISTRY_USERNAME="$DOCKER_REGISTRY_USERNAME_VALUE"
+            export DOCKER_REGISTRY_PASSWORD="$DOCKER_REGISTRY_PASSWORD_VALUE"
+            export DOCKER_REGISTRY_INSECURE="$DOCKER_REGISTRY_INSECURE_VALUE"
+            export PROJECT_DIR="$PROJECT_DIR_VALUE"
             
             # Переходим в директорию проекта
-            cd "\$PROJECT_DIR" || exit 1
+            cd "$PROJECT_DIR" || exit 1
             
             # Запускаем скрипт деплоя
             bash scripts/deploy.sh
-          EOF
+          REMOTE_SCRIPT
         env:
-          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
+          DOCKER_REGISTRY_INSECURE_VALUE: ${{ env.DOCKER_REGISTRY_INSECURE }}
+          DOCKER_REGISTRY_VALUE: ${{ needs.build-and-push.outputs.registry_url }}
+          DOCKER_IMAGE_NAME_VALUE: ${{ needs.build-and-push.outputs.image_name }}
+          DOCKER_REGISTRY_USERNAME_VALUE: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
+          DOCKER_REGISTRY_PASSWORD_VALUE: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
+          PROJECT_DIR_VALUE: ${{ secrets.DEPLOY_PROJECT_PATH }}
