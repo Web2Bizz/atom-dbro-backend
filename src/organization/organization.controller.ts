@@ -226,10 +226,10 @@ export class OrganizationController {
   }
 
   @Get(':id/gallery/:fileName')
+  @Public()
   @ApiOperation({ summary: 'Получить изображение из галереи организации (шлюз)' })
   @ApiResponse({ status: 200, description: 'Изображение найдено', content: { 'image/*': {} } })
   @ApiResponse({ status: 404, description: 'Изображение не найдено' })
-  @ApiResponse({ status: 401, description: 'Не авторизован' })
   async getImage(
     @Param('id', ParseIntPipe) organizationId: number,
     @Param('fileName') fileName: string,
