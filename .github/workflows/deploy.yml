@@ -244,30 +244,6 @@ jobs:
               exit 1
             fi
             
-            # Выполнение миграций базы данных
-            echo "🗄️ Running database migrations..."
-            MAX_MIGRATION_ATTEMPTS=3
-            MIGRATION_ATTEMPT=0
-            
-            while [ $MIGRATION_ATTEMPT -lt $MAX_MIGRATION_ATTEMPTS ]; do
-              echo "Migration attempt $((MIGRATION_ATTEMPT + 1))/$MAX_MIGRATION_ATTEMPTS"
-              if docker exec "$CONTAINER_NAME" npm run db:migrate; then
-                echo "✅ Database migrations completed successfully"
-                break
-              else
-                MIGRATION_ATTEMPT=$((MIGRATION_ATTEMPT + 1))
-                if [ $MIGRATION_ATTEMPT -lt $MAX_MIGRATION_ATTEMPTS ]; then
-                  echo "⚠️ Migration attempt $MIGRATION_ATTEMPT failed, retrying in 5 seconds..."
-                  sleep 5
-                else
-                  echo "❌ Database migrations failed after $MAX_MIGRATION_ATTEMPTS attempts"
-                  echo "📋 Container logs:"
-                  docker logs "$CONTAINER_NAME" --tail 50
-                  exit 1
-                fi
-              fi
-            done
-            
             # Health check приложения
             echo "🏥 Performing health check..."
             MAX_HEALTH_CHECK_ATTEMPTS=30
@@ -321,3 +297,4 @@ jobs:
           PROJECT_DIR_VALUE: ${{ secrets.DEPLOY_PROJECT_PATH }}
           CONTAINER_NAME: ${{ secrets.DEPLOY_CONTAINER_NAME || 'atom-dbro-app' }}
           SERVICE_NAME: ${{ secrets.DEPLOY_SERVICE_NAME || 'app' }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
