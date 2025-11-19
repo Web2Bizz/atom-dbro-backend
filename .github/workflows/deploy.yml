@@ -8,147 +8,19 @@ on:
 
 env:
   NODE_VERSION: '20'
+  IMAGE_NAME: atom-dbro-backend
 
 jobs:
-  validate:
-    name: Validate Environment Variables
-    runs-on: ubuntu-latest
-    outputs:
-      registry_url: ${{ steps.validate.outputs.registry_url }}
-      image_name: ${{ steps.validate.outputs.image_name }}
-    steps:
-      - name: Validate and sanitize environment variables
-        id: validate
-        run: |
-          # Получаем и очищаем DOCKER_REGISTRY_URL
-          REGISTRY_URL="${DOCKER_REGISTRY_URL}"
-          REGISTRY_URL=$(echo "$REGISTRY_URL" | sed 's|^https\?://||' | sed 's|/$||')
-          
-          # Получаем и очищаем DOCKER_IMAGE_NAME
-          IMAGE_NAME="${DOCKER_IMAGE_NAME}"
-          # Убираем все символы, кроме строчных букв, цифр, дефисов, подчеркиваний и точек
-          IMAGE_NAME=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]//g')
-          
-          echo "registry_url=$REGISTRY_URL" >> $GITHUB_OUTPUT
-          echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
-          
-          # Проверяем, что значения не пустые
-          if [ -z "$REGISTRY_URL" ]; then
-            echo "❌ Error: DOCKER_REGISTRY_URL is empty or not set"
-            exit 1
-          fi
-          
-          if [ -z "$IMAGE_NAME" ]; then
-            echo "❌ Error: DOCKER_IMAGE_NAME is empty or not set"
-            exit 1
-          fi
-          
-          echo "✅ Registry URL: $REGISTRY_URL"
-          echo "✅ Image Name: $IMAGE_NAME"
-        env:
-          DOCKER_REGISTRY_URL: ${{ secrets.DOCKER_REGISTRY_URL }}
-          DOCKER_IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME }}
-
   build:
     name: Build Docker Image
     runs-on: ubuntu-latest
-    needs: validate
-    env:
-      DOCKER_REGISTRY_INSECURE: ${{ secrets.DOCKER_REGISTRY_INSECURE }}
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install jq (for daemon.json manipulation)
-        if: env.DOCKER_REGISTRY_INSECURE == 'true'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y jq
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Configure Docker for insecure registry (if needed)
-        if: env.DOCKER_REGISTRY_INSECURE == 'true'
-        run: |
-          echo "⚠️ Configuring Docker for insecure registry (TLS verification disabled)..."
-          REGISTRY_URL="${{ needs.validate.outputs.registry_url }}"
-          
-          # В GitHub Actions runner'ах НЕ перезапускаем Docker daemon, т.к. это ломает подключение
-          # Вместо этого используем переменные окружения и настройки Buildx
-          
-          # Настраиваем insecure registry в Docker daemon (для справки, но без перезапуска)
-          sudo mkdir -p /etc/docker
-          
-          # Читаем существующий daemon.json или создаем новый
-          if [ -f /etc/docker/daemon.json ]; then
-            echo "📋 Existing daemon.json found, backing up..."
-            sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
-            
-            # Пытаемся использовать jq для безопасного добавления insecure-registries
-            if command -v jq &> /dev/null; then
-              echo "Using jq to merge insecure-registries..."
-              sudo cat /etc/docker/daemon.json | jq --arg reg "$REGISTRY_URL" \
-                '.insecure-registries = (if .insecure-registries then (. + [$reg] | unique) else [$reg] end)' | \
-                sudo tee /etc/docker/daemon.json > /dev/null
-            else
-              # Fallback: перезаписываем (может потерять другие настройки)
-              echo "⚠️ jq not available, overwriting daemon.json"
-              echo "{\"insecure-registries\": [\"$REGISTRY_URL\"]}" | sudo tee /etc/docker/daemon.json
-            fi
-          else
-            echo "Creating new daemon.json..."
-            echo "{\"insecure-registries\": [\"$REGISTRY_URL\"]}" | sudo tee /etc/docker/daemon.json
-          fi
-          
-          # Отключаем TLS для Docker клиента (для Buildx и других инструментов)
-          # Это работает без перезапуска daemon
-          echo "DOCKER_TLS_CERTDIR=" >> $GITHUB_ENV
-          
-          echo "ℹ️ Docker daemon configuration updated (daemon.json)"
-          echo "ℹ️ Note: In GitHub Actions managed runners, daemon restart is not needed"
-          echo "ℹ️ Insecure registry will be used via DOCKER_TLS_CERTDIR and Buildx settings"
-          
-          # Проверяем, что Docker все еще работает
-          if docker info > /dev/null 2>&1; then
-            echo "✅ Docker is running"
-          else
-            echo "❌ ERROR: Docker is not accessible after configuration"
-            echo "This should not happen - Docker daemon was not restarted"
-            exit 1
-          fi
-          
-          echo "✅ Insecure registry configured: $REGISTRY_URL"
-
-      - name: Debug variables
-        run: |
-          echo "Registry URL: ${{ needs.validate.outputs.registry_url }}"
-          echo "Image Name: ${{ needs.validate.outputs.image_name }}"
-          if [ -z "${{ needs.validate.outputs.registry_url }}" ]; then
-            echo "❌ ERROR: registry_url is empty!"
-            exit 1
-          fi
-          if [ -z "${{ needs.validate.outputs.image_name }}" ]; then
-            echo "❌ ERROR: image_name is empty!"
-            exit 1
-          fi
-          FULL_IMAGE="${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}"
-          echo "Full image: $FULL_IMAGE"
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}
-          tags: |
-            type=ref,event=branch
-            type=sha,prefix=sha-,format=short
-
-      - name: Debug metadata outputs
-        run: |
-          echo "Meta tags: ${{ steps.meta.outputs.tags }}"
-          echo "Meta json: ${{ steps.meta.outputs.json }}"
 
       - name: Build Docker image
         uses: docker/build-push-action@v5
@@ -157,153 +29,50 @@ jobs:
           file: ./Dockerfile
           push: false
           load: true
-          tags: |
-            ${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}:latest
-            ${{ steps.meta.outputs.tags }}
-          cache-from: type=registry,ref=${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}:buildcache
-          cache-to: type=registry,ref=${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}:buildcache,mode=max
-        env:
-          DOCKER_TLS_CERTDIR: ${{ env.DOCKER_TLS_CERTDIR || '' }}
+          tags: ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
 
-  push:
-    name: Push Docker Image
-    runs-on: ubuntu-latest
-    needs: [validate, build]
-    env:
-      DOCKER_REGISTRY_INSECURE: ${{ secrets.DOCKER_REGISTRY_INSECURE }}
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install jq (for daemon.json manipulation)
-        if: env.DOCKER_REGISTRY_INSECURE == 'true'
+      - name: Export Docker image to tar.gz
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y jq
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Configure Docker for insecure registry (if needed)
-        if: env.DOCKER_REGISTRY_INSECURE == 'true'
-        run: |
-          echo "⚠️ Configuring Docker for insecure registry (TLS verification disabled)..."
-          REGISTRY_URL="${{ needs.validate.outputs.registry_url }}"
+          echo "📦 Exporting Docker image to tar.gz..."
+          docker save ${{ env.IMAGE_NAME }}:latest | gzip > image.tar.gz
           
-          # В GitHub Actions runner'ах НЕ перезапускаем Docker daemon, т.к. это ломает подключение
-          # Вместо этого используем переменные окружения и настройки Buildx
+          echo "📊 Image file info:"
+          ls -lh image.tar.gz
+          IMAGE_SIZE=$(du -h image.tar.gz | cut -f1)
+          echo "Image size: $IMAGE_SIZE"
           
-          # Настраиваем insecure registry в Docker daemon (для справки, но без перезапуска)
-          sudo mkdir -p /etc/docker
-          
-          # Читаем существующий daemon.json или создаем новый
-          if [ -f /etc/docker/daemon.json ]; then
-            echo "📋 Existing daemon.json found, backing up..."
-            sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
-            
-            # Пытаемся использовать jq для безопасного добавления insecure-registries
-            if command -v jq &> /dev/null; then
-              echo "Using jq to merge insecure-registries..."
-              sudo cat /etc/docker/daemon.json | jq --arg reg "$REGISTRY_URL" \
-                '.insecure-registries = (if .insecure-registries then (. + [$reg] | unique) else [$reg] end)' | \
-                sudo tee /etc/docker/daemon.json > /dev/null
-            else
-              # Fallback: перезаписываем (может потерять другие настройки)
-              echo "⚠️ jq not available, overwriting daemon.json"
-              echo "{\"insecure-registries\": [\"$REGISTRY_URL\"]}" | sudo tee /etc/docker/daemon.json
-            fi
-          else
-            echo "Creating new daemon.json..."
-            echo "{\"insecure-registries\": [\"$REGISTRY_URL\"]}" | sudo tee /etc/docker/daemon.json
-          fi
-          
-          # Отключаем TLS для Docker клиента (для Buildx и других инструментов)
-          # Это работает без перезапуска daemon
-          echo "DOCKER_TLS_CERTDIR=" >> $GITHUB_ENV
-          
-          echo "ℹ️ Docker daemon configuration updated (daemon.json)"
-          echo "ℹ️ Note: In GitHub Actions managed runners, daemon restart is not needed"
-          echo "ℹ️ Insecure registry will be used via DOCKER_TLS_CERTDIR and Buildx settings"
-          
-          # Проверяем, что Docker все еще работает
-          if docker info > /dev/null 2>&1; then
-            echo "✅ Docker is running"
-          else
-            echo "❌ ERROR: Docker is not accessible after configuration"
-            echo "This should not happen - Docker daemon was not restarted"
+          # Проверяем, что файл создан и не пустой
+          if [ ! -f image.tar.gz ] || [ ! -s image.tar.gz ]; then
+            echo "❌ ERROR: Failed to export Docker image"
             exit 1
           fi
           
-          echo "✅ Insecure registry configured: $REGISTRY_URL"
+          echo "✅ Docker image exported successfully"
 
-      - name: Log in to Docker Registry
-        uses: docker/login-action@v3
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@v4
         with:
-          registry: ${{ needs.validate.outputs.registry_url }}
-          username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
-          password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
-        env:
-          DOCKER_TLS_CERTDIR: ${{ env.DOCKER_TLS_CERTDIR || '' }}
-
-      - name: Debug variables
-        run: |
-          echo "Registry URL: ${{ needs.validate.outputs.registry_url }}"
-          echo "Image Name: ${{ needs.validate.outputs.image_name }}"
-          if [ -z "${{ needs.validate.outputs.registry_url }}" ]; then
-            echo "❌ ERROR: registry_url is empty!"
-            exit 1
-          fi
-          if [ -z "${{ needs.validate.outputs.image_name }}" ]; then
-            echo "❌ ERROR: image_name is empty!"
-            exit 1
-          fi
-          FULL_IMAGE="${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}"
-          echo "Full image: $FULL_IMAGE"
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}
-          tags: |
-            type=ref,event=branch
-            type=sha,prefix=sha-,format=short
-
-      - name: Debug metadata outputs
-        run: |
-          echo "Meta tags: ${{ steps.meta.outputs.tags }}"
-          echo "Meta json: ${{ steps.meta.outputs.json }}"
-
-      - name: Push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: |
-            ${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}:latest
-            ${{ steps.meta.outputs.tags }}
-          cache-from: type=registry,ref=${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}:buildcache
-        env:
-          DOCKER_TLS_CERTDIR: ${{ env.DOCKER_TLS_CERTDIR || '' }}
-
-    outputs:
-      registry_url: ${{ needs.validate.outputs.registry_url }}
-      image_name: ${{ needs.validate.outputs.image_name }}
+          name: docker-image
+          path: image.tar.gz
+          retention-days: 1
 
   deploy:
     name: Deploy to Server
-    needs: push
+    needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    env:
-      DOCKER_REGISTRY_INSECURE: ${{ secrets.DOCKER_REGISTRY_INSECURE }}
-      DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+          path: ./
 
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.9.0
@@ -316,31 +85,128 @@ jobs:
           ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
             "echo 'SSH connection successful' && hostname"
 
-      - name: Deploy to server
+      - name: Transfer and deploy Docker image
         run: |
           SSH_PORT="${DEPLOY_SSH_PORT:-22}"
-          DOCKER_REGISTRY_INSECURE_VALUE="${DOCKER_REGISTRY_INSECURE:-false}"
+          PROJECT_DIR="${{ secrets.DEPLOY_PROJECT_PATH }}"
+          
+          echo "📦 Transferring Docker image to server..."
+          # Передаем образ на сервер
+          scp -o StrictHostKeyChecking=no -P "$SSH_PORT" image.tar.gz ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/
+          
+          echo "🚀 Deploying on server..."
           ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'REMOTE_SCRIPT'
             set -e
             
-            # Переменные окружения
-            export DOCKER_REGISTRY="$DOCKER_REGISTRY_VALUE"
-            export DOCKER_IMAGE_NAME="$DOCKER_IMAGE_NAME_VALUE"
-            export DOCKER_REGISTRY_USERNAME="$DOCKER_REGISTRY_USERNAME_VALUE"
-            export DOCKER_REGISTRY_PASSWORD="$DOCKER_REGISTRY_PASSWORD_VALUE"
-            export DOCKER_REGISTRY_INSECURE="$DOCKER_REGISTRY_INSECURE_VALUE"
-            export PROJECT_DIR="$PROJECT_DIR_VALUE"
+            IMAGE_NAME="atom-dbro-backend"
+            PROJECT_DIR="$PROJECT_DIR_VALUE"
             
             # Переходим в директорию проекта
             cd "$PROJECT_DIR" || exit 1
             
-            # Запускаем скрипт деплоя
-            bash scripts/deploy.sh
+            # Загружаем образ в Docker
+            echo "📥 Importing Docker image from tar.gz..."
+            if [ ! -f /tmp/image.tar.gz ]; then
+              echo "❌ ERROR: Image file not found: /tmp/image.tar.gz"
+              exit 1
+            fi
+            
+            echo "📊 Image file size: $(du -h /tmp/image.tar.gz | cut -f1)"
+            docker load -i /tmp/image.tar.gz
+            
+            # Проверяем, что образ загружен
+            if ! docker images | grep -q "$IMAGE_NAME.*latest"; then
+              echo "❌ ERROR: Failed to import Docker image"
+              exit 1
+            fi
+            
+            echo "✅ Docker image imported successfully"
+            
+            # Удаляем временный файл
+            rm -f /tmp/image.tar.gz
+            echo "🧹 Cleaned up temporary image file"
+            
+            # Создание необходимых сетей Docker (если не существуют)
+            echo "🌐 Ensuring Docker networks exist..."
+            docker network create atom-external-network 2>/dev/null || echo "Network atom-external-network already exists"
+            docker network create atom-internal-network 2>/dev/null || echo "Network atom-internal-network already exists"
+            
+            # Остановка и удаление старых контейнеров
+            echo "🛑 Stopping old containers..."
+            docker-compose -f docker-compose.prod.yml down || echo "No running containers to stop"
+            
+            # Запуск новых контейнеров
+            echo "▶️ Starting new containers..."
+            docker-compose -f docker-compose.prod.yml up -d
+            
+            # Ожидание готовности контейнера
+            echo "⏳ Waiting for application container to be ready..."
+            sleep 10
+            
+            # Проверка, что контейнер запущен
+            if ! docker ps | grep -q "atom-dbro-app"; then
+              echo "❌ Application container failed to start"
+              echo "📋 Container logs:"
+              docker logs atom-dbro-app --tail 50 || true
+              exit 1
+            fi
+            
+            # Выполнение миграций базы данных
+            echo "🗄️ Running database migrations..."
+            MAX_MIGRATION_ATTEMPTS=3
+            MIGRATION_ATTEMPT=0
+            
+            while [ $MIGRATION_ATTEMPT -lt $MAX_MIGRATION_ATTEMPTS ]; do
+              if docker exec atom-dbro-app npm run db:migrate; then
+                echo "✅ Database migrations completed successfully"
+                break
+              else
+                MIGRATION_ATTEMPT=$((MIGRATION_ATTEMPT + 1))
+                if [ $MIGRATION_ATTEMPT -lt $MAX_MIGRATION_ATTEMPTS ]; then
+                  echo "⚠️ Migration attempt $MIGRATION_ATTEMPT failed, retrying in 5 seconds..."
+                  sleep 5
+                else
+                  echo "❌ Database migrations failed after $MAX_MIGRATION_ATTEMPTS attempts"
+                  docker logs atom-dbro-app --tail 50
+                  exit 1
+                fi
+              fi
+            done
+            
+            # Health check приложения
+            echo "🏥 Performing health check..."
+            MAX_HEALTH_CHECK_ATTEMPTS=30
+            HEALTH_CHECK_ATTEMPT=0
+            HEALTH_CHECK_SUCCESS=false
+            
+            while [ $HEALTH_CHECK_ATTEMPT -lt $MAX_HEALTH_CHECK_ATTEMPTS ]; do
+              if curl -f http://localhost:3000/api > /dev/null 2>&1; then
+                HEALTH_CHECK_SUCCESS=true
+                break
+              fi
+              HEALTH_CHECK_ATTEMPT=$((HEALTH_CHECK_ATTEMPT + 1))
+              if [ $HEALTH_CHECK_ATTEMPT -lt $MAX_HEALTH_CHECK_ATTEMPTS ]; then
+                echo "Health check attempt $HEALTH_CHECK_ATTEMPT/$MAX_HEALTH_CHECK_ATTEMPTS failed, retrying in 2 seconds..."
+                sleep 2
+              fi
+            done
+            
+            if [ "$HEALTH_CHECK_SUCCESS" = true ]; then
+              echo "✅ Application is healthy and responding!"
+              echo "🌐 Application is available at: http://localhost:3000"
+              echo "📚 Swagger docs: http://localhost:3000/api"
+            else
+              echo "❌ Health check failed after $MAX_HEALTH_CHECK_ATTEMPTS attempts"
+              docker logs atom-dbro-app --tail 100
+              exit 1
+            fi
+            
+            # Очистка старых образов (опционально, для экономии места)
+            echo "🧹 Cleaning up old Docker images..."
+            docker image prune -f || echo "Failed to clean up old images"
+            
+            echo "✅ Deployment completed successfully!"
           REMOTE_SCRIPT
         env:
-          DOCKER_REGISTRY_INSECURE_VALUE: ${{ env.DOCKER_REGISTRY_INSECURE }}
-          DOCKER_REGISTRY_VALUE: ${{ needs.push.outputs.registry_url }}
-          DOCKER_IMAGE_NAME_VALUE: ${{ needs.push.outputs.image_name }}
-          DOCKER_REGISTRY_USERNAME_VALUE: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
-          DOCKER_REGISTRY_PASSWORD_VALUE: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
           PROJECT_DIR_VALUE: ${{ secrets.DEPLOY_PROJECT_PATH }}

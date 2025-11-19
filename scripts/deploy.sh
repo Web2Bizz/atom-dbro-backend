@@ -2,6 +2,7 @@
 
 # Скрипт автоматического деплоя atom-dbro-backend
 # Выполняется на сервере через SSH из GitHub Actions
+# Образ должен быть уже загружен в Docker (docker load)
 
 set -e  # Остановка при любой ошибке
 
@@ -24,21 +25,11 @@ warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
-# Переменные окружения (должны быть установлены перед запуском)
-DOCKER_REGISTRY=${DOCKER_REGISTRY:-""}
-DOCKER_IMAGE_NAME=${DOCKER_IMAGE_NAME:-"atom-dbro-backend"}
-DOCKER_REGISTRY_USERNAME=${DOCKER_REGISTRY_USERNAME:-""}
-DOCKER_REGISTRY_PASSWORD=${DOCKER_REGISTRY_PASSWORD:-""}
-DOCKER_REGISTRY_INSECURE=${DOCKER_REGISTRY_INSECURE:-"false"}
+# Переменные окружения
 PROJECT_DIR=${PROJECT_DIR:-"$HOME/atom-dbro-backend"}
+IMAGE_NAME=${IMAGE_NAME:-"atom-dbro-backend"}
 
 log "🚀 Starting deployment process..."
-
-# Проверка наличия необходимых переменных
-if [ -z "$DOCKER_REGISTRY" ] || [ -z "$DOCKER_REGISTRY_USERNAME" ] || [ -z "$DOCKER_REGISTRY_PASSWORD" ]; then
-    error "DOCKER_REGISTRY, DOCKER_REGISTRY_USERNAME and DOCKER_REGISTRY_PASSWORD must be set"
-    exit 1
-fi
 
 # Переход в директорию проекта
 if [ ! -d "$PROJECT_DIR" ]; then
@@ -55,93 +46,14 @@ if [ ! -f "docker-compose.prod.yml" ]; then
     exit 1
 fi
 
-# Авторизация в Docker registry
-log "🔐 Logging in to Docker registry: $DOCKER_REGISTRY"
-
-# Настройка insecure registry, если необходимо
-if [ "$DOCKER_REGISTRY_INSECURE" = "true" ]; then
-    warning "Using insecure registry (TLS verification disabled)"
-    
-    # Проверяем, настроен ли insecure registry в Docker daemon
-    if ! docker info 2>/dev/null | grep -q "Insecure Registries:.*$DOCKER_REGISTRY"; then
-        warning "Registry $DOCKER_REGISTRY not found in insecure-registries, configuring..."
-        
-        # Настраиваем insecure registry в Docker daemon
-        sudo mkdir -p /etc/docker
-        
-        # Читаем существующий daemon.json или создаем новый
-        if [ -f /etc/docker/daemon.json ]; then
-            log "📋 Existing daemon.json found, backing up..."
-            sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
-            
-            # Пытаемся использовать jq для безопасного добавления insecure-registries
-            if command -v jq &> /dev/null; then
-                log "Using jq to merge insecure-registries..."
-                sudo cat /etc/docker/daemon.json | jq --arg reg "$DOCKER_REGISTRY" \
-                    '.insecure-registries = (if .insecure-registries then (. + [$reg] | unique) else [$reg] end)' | \
-                    sudo tee /etc/docker/daemon.json > /dev/null
-            else
-                # Fallback: перезаписываем (может потерять другие настройки)
-                warning "jq not available, overwriting daemon.json"
-                echo "{\"insecure-registries\": [\"$DOCKER_REGISTRY\"]}" | sudo tee /etc/docker/daemon.json
-            fi
-        else
-            log "Creating new daemon.json..."
-            echo "{\"insecure-registries\": [\"$DOCKER_REGISTRY\"]}" | sudo tee /etc/docker/daemon.json
-        fi
-        
-        # Отключаем TLS для Docker клиента
-        export DOCKER_TLS_CERTDIR=""
-        
-        # Перезапускаем Docker daemon
-        log "🔄 Restarting Docker daemon..."
-        if command -v systemctl &> /dev/null && sudo systemctl is-active --quiet docker 2>/dev/null; then
-            sudo systemctl restart docker || warning "Could not restart via systemctl"
-        elif command -v service &> /dev/null && sudo service docker status >/dev/null 2>&1; then
-            sudo service docker restart || warning "Could not restart via service"
-        else
-            warning "Docker daemon restart skipped"
-        fi
-        
-        # Даем время на перезапуск
-        sleep 3
-        
-        # Проверяем конфигурацию
-        if docker info > /dev/null 2>&1; then
-            log "✅ Docker daemon restarted successfully"
-        else
-            warning "Docker info check failed, but continuing..."
-        fi
-    else
-        log "✅ Insecure registry already configured: $DOCKER_REGISTRY"
-    fi
-    
-    # Отключаем TLS для Docker клиента (на всякий случай)
-    export DOCKER_TLS_CERTDIR=""
+# Проверка наличия образа
+if ! docker images | grep -q "$IMAGE_NAME.*latest"; then
+    error "Docker image $IMAGE_NAME:latest not found!"
+    error "Please ensure the image is loaded: docker load -i image.tar.gz"
+    exit 1
 fi
 
-# Выполняем вход в registry
-# Docker daemon автоматически использует insecure режим, если registry настроен в daemon.json
-echo "$DOCKER_REGISTRY_PASSWORD" | docker login "$DOCKER_REGISTRY" -u "$DOCKER_REGISTRY_USERNAME" --password-stdin || {
-    if [ "$DOCKER_REGISTRY_INSECURE" = "true" ]; then
-        error "Failed to login to insecure registry. Please ensure:"
-        error "1. Registry is added to /etc/docker/daemon.json as insecure-registry"
-        error "2. Docker daemon has been restarted"
-        error "3. Registry URL is correct: $DOCKER_REGISTRY"
-        error "4. Credentials are valid"
-        exit 1
-    else
-        error "Failed to login to registry. Check credentials and network connectivity."
-        exit 1
-    fi
-}
-
-# Pull latest image
-log "📥 Pulling latest image from registry..."
-IMAGE_TAG="${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:latest"
-docker pull "$IMAGE_TAG" || {
-    warning "Failed to pull image, will try to use cached version"
-}
+log "✅ Docker image found: $IMAGE_NAME:latest"
 
 # Создание необходимых сетей Docker (если не существуют)
 log "🌐 Ensuring Docker networks exist..."
@@ -227,4 +139,3 @@ log "🧹 Cleaning up old Docker images..."
 docker image prune -f || warning "Failed to clean up old images"
 
 log "✅ Deployment completed successfully!"
-

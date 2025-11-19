@@ -22,7 +22,7 @@ services:
     restart: unless-stopped
 
   app:
-    image: ${DOCKER_REGISTRY:-registry.example.com}/${DOCKER_IMAGE_NAME:-atom-dbro-backend}:latest
+    image: atom-dbro-backend:latest
     container_name: atom-dbro-app
     ports:
       - "3000:3000"
