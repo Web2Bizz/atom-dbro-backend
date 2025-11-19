@@ -2,7 +2,7 @@ import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { regions, cities } from '../database/schema';
-import { eq } from 'drizzle-orm';
+import { eq, ne, and } from 'drizzle-orm';
 import { CreateRegionDto } from './dto/create-region.dto';
 import { UpdateRegionDto } from './dto/update-region.dto';
 
@@ -22,11 +22,17 @@ export class RegionService {
   }
 
   async findAll() {
-    return this.db.select().from(regions);
+    return this.db.select().from(regions).where(ne(regions.recordStatus, 'DELETED'));
   }
 
   async findOne(id: number) {
-    const [region] = await this.db.select().from(regions).where(eq(regions.id, id));
+    const [region] = await this.db
+      .select()
+      .from(regions)
+      .where(and(
+        eq(regions.id, id),
+        ne(regions.recordStatus, 'DELETED')
+      ));
     if (!region) {
       throw new NotFoundException(`Регион с ID ${id} не найден`);
     }
@@ -37,14 +43,20 @@ export class RegionService {
     return this.db
       .select()
       .from(cities)
-      .where(eq(cities.regionId, regionId));
+      .where(and(
+        eq(cities.regionId, regionId),
+        ne(cities.recordStatus, 'DELETED')
+      ));
   }
 
   async update(id: number, updateRegionDto: UpdateRegionDto) {
     const [region] = await this.db
       .update(regions)
       .set({ ...updateRegionDto, updatedAt: new Date() })
-      .where(eq(regions.id, id))
+      .where(and(
+        eq(regions.id, id),
+        ne(regions.recordStatus, 'DELETED')
+      ))
       .returning();
     if (!region) {
       throw new NotFoundException(`Регион с ID ${id} не найден`);
@@ -54,8 +66,12 @@ export class RegionService {
 
   async remove(id: number) {
     const [region] = await this.db
-      .delete(regions)
-      .where(eq(regions.id, id))
+      .update(regions)
+      .set({ recordStatus: 'DELETED', updatedAt: new Date() })
+      .where(and(
+        eq(regions.id, id),
+        ne(regions.recordStatus, 'DELETED')
+      ))
       .returning();
     if (!region) {
       throw new NotFoundException(`Регион с ID ${id} не найден`);

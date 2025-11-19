@@ -18,6 +18,8 @@ import { UpdateCityDto, updateCitySchema, UpdateCityDtoClass } from './dto/updat
 import { CreateCitiesBulkDto, createCitiesBulkSchema } from './dto/create-cities-bulk.dto';
 import { Public } from '../auth/decorators/public.decorator';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Города')
 @Controller('cities')
@@ -68,9 +70,12 @@ export class CityController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Удалить город' })
   @ApiResponse({ status: 200, description: 'Город удален' })
   @ApiResponse({ status: 404, description: 'Город не найден' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.cityService.remove(id);
   }

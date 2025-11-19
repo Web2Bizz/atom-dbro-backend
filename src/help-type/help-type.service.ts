@@ -14,11 +14,14 @@ export class HelpTypeService {
   ) {}
 
   async create(createHelpTypeDto: CreateHelpTypeDto) {
-    // Проверяем уникальность названия
+    // Проверяем уникальность названия (исключая удаленные записи)
     const [existingHelpType] = await this.db
       .select()
       .from(helpTypes)
-      .where(eq(helpTypes.name, createHelpTypeDto.name));
+      .where(and(
+        eq(helpTypes.name, createHelpTypeDto.name),
+        ne(helpTypes.recordStatus, 'DELETED')
+      ));
     if (existingHelpType) {
       throw new BadRequestException('Вид помощи с таким названием уже существует');
     }
@@ -31,14 +34,17 @@ export class HelpTypeService {
   }
 
   async findAll() {
-    return this.db.select().from(helpTypes);
+    return this.db.select().from(helpTypes).where(ne(helpTypes.recordStatus, 'DELETED'));
   }
 
   async findOne(id: number) {
     const [helpType] = await this.db
       .select()
       .from(helpTypes)
-      .where(eq(helpTypes.id, id));
+      .where(and(
+        eq(helpTypes.id, id),
+        ne(helpTypes.recordStatus, 'DELETED')
+      ));
     if (!helpType) {
       throw new NotFoundException(`Вид помощи с ID ${id} не найден`);
     }
@@ -46,14 +52,15 @@ export class HelpTypeService {
   }
 
   async update(id: number, updateHelpTypeDto: UpdateHelpTypeDto) {
-    // Если обновляется название, проверяем уникальность
+    // Если обновляется название, проверяем уникальность (исключая удаленные записи)
     if (updateHelpTypeDto.name) {
       const [existingHelpType] = await this.db
         .select()
         .from(helpTypes)
         .where(and(
           eq(helpTypes.name, updateHelpTypeDto.name),
-          ne(helpTypes.id, id)
+          ne(helpTypes.id, id),
+          ne(helpTypes.recordStatus, 'DELETED')
         ));
       if (existingHelpType) {
         throw new BadRequestException('Вид помощи с таким названием уже существует');
@@ -69,7 +76,10 @@ export class HelpTypeService {
     const [helpType] = await this.db
       .update(helpTypes)
       .set(updateData)
-      .where(eq(helpTypes.id, id))
+      .where(and(
+        eq(helpTypes.id, id),
+        ne(helpTypes.recordStatus, 'DELETED')
+      ))
       .returning();
     if (!helpType) {
       throw new NotFoundException(`Вид помощи с ID ${id} не найден`);
@@ -79,8 +89,12 @@ export class HelpTypeService {
 
   async remove(id: number) {
     const [helpType] = await this.db
-      .delete(helpTypes)
-      .where(eq(helpTypes.id, id))
+      .update(helpTypes)
+      .set({ recordStatus: 'DELETED', updatedAt: new Date() })
+      .where(and(
+        eq(helpTypes.id, id),
+        ne(helpTypes.recordStatus, 'DELETED')
+      ))
       .returning();
     if (!helpType) {
       throw new NotFoundException(`Вид помощи с ID ${id} не найден`);

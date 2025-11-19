@@ -9,6 +9,8 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AchievementService } from './achievement.service';
 import { CreateAchievementDto, createAchievementSchema, CreateAchievementDtoClass } from './dto/create-achievement.dto';
 import { UpdateAchievementDto, updateAchievementSchema, UpdateAchievementDtoClass } from './dto/update-achievement.dto';
@@ -61,10 +63,12 @@ export class AchievementController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Удалить достижение' })
   @ApiResponse({ status: 200, description: 'Достижение удалено' })
   @ApiResponse({ status: 404, description: 'Достижение не найдено' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.achievementService.remove(id);
   }

@@ -98,9 +98,12 @@ export class UserController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Удалить пользователя' })
   @ApiResponse({ status: 200, description: 'Пользователь удален' })
   @ApiResponse({ status: 404, description: 'Пользователь не найден' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.userService.remove(id);
   }

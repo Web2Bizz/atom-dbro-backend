@@ -2,7 +2,7 @@ import { Injectable, Inject, NotFoundException, BadRequestException } from '@nes
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { categories } from '../database/schema';
-import { eq, and, ne, inArray } from 'drizzle-orm';
+import { eq, and, ne, inArray, or } from 'drizzle-orm';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { CreateCategoriesBulkDto } from './dto/create-categories-bulk.dto';
@@ -15,11 +15,14 @@ export class CategoryService {
   ) {}
 
   async create(createCategoryDto: CreateCategoryDto) {
-    // Проверяем уникальность названия
+    // Проверяем уникальность названия (исключая удаленные записи)
     const [existingCategory] = await this.db
       .select()
       .from(categories)
-      .where(eq(categories.name, createCategoryDto.name));
+      .where(and(
+        eq(categories.name, createCategoryDto.name),
+        ne(categories.recordStatus, 'DELETED')
+      ));
     if (existingCategory) {
       throw new BadRequestException('Категория с таким названием уже существует');
     }
@@ -32,14 +35,17 @@ export class CategoryService {
   }
 
   async findAll() {
-    return this.db.select().from(categories);
+    return this.db.select().from(categories).where(ne(categories.recordStatus, 'DELETED'));
   }
 
   async findOne(id: number) {
     const [category] = await this.db
       .select()
       .from(categories)
-      .where(eq(categories.id, id));
+      .where(and(
+        eq(categories.id, id),
+        ne(categories.recordStatus, 'DELETED')
+      ));
     if (!category) {
       throw new NotFoundException(`Категория с ID ${id} не найдена`);
     }
@@ -47,14 +53,15 @@ export class CategoryService {
   }
 
   async update(id: number, updateCategoryDto: UpdateCategoryDto) {
-    // Если обновляется название, проверяем уникальность
+    // Если обновляется название, проверяем уникальность (исключая удаленные записи)
     if (updateCategoryDto.name) {
       const [existingCategory] = await this.db
         .select()
         .from(categories)
         .where(and(
           eq(categories.name, updateCategoryDto.name),
-          ne(categories.id, id)
+          ne(categories.id, id),
+          ne(categories.recordStatus, 'DELETED')
         ));
       if (existingCategory) {
         throw new BadRequestException('Категория с таким названием уже существует');
@@ -64,7 +71,10 @@ export class CategoryService {
     const [category] = await this.db
       .update(categories)
       .set({ ...updateCategoryDto, updatedAt: new Date() })
-      .where(eq(categories.id, id))
+      .where(and(
+        eq(categories.id, id),
+        ne(categories.recordStatus, 'DELETED')
+      ))
       .returning();
     if (!category) {
       throw new NotFoundException(`Категория с ID ${id} не найдена`);
@@ -74,8 +84,12 @@ export class CategoryService {
 
   async remove(id: number) {
     const [category] = await this.db
-      .delete(categories)
-      .where(eq(categories.id, id))
+      .update(categories)
+      .set({ recordStatus: 'DELETED', updatedAt: new Date() })
+      .where(and(
+        eq(categories.id, id),
+        ne(categories.recordStatus, 'DELETED')
+      ))
       .returning();
     if (!category) {
       throw new NotFoundException(`Категория с ID ${id} не найдена`);
@@ -98,11 +112,14 @@ export class CategoryService {
       );
     }
 
-    // Проверяем существование категорий с такими названиями в БД
+    // Проверяем существование категорий с такими названиями в БД (исключая удаленные)
     const existingCategories = await this.db
       .select()
       .from(categories)
-      .where(inArray(categories.name, categoryNames));
+      .where(and(
+        inArray(categories.name, categoryNames),
+        ne(categories.recordStatus, 'DELETED')
+      ));
 
     if (existingCategories.length > 0) {
       const existingNames = existingCategories.map(cat => cat.name);

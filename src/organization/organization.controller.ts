@@ -97,6 +97,8 @@ export class OrganizationController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Удалить организацию' })
   @ApiResponse({ status: 200, description: 'Организация удалена' })
   @ApiResponse({ status: 404, description: 'Организация не найдена' })

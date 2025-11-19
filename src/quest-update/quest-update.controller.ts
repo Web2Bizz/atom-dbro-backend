@@ -9,7 +9,9 @@ import {
   Query,
   ParseIntPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { QuestUpdateService } from './quest-update.service';
 import { CreateQuestUpdateDto, createQuestUpdateSchema, CreateQuestUpdateDtoClass } from './dto/create-quest-update.dto';
 import { UpdateQuestUpdateDto, updateQuestUpdateSchema, UpdateQuestUpdateDtoClass } from './dto/update-quest-update.dto';
@@ -68,9 +70,12 @@ export class QuestUpdateController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Удалить обновление квеста' })
   @ApiResponse({ status: 200, description: 'Обновление квеста удалено' })
   @ApiResponse({ status: 404, description: 'Обновление квеста не найдено' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.questUpdateService.remove(id);
   }

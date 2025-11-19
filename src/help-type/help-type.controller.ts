@@ -9,6 +9,8 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { HelpTypeService } from './help-type.service';
 import { CreateHelpTypeDto, createHelpTypeSchema, CreateHelpTypeDtoClass } from './dto/create-help-type.dto';
 import { UpdateHelpTypeDto, updateHelpTypeSchema, UpdateHelpTypeDtoClass } from './dto/update-help-type.dto';
@@ -59,9 +61,12 @@ export class HelpTypeController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Удалить вид помощи' })
   @ApiResponse({ status: 200, description: 'Вид помощи удален' })
   @ApiResponse({ status: 404, description: 'Вид помощи не найден' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.helpTypeService.remove(id);
   }

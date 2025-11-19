@@ -136,7 +136,7 @@ export class QuestController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Удалить квест' })
+  @ApiOperation({ summary: 'Удалить квест (требуется авторизация)' })
   @ApiResponse({ status: 200, description: 'Квест удален' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 404, description: 'Квест не найден' })

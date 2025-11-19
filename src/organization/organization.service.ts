@@ -10,7 +10,7 @@ import {
   cities,
   organizationTypes,
 } from '../database/schema';
-import { eq, and, inArray, ilike } from 'drizzle-orm';
+import { eq, and, inArray, ilike, ne } from 'drizzle-orm';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { CreateOrganizationsBulkDto } from './dto/create-organizations-bulk.dto';
@@ -36,38 +36,53 @@ export class OrganizationService {
   }
 
   async create(createOrganizationDto: CreateOrganizationDto, userId: number) {
-    // Проверяем существование города
+    // Проверяем существование города (исключая удаленные)
     const [city] = await this.db
       .select()
       .from(cities)
-      .where(eq(cities.id, createOrganizationDto.cityId));
+      .where(and(
+        eq(cities.id, createOrganizationDto.cityId),
+        ne(cities.recordStatus, 'DELETED')
+      ));
     if (!city) {
       throw new NotFoundException(`Город с ID ${createOrganizationDto.cityId} не найден`);
     }
 
-    // Проверяем существование типа организации
+    // Проверяем существование типа организации (исключая удаленные)
     const [orgType] = await this.db
       .select()
       .from(organizationTypes)
-      .where(eq(organizationTypes.id, createOrganizationDto.typeId));
+      .where(and(
+        eq(organizationTypes.id, createOrganizationDto.typeId),
+        ne(organizationTypes.recordStatus, 'DELETED')
+      ));
     if (!orgType) {
       throw new NotFoundException(`Тип организации с ID ${createOrganizationDto.typeId} не найден`);
     }
 
-    // Проверяем существование видов помощи
+    // Проверяем существование видов помощи (исключая удаленные)
     const helpTypeIds = [...new Set(createOrganizationDto.helpTypeIds)]; // Убеждаемся в уникальности
     const existingHelpTypes = await this.db
       .select()
       .from(helpTypes)
-      .where(inArray(helpTypes.id, helpTypeIds));
+      .where(and(
+        inArray(helpTypes.id, helpTypeIds),
+        ne(helpTypes.recordStatus, 'DELETED')
+      ));
     if (existingHelpTypes.length !== helpTypeIds.length) {
       const foundIds = existingHelpTypes.map(ht => ht.id);
       const missingIds = helpTypeIds.filter(id => !foundIds.includes(id));
       throw new NotFoundException(`Виды помощи с ID ${missingIds.join(', ')} не найдены`);
     }
 
-    // Проверяем существование пользователя
-    const [user] = await this.db.select().from(users).where(eq(users.id, userId));
+    // Проверяем существование пользователя (исключая удаленные)
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(and(
+        eq(users.id, userId),
+        ne(users.recordStatus, 'DELETED')
+      ));
     if (!user) {
       throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
     }
@@ -144,10 +159,17 @@ export class OrganizationService {
         organizationTypeName: organizationTypes.name,
       })
       .from(organizations)
-      .leftJoin(cities, eq(organizations.cityId, cities.id))
-      .leftJoin(organizationTypes, eq(organizations.organizationTypeId, organizationTypes.id));
+      .leftJoin(cities, and(
+        eq(organizations.cityId, cities.id),
+        ne(cities.recordStatus, 'DELETED')
+      ))
+      .leftJoin(organizationTypes, and(
+        eq(organizations.organizationTypeId, organizationTypes.id),
+        ne(organizationTypes.recordStatus, 'DELETED')
+      ))
+      .where(ne(organizations.recordStatus, 'DELETED'));
 
-    // Получаем helpTypes для всех организаций
+    // Получаем helpTypes для всех организаций (исключая удаленные)
     const orgIds = orgs.map(org => org.id);
     const allHelpTypes = orgIds.length > 0
       ? await this.db
@@ -158,7 +180,10 @@ export class OrganizationService {
           })
           .from(organizationHelpTypes)
           .innerJoin(helpTypes, eq(organizationHelpTypes.helpTypeId, helpTypes.id))
-          .where(inArray(organizationHelpTypes.organizationId, orgIds))
+          .where(and(
+            inArray(organizationHelpTypes.organizationId, orgIds),
+            ne(helpTypes.recordStatus, 'DELETED')
+          ))
       : [];
 
     // Группируем helpTypes по organizationId
@@ -229,12 +254,15 @@ export class OrganizationService {
       .from(organizations)
       .leftJoin(cities, eq(organizations.cityId, cities.id))
       .leftJoin(organizationTypes, eq(organizations.organizationTypeId, organizationTypes.id))
-      .where(eq(organizations.id, id));
+      .where(and(
+        eq(organizations.id, id),
+        ne(organizations.recordStatus, 'DELETED')
+      ));
     if (!orgData) {
       throw new NotFoundException(`Организация с ID ${id} не найдена`);
     }
 
-    // Получаем виды помощи
+    // Получаем виды помощи (исключая удаленные)
     const orgHelpTypes = await this.db
       .select({
         id: helpTypes.id,
@@ -242,7 +270,10 @@ export class OrganizationService {
       })
       .from(organizationHelpTypes)
       .innerJoin(helpTypes, eq(organizationHelpTypes.helpTypeId, helpTypes.id))
-      .where(eq(organizationHelpTypes.organizationId, id));
+      .where(and(
+        eq(organizationHelpTypes.organizationId, id),
+        ne(helpTypes.recordStatus, 'DELETED')
+      ));
 
     const organization = {
       id: orgData.id,
@@ -272,7 +303,7 @@ export class OrganizationService {
       helpTypes: orgHelpTypes,
     };
 
-    // Получаем владельцев
+    // Получаем владельцев (исключая удаленных пользователей)
     const owners = await this.db
       .select({
         id: users.id,
@@ -283,7 +314,10 @@ export class OrganizationService {
       })
       .from(organizationOwners)
       .innerJoin(users, eq(organizationOwners.userId, users.id))
-      .where(eq(organizationOwners.organizationId, id));
+      .where(and(
+        eq(organizationOwners.organizationId, id),
+        ne(users.recordStatus, 'DELETED')
+      ));
 
     return {
       ...organization,
@@ -292,21 +326,27 @@ export class OrganizationService {
   }
 
   async update(id: number, updateOrganizationDto: UpdateOrganizationDto) {
-    // Проверяем существование организации
+    // Проверяем существование организации (исключая удаленные)
     const [existingOrg] = await this.db
       .select()
       .from(organizations)
-      .where(eq(organizations.id, id));
+      .where(and(
+        eq(organizations.id, id),
+        ne(organizations.recordStatus, 'DELETED')
+      ));
     if (!existingOrg) {
       throw new NotFoundException(`Организация с ID ${id} не найдена`);
     }
 
-    // Если обновляется cityId, проверяем существование города
+    // Если обновляется cityId, проверяем существование города (исключая удаленные)
     if (updateOrganizationDto.cityId) {
       const [city] = await this.db
         .select()
         .from(cities)
-        .where(eq(cities.id, updateOrganizationDto.cityId));
+        .where(and(
+          eq(cities.id, updateOrganizationDto.cityId),
+          ne(cities.recordStatus, 'DELETED')
+        ));
       if (!city) {
         throw new NotFoundException(`Город с ID ${updateOrganizationDto.cityId} не найден`);
       }
@@ -333,11 +373,14 @@ export class OrganizationService {
       if (isNaN(organizationTypeId) || organizationTypeId <= 0) {
         throw new BadRequestException('ID типа организации должен быть положительным целым числом');
       }
-      // Проверяем существование типа организации
+      // Проверяем существование типа организации (исключая удаленные)
       const [orgType] = await this.db
         .select()
         .from(organizationTypes)
-        .where(eq(organizationTypes.id, organizationTypeId));
+        .where(and(
+          eq(organizationTypes.id, organizationTypeId),
+          ne(organizationTypes.recordStatus, 'DELETED')
+        ));
       if (!orgType) {
         throw new NotFoundException(`Тип организации с ID ${organizationTypeId} не найден`);
       }
@@ -348,12 +391,15 @@ export class OrganizationService {
     if (updateOrganizationDto.helpTypeIds !== undefined) {
       const helpTypeIds = [...new Set(updateOrganizationDto.helpTypeIds)]; // Убеждаемся в уникальности
       
-      // Проверяем существование всех видов помощи
+      // Проверяем существование всех видов помощи (исключая удаленные)
       if (helpTypeIds.length > 0) {
         const existingHelpTypes = await this.db
           .select()
           .from(helpTypes)
-          .where(inArray(helpTypes.id, helpTypeIds));
+          .where(and(
+            inArray(helpTypes.id, helpTypeIds),
+            ne(helpTypes.recordStatus, 'DELETED')
+          ));
         if (existingHelpTypes.length !== helpTypeIds.length) {
           const foundIds = existingHelpTypes.map(ht => ht.id);
           const missingIds = helpTypeIds.filter(id => !foundIds.includes(id));
@@ -401,7 +447,10 @@ export class OrganizationService {
     const [organization] = await this.db
       .update(organizations)
       .set(updateData)
-      .where(eq(organizations.id, id))
+      .where(and(
+        eq(organizations.id, id),
+        ne(organizations.recordStatus, 'DELETED')
+      ))
       .returning();
     if (!organization) {
       throw new NotFoundException(`Организация с ID ${id} не найдена`);
@@ -410,11 +459,14 @@ export class OrganizationService {
   }
 
   async remove(id: number) {
-    // Проверяем существование организации и получаем данные для удаления файлов
+    // Проверяем существование организации и получаем данные для удаления файлов (исключая удаленные)
     const [organization] = await this.db
       .select()
       .from(organizations)
-      .where(eq(organizations.id, id));
+      .where(and(
+        eq(organizations.id, id),
+        ne(organizations.recordStatus, 'DELETED')
+      ));
     if (!organization) {
       throw new NotFoundException(`Организация с ID ${id} не найдена`);
     }
@@ -439,27 +491,40 @@ export class OrganizationService {
       }
     }
 
-    // Удаляем саму организацию
+    // Устанавливаем статус DELETED вместо физического удаления
     const [deletedOrganization] = await this.db
-      .delete(organizations)
-      .where(eq(organizations.id, id))
+      .update(organizations)
+      .set({ recordStatus: 'DELETED', updatedAt: new Date() })
+      .where(and(
+        eq(organizations.id, id),
+        ne(organizations.recordStatus, 'DELETED')
+      ))
       .returning();
 
     return deletedOrganization;
   }
 
   async addOwner(organizationId: number, userId: number) {
-    // Проверяем существование организации
+    // Проверяем существование организации (исключая удаленные)
     const [organization] = await this.db
       .select()
       .from(organizations)
-      .where(eq(organizations.id, organizationId));
+      .where(and(
+        eq(organizations.id, organizationId),
+        ne(organizations.recordStatus, 'DELETED')
+      ));
     if (!organization) {
       throw new NotFoundException(`Организация с ID ${organizationId} не найдена`);
     }
 
-    // Проверяем существование пользователя
-    const [user] = await this.db.select().from(users).where(eq(users.id, userId));
+    // Проверяем существование пользователя (исключая удаленные)
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(and(
+        eq(users.id, userId),
+        ne(users.recordStatus, 'DELETED')
+      ));
     if (!user) {
       throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
     }
@@ -503,20 +568,26 @@ export class OrganizationService {
   }
 
   async addHelpType(organizationId: number, helpTypeId: number) {
-    // Проверяем существование организации
+    // Проверяем существование организации (исключая удаленные)
     const [organization] = await this.db
       .select()
       .from(organizations)
-      .where(eq(organizations.id, organizationId));
+      .where(and(
+        eq(organizations.id, organizationId),
+        ne(organizations.recordStatus, 'DELETED')
+      ));
     if (!organization) {
       throw new NotFoundException(`Организация с ID ${organizationId} не найдена`);
     }
 
-    // Проверяем существование вида помощи
+    // Проверяем существование вида помощи (исключая удаленные)
     const [helpType] = await this.db
       .select()
       .from(helpTypes)
-      .where(eq(helpTypes.id, helpTypeId));
+      .where(and(
+        eq(helpTypes.id, helpTypeId),
+        ne(helpTypes.recordStatus, 'DELETED')
+      ));
     if (!helpType) {
       throw new NotFoundException(`Вид помощи с ID ${helpTypeId} не найден`);
     }
@@ -560,11 +631,14 @@ export class OrganizationService {
   }
 
   async addImagesToGallery(organizationId: number, imageFileNames: string[]) {
-    // Проверяем существование организации
+    // Проверяем существование организации (исключая удаленные)
     const [organization] = await this.db
       .select()
       .from(organizations)
-      .where(eq(organizations.id, organizationId));
+      .where(and(
+        eq(organizations.id, organizationId),
+        ne(organizations.recordStatus, 'DELETED')
+      ));
     if (!organization) {
       throw new NotFoundException(`Организация с ID ${organizationId} не найдена`);
     }
@@ -596,7 +670,10 @@ export class OrganizationService {
     const [organization] = await this.db
       .select({ gallery: organizations.gallery })
       .from(organizations)
-      .where(eq(organizations.id, organizationId));
+      .where(and(
+        eq(organizations.id, organizationId),
+        ne(organizations.recordStatus, 'DELETED')
+      ));
     
     if (!organization) {
       return false;
@@ -638,7 +715,10 @@ export class OrganizationService {
     const [exactMatch] = await this.db
       .select()
       .from(cities)
-      .where(ilike(cities.name, cityName));
+      .where(and(
+        ilike(cities.name, cityName),
+        ne(cities.recordStatus, 'DELETED')
+      ));
 
     if (exactMatch) {
       return exactMatch.id;
@@ -647,7 +727,10 @@ export class OrganizationService {
     const [partialMatch] = await this.db
       .select()
       .from(cities)
-      .where(ilike(cities.name, `%${cityName}%`));
+      .where(and(
+        ilike(cities.name, `%${cityName}%`),
+        ne(cities.recordStatus, 'DELETED')
+      ));
 
     if (partialMatch) {
       return partialMatch.id;
@@ -661,8 +744,14 @@ export class OrganizationService {
       throw new BadRequestException('Массив организаций не может быть пустым');
     }
 
-    // Проверяем существование пользователя
-    const [user] = await this.db.select().from(users).where(eq(users.id, userId));
+    // Проверяем существование пользователя (исключая удаленные)
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(and(
+        eq(users.id, userId),
+        ne(users.recordStatus, 'DELETED')
+      ));
     if (!user) {
       throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
     }
@@ -687,12 +776,15 @@ export class OrganizationService {
       org.helpTypeIds.forEach(id => helpTypeIds.add(id));
     });
 
-    // Проверяем существование всех городов
+    // Проверяем существование всех городов (исключая удаленные)
     if (cityIds.size > 0) {
       const existingCities = await this.db
         .select()
         .from(cities)
-        .where(inArray(cities.id, Array.from(cityIds)));
+        .where(and(
+          inArray(cities.id, Array.from(cityIds)),
+          ne(cities.recordStatus, 'DELETED')
+        ));
 
       const existingCityIds = new Set(existingCities.map(c => c.id));
       const missingCityIds = Array.from(cityIds).filter(id => !existingCityIds.has(id));
@@ -714,11 +806,14 @@ export class OrganizationService {
       }
     }
 
-    // Проверяем существование всех типов организаций
+    // Проверяем существование всех типов организаций (исключая удаленные)
     const existingTypes = await this.db
       .select()
       .from(organizationTypes)
-      .where(inArray(organizationTypes.id, Array.from(typeIds)));
+      .where(and(
+        inArray(organizationTypes.id, Array.from(typeIds)),
+        ne(organizationTypes.recordStatus, 'DELETED')
+      ));
 
     const existingTypeIds = new Set(existingTypes.map(t => t.id));
     const missingTypeIds = Array.from(typeIds).filter(id => !existingTypeIds.has(id));
@@ -727,12 +822,15 @@ export class OrganizationService {
       throw new NotFoundException(`Типы организаций с ID ${missingTypeIds.join(', ')} не найдены`);
     }
 
-    // Проверяем существование всех видов помощи
+    // Проверяем существование всех видов помощи (исключая удаленные)
     if (helpTypeIds.size > 0) {
       const existingHelpTypes = await this.db
         .select()
         .from(helpTypes)
-        .where(inArray(helpTypes.id, Array.from(helpTypeIds)));
+        .where(and(
+          inArray(helpTypes.id, Array.from(helpTypeIds)),
+          ne(helpTypes.recordStatus, 'DELETED')
+        ));
 
       const existingHelpTypeIds = new Set(existingHelpTypes.map(ht => ht.id));
       const missingHelpTypeIds = Array.from(helpTypeIds).filter(id => !existingHelpTypeIds.has(id));
@@ -742,13 +840,16 @@ export class OrganizationService {
       }
     }
 
-    // Получаем данные всех городов для использования координат по умолчанию
+    // Получаем данные всех городов для использования координат по умолчанию (исключая удаленные)
     const allCityIds = new Set([...cityIds, ...cityNameToIdMap.values()]);
     const citiesData = allCityIds.size > 0
       ? await this.db
           .select()
           .from(cities)
-          .where(inArray(cities.id, Array.from(allCityIds)))
+          .where(and(
+            inArray(cities.id, Array.from(allCityIds)),
+            ne(cities.recordStatus, 'DELETED')
+          ))
       : [];
     const citiesMap = new Map(citiesData.map(c => [c.id, c]));
 

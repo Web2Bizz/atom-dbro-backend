@@ -10,7 +10,9 @@ import {
   Version,
   HttpCode,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CategoryService } from './category.service';
 import { CreateCategoryDto, createCategorySchema, CreateCategoryDtoClass } from './dto/create-category.dto';
 import { UpdateCategoryDto, updateCategorySchema, UpdateCategoryDtoClass } from './dto/update-category.dto';
@@ -62,9 +64,12 @@ export class CategoryController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Удалить категорию' })
   @ApiResponse({ status: 200, description: 'Категория удалена' })
   @ApiResponse({ status: 404, description: 'Категория не найдена' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.categoryService.remove(id);
   }

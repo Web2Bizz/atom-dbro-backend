@@ -2,7 +2,7 @@ import { Injectable, Inject, NotFoundException, BadRequestException } from '@nes
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { cities, regions } from '../database/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, ne, and } from 'drizzle-orm';
 import { CreateCityDto } from './dto/create-city.dto';
 import { UpdateCityDto } from './dto/update-city.dto';
 import { CreateCitiesBulkDto } from './dto/create-cities-bulk.dto';
@@ -15,11 +15,14 @@ export class CityService {
   ) {}
 
   async create(createCityDto: CreateCityDto) {
-    // Проверяем существование региона
+    // Проверяем существование региона (исключая удаленные)
     const [region] = await this.db
       .select()
       .from(regions)
-      .where(eq(regions.id, createCityDto.regionId));
+      .where(and(
+        eq(regions.id, createCityDto.regionId),
+        ne(regions.recordStatus, 'DELETED')
+      ));
     if (!region) {
       throw new NotFoundException(`Регион с ID ${createCityDto.regionId} не найден`);
     }
@@ -37,7 +40,13 @@ export class CityService {
   }
 
   async findAll(regionId?: number) {
-    const query = this.db
+    const baseConditions = [ne(cities.recordStatus, 'DELETED')];
+    
+    if (regionId) {
+      baseConditions.push(eq(cities.regionId, regionId));
+    }
+
+    return this.db
       .select({
         id: cities.id,
         name: cities.name,
@@ -52,13 +61,8 @@ export class CityService {
         updatedAt: cities.updatedAt,
       })
       .from(cities)
-      .leftJoin(regions, eq(cities.regionId, regions.id));
-
-    if (regionId) {
-      return query.where(eq(cities.regionId, regionId));
-    }
-
-    return query;
+      .leftJoin(regions, eq(cities.regionId, regions.id))
+      .where(and(...baseConditions));
   }
 
   async findOne(id: number) {
@@ -78,7 +82,10 @@ export class CityService {
       })
       .from(cities)
       .leftJoin(regions, eq(cities.regionId, regions.id))
-      .where(eq(cities.id, id));
+      .where(and(
+        eq(cities.id, id),
+        ne(cities.recordStatus, 'DELETED')
+      ));
     if (!city) {
       throw new NotFoundException(`Город с ID ${id} не найден`);
     }
@@ -90,7 +97,10 @@ export class CityService {
       const [region] = await this.db
         .select()
         .from(regions)
-        .where(eq(regions.id, updateCityDto.regionId));
+        .where(and(
+          eq(regions.id, updateCityDto.regionId),
+          ne(regions.recordStatus, 'DELETED')
+        ));
       if (!region) {
         throw new NotFoundException(`Регион с ID ${updateCityDto.regionId} не найден`);
       }
@@ -107,7 +117,10 @@ export class CityService {
     const [city] = await this.db
       .update(cities)
       .set(updateData)
-      .where(eq(cities.id, id))
+      .where(and(
+        eq(cities.id, id),
+        ne(cities.recordStatus, 'DELETED')
+      ))
       .returning();
     if (!city) {
       throw new NotFoundException(`Город с ID ${id} не найден`);
@@ -117,8 +130,12 @@ export class CityService {
 
   async remove(id: number) {
     const [city] = await this.db
-      .delete(cities)
-      .where(eq(cities.id, id))
+      .update(cities)
+      .set({ recordStatus: 'DELETED', updatedAt: new Date() })
+      .where(and(
+        eq(cities.id, id),
+        ne(cities.recordStatus, 'DELETED')
+      ))
       .returning();
     if (!city) {
       throw new NotFoundException(`Город с ID ${id} не найден`);
@@ -134,11 +151,14 @@ export class CityService {
     // Получаем все уникальные regionId из запроса
     const regionIds = [...new Set(createCitiesDto.map(city => city.regionId))];
 
-    // Проверяем существование всех регионов
+    // Проверяем существование всех регионов (исключая удаленные)
     const existingRegions = await this.db
       .select()
       .from(regions)
-      .where(inArray(regions.id, regionIds));
+      .where(and(
+        inArray(regions.id, regionIds),
+        ne(regions.recordStatus, 'DELETED')
+      ));
 
     const existingRegionIds = new Set(existingRegions.map(r => r.id));
     const missingRegionIds = regionIds.filter(id => !existingRegionIds.has(id));

@@ -6,6 +6,7 @@ import { UserRole } from '../user/user.types';
 export const regions = pgTable('regions', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
+  recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -17,6 +18,7 @@ export const cities = pgTable('cities', {
   latitude: decimal('latitude', { precision: 10, scale: 8 }).notNull(),
   longitude: decimal('longitude', { precision: 11, scale: 8 }).notNull(),
   regionId: integer('region_id').references(() => regions.id).notNull(),
+  recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -35,6 +37,7 @@ export const users = pgTable('users', {
   experience: integer('experience').default(0).notNull(),
   questId: integer('quest_id').references(() => quests.id),
   organisationId: integer('organisation_id').references(() => organizations.id, { onDelete: 'set null' }),
+  recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -43,6 +46,7 @@ export const users = pgTable('users', {
 export const helpTypes = pgTable('help_types', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 255 }).notNull().unique(),
+  recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -51,6 +55,7 @@ export const helpTypes = pgTable('help_types', {
 export const categories = pgTable('categories', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 255 }).notNull().unique(),
+  recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -59,6 +64,7 @@ export const categories = pgTable('categories', {
 export const organizationTypes = pgTable('organization_types', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 255 }).notNull().unique(),
+  recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -79,6 +85,7 @@ export const organizations = pgTable('organizations', {
   address: text('address'),
   contacts: jsonb('contacts').$type<Array<{ name: string; value: string }>>(),
   gallery: jsonb('gallery').$type<string[]>(),
+  recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -109,6 +116,7 @@ export const achievements = pgTable('achievements', {
   icon: varchar('icon', { length: 255 }),
   rarity: varchar('rarity', { length: 20 }).notNull(), // 'common' | 'epic' | 'rare' | 'legendary' | 'private'
   questId: integer('quest_id').references(() => quests.id), // Заполняется только если rarity = 'private'
+  recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -152,6 +160,7 @@ export const quests = pgTable('quests', {
     requirement?: any;
     deadline?: Date | string;
   }>>(),
+  recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -175,6 +184,7 @@ export const questUpdates = pgTable('quest_updates', {
   title: varchar('title', { length: 255 }).notNull(),
   text: text('text').notNull(),
   photos: jsonb('photos').$type<string[]>(),
+  recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });

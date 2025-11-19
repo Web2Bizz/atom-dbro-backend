@@ -2,7 +2,7 @@ import { Injectable, Inject, NotFoundException, BadRequestException } from '@nes
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { questUpdates, quests } from '../database/schema';
-import { eq } from 'drizzle-orm';
+import { eq, ne, and } from 'drizzle-orm';
 import { CreateQuestUpdateDto } from './dto/create-quest-update.dto';
 import { UpdateQuestUpdateDto } from './dto/update-quest-update.dto';
 
@@ -14,11 +14,14 @@ export class QuestUpdateService {
   ) {}
 
   async create(createQuestUpdateDto: CreateQuestUpdateDto) {
-    // Проверяем существование квеста
+    // Проверяем существование квеста (исключая удаленные)
     const [quest] = await this.db
       .select()
       .from(quests)
-      .where(eq(quests.id, createQuestUpdateDto.questId));
+      .where(and(
+        eq(quests.id, createQuestUpdateDto.questId),
+        ne(quests.recordStatus, 'DELETED')
+      ));
     if (!quest) {
       throw new NotFoundException(`Квест с ID ${createQuestUpdateDto.questId} не найден`);
     }
@@ -41,18 +44,24 @@ export class QuestUpdateService {
   }
 
   async findAll(questId?: number) {
-    let query = this.db.select().from(questUpdates);
+    const conditions = [ne(questUpdates.recordStatus, 'DELETED')];
     if (questId) {
-      query = query.where(eq(questUpdates.questId, questId)) as any;
+      conditions.push(eq(questUpdates.questId, questId));
     }
-    return query;
+    return this.db
+      .select()
+      .from(questUpdates)
+      .where(and(...conditions));
   }
 
   async findOne(id: number) {
     const [questUpdate] = await this.db
       .select()
       .from(questUpdates)
-      .where(eq(questUpdates.id, id));
+      .where(and(
+        eq(questUpdates.id, id),
+        ne(questUpdates.recordStatus, 'DELETED')
+      ));
     if (!questUpdate) {
       throw new NotFoundException(`Обновление квеста с ID ${id} не найдено`);
     }
@@ -60,12 +69,15 @@ export class QuestUpdateService {
   }
 
   async update(id: number, updateQuestUpdateDto: UpdateQuestUpdateDto) {
-    // Если обновляется questId, проверяем существование квеста
+    // Если обновляется questId, проверяем существование квеста (исключая удаленные)
     if (updateQuestUpdateDto.questId !== undefined) {
       const [quest] = await this.db
         .select()
         .from(quests)
-        .where(eq(quests.id, updateQuestUpdateDto.questId));
+        .where(and(
+          eq(quests.id, updateQuestUpdateDto.questId),
+          ne(quests.recordStatus, 'DELETED')
+        ));
       if (!quest) {
         throw new NotFoundException(`Квест с ID ${updateQuestUpdateDto.questId} не найден`);
       }
@@ -79,7 +91,10 @@ export class QuestUpdateService {
     const [questUpdate] = await this.db
       .update(questUpdates)
       .set({ ...updateQuestUpdateDto, updatedAt: new Date() })
-      .where(eq(questUpdates.id, id))
+      .where(and(
+        eq(questUpdates.id, id),
+        ne(questUpdates.recordStatus, 'DELETED')
+      ))
       .returning();
     if (!questUpdate) {
       throw new NotFoundException(`Обновление квеста с ID ${id} не найдено`);
@@ -89,8 +104,12 @@ export class QuestUpdateService {
 
   async remove(id: number) {
     const [questUpdate] = await this.db
-      .delete(questUpdates)
-      .where(eq(questUpdates.id, id))
+      .update(questUpdates)
+      .set({ recordStatus: 'DELETED', updatedAt: new Date() })
+      .where(and(
+        eq(questUpdates.id, id),
+        ne(questUpdates.recordStatus, 'DELETED')
+      ))
       .returning();
     if (!questUpdate) {
       throw new NotFoundException(`Обновление квеста с ID ${id} не найдено`);

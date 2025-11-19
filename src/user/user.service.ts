@@ -2,7 +2,7 @@ import { Injectable, Inject, NotFoundException, ConflictException, BadRequestExc
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { users } from '../database/schema';
-import { eq } from 'drizzle-orm';
+import { eq, ne, and } from 'drizzle-orm';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -52,11 +52,14 @@ export class UserService {
   }
 
   async create(createUserDto: CreateUserDto) {
-    // Проверяем уникальность email
+    // Проверяем уникальность email (исключая удаленные записи)
     const [existingUser] = await this.db
       .select()
       .from(users)
-      .where(eq(users.email, createUserDto.email));
+      .where(and(
+        eq(users.email, createUserDto.email),
+        ne(users.recordStatus, 'DELETED')
+      ));
     if (existingUser) {
       throw new ConflictException('Пользователь с таким email уже существует');
     }
@@ -117,7 +120,8 @@ export class UserService {
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
       })
-      .from(users);
+      .from(users)
+      .where(ne(users.recordStatus, 'DELETED'));
     return this.formatUsers(usersList);
   }
 
@@ -139,7 +143,10 @@ export class UserService {
         updatedAt: users.updatedAt,
       })
       .from(users)
-      .where(eq(users.id, id));
+      .where(and(
+        eq(users.id, id),
+        ne(users.recordStatus, 'DELETED')
+      ));
     if (!user) {
       throw new NotFoundException(`Пользователь с ID ${id} не найден`);
     }
@@ -150,16 +157,22 @@ export class UserService {
     const [user] = await this.db
       .select()
       .from(users)
-      .where(eq(users.email, email));
+      .where(and(
+        eq(users.email, email),
+        ne(users.recordStatus, 'DELETED')
+      ));
     return user;
   }
 
   async changePassword(userId: number, changePasswordDto: ChangePasswordDto) {
-    // Получаем пользователя с паролем
+    // Получаем пользователя с паролем (исключая удаленные записи)
     const [user] = await this.db
       .select()
       .from(users)
-      .where(eq(users.id, userId));
+      .where(and(
+        eq(users.id, userId),
+        ne(users.recordStatus, 'DELETED')
+      ));
     
     if (!user) {
       throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
@@ -192,7 +205,10 @@ export class UserService {
       const [existingUser] = await this.db
         .select()
         .from(users)
-        .where(eq(users.email, updateUserDto.email));
+        .where(and(
+          eq(users.email, updateUserDto.email),
+          ne(users.recordStatus, 'DELETED')
+        ));
       if (existingUser && existingUser.id !== id) {
         throw new ConflictException('Пользователь с таким email уже существует');
       }
@@ -223,7 +239,10 @@ export class UserService {
     const [user] = await this.db
       .update(users)
       .set(updateValues)
-      .where(eq(users.id, id))
+      .where(and(
+        eq(users.id, id),
+        ne(users.recordStatus, 'DELETED')
+      ))
       .returning();
     if (!user) {
       throw new NotFoundException(`Пользователь с ID ${id} не найден`);
@@ -236,7 +255,10 @@ export class UserService {
       const [existingUser] = await this.db
         .select()
         .from(users)
-        .where(eq(users.email, updateUserV2Dto.email));
+        .where(and(
+          eq(users.email, updateUserV2Dto.email),
+          ne(users.recordStatus, 'DELETED')
+        ));
       if (existingUser && existingUser.id !== id) {
         throw new ConflictException('Пользователь с таким email уже существует');
       }
@@ -259,7 +281,10 @@ export class UserService {
     const [user] = await this.db
       .update(users)
       .set(updateValues)
-      .where(eq(users.id, id))
+      .where(and(
+        eq(users.id, id),
+        ne(users.recordStatus, 'DELETED')
+      ))
       .returning();
     if (!user) {
       throw new NotFoundException(`Пользователь с ID ${id} не найден`);
@@ -282,7 +307,10 @@ export class UserService {
         level: calculatedLevel,
         updatedAt: new Date(),
       })
-      .where(eq(users.id, userId))
+      .where(and(
+        eq(users.id, userId),
+        ne(users.recordStatus, 'DELETED')
+      ))
       .returning();
     if (!user) {
       throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
@@ -292,8 +320,12 @@ export class UserService {
 
   async remove(id: number) {
     const [user] = await this.db
-      .delete(users)
-      .where(eq(users.id, id))
+      .update(users)
+      .set({ recordStatus: 'DELETED', updatedAt: new Date() })
+      .where(and(
+        eq(users.id, id),
+        ne(users.recordStatus, 'DELETED')
+      ))
       .returning();
     if (!user) {
       throw new NotFoundException(`Пользователь с ID ${id} не найден`);

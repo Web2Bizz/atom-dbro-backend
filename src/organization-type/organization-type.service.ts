@@ -14,11 +14,14 @@ export class OrganizationTypeService {
   ) {}
 
   async create(createOrganizationTypeDto: CreateOrganizationTypeDto) {
-    // Проверяем уникальность названия
+    // Проверяем уникальность названия (исключая удаленные записи)
     const [existingOrganizationType] = await this.db
       .select()
       .from(organizationTypes)
-      .where(eq(organizationTypes.name, createOrganizationTypeDto.name));
+      .where(and(
+        eq(organizationTypes.name, createOrganizationTypeDto.name),
+        ne(organizationTypes.recordStatus, 'DELETED')
+      ));
     if (existingOrganizationType) {
       throw new BadRequestException('Тип организации с таким названием уже существует');
     }
@@ -31,14 +34,17 @@ export class OrganizationTypeService {
   }
 
   async findAll() {
-    return this.db.select().from(organizationTypes);
+    return this.db.select().from(organizationTypes).where(ne(organizationTypes.recordStatus, 'DELETED'));
   }
 
   async findOne(id: number) {
     const [organizationType] = await this.db
       .select()
       .from(organizationTypes)
-      .where(eq(organizationTypes.id, id));
+      .where(and(
+        eq(organizationTypes.id, id),
+        ne(organizationTypes.recordStatus, 'DELETED')
+      ));
     if (!organizationType) {
       throw new NotFoundException(`Тип организации с ID ${id} не найден`);
     }
@@ -46,14 +52,15 @@ export class OrganizationTypeService {
   }
 
   async update(id: number, updateOrganizationTypeDto: UpdateOrganizationTypeDto) {
-    // Если обновляется название, проверяем уникальность
+    // Если обновляется название, проверяем уникальность (исключая удаленные записи)
     if (updateOrganizationTypeDto.name) {
       const [existingOrganizationType] = await this.db
         .select()
         .from(organizationTypes)
         .where(and(
           eq(organizationTypes.name, updateOrganizationTypeDto.name),
-          ne(organizationTypes.id, id)
+          ne(organizationTypes.id, id),
+          ne(organizationTypes.recordStatus, 'DELETED')
         ));
       if (existingOrganizationType) {
         throw new BadRequestException('Тип организации с таким названием уже существует');
@@ -63,7 +70,10 @@ export class OrganizationTypeService {
     const [organizationType] = await this.db
       .update(organizationTypes)
       .set({ ...updateOrganizationTypeDto, updatedAt: new Date() })
-      .where(eq(organizationTypes.id, id))
+      .where(and(
+        eq(organizationTypes.id, id),
+        ne(organizationTypes.recordStatus, 'DELETED')
+      ))
       .returning();
     if (!organizationType) {
       throw new NotFoundException(`Тип организации с ID ${id} не найден`);
@@ -73,8 +83,12 @@ export class OrganizationTypeService {
 
   async remove(id: number) {
     const [organizationType] = await this.db
-      .delete(organizationTypes)
-      .where(eq(organizationTypes.id, id))
+      .update(organizationTypes)
+      .set({ recordStatus: 'DELETED', updatedAt: new Date() })
+      .where(and(
+        eq(organizationTypes.id, id),
+        ne(organizationTypes.recordStatus, 'DELETED')
+      ))
       .returning();
     if (!organizationType) {
       throw new NotFoundException(`Тип организации с ID ${id} не найден`);
