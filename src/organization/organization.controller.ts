@@ -68,7 +68,6 @@ export class OrganizationController {
   }
 
   @Get()
-  @Public()
   @ApiOperation({ summary: 'Получить все организации' })
   @ApiResponse({ status: 200, description: 'Список организаций' })
   findAll() {
@@ -76,7 +75,6 @@ export class OrganizationController {
   }
 
   @Get(':id')
-  @Public()
   @ApiOperation({ summary: 'Получить организацию по ID' })
   @ApiResponse({ status: 200, description: 'Организация найдена' })
   @ApiResponse({ status: 404, description: 'Организация не найдена' })
