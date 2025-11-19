@@ -282,13 +282,17 @@ docker-compose up -d --build app
 
 - **`DOCKER_REGISTRY_URL`** - URL вашего приватного Docker registry
   - Пример: `registry.example.com` или `docker.io/username`
+  - ⚠️ **ОБЯЗАТЕЛЬНО**: Без этого секрета сборка образа не запустится
   
 - **`DOCKER_REGISTRY_USERNAME`** - Логин для доступа к Docker registry
+  - ⚠️ **ОБЯЗАТЕЛЬНО**: Необходим для авторизации в registry
   
 - **`DOCKER_REGISTRY_PASSWORD`** - Пароль для доступа к Docker registry
+  - ⚠️ **ОБЯЗАТЕЛЬНО**: Необходим для авторизации в registry
   
 - **`DOCKER_IMAGE_NAME`** - Имя образа в registry
   - Пример: `atom-dbro-backend`
+  - ⚠️ **ОБЯЗАТЕЛЬНО**: Без этого секрета сборка образа не запустится
   
 - **`DEPLOY_HOST`** - IP-адрес или домен сервера деплоя
   - Пример: `192.168.1.100` или `deploy.example.com`
@@ -396,26 +400,86 @@ DOCKER_IMAGE_NAME=atom-dbro-backend
 
 #### 6. Настройка SSH ключа для GitHub Actions
 
-На сервере создайте пользователя для деплоя (если еще не создан):
+**Важно**: SSH ключ должен быть настроен правильно, иначе деплой не будет работать.
+
+##### Шаг 1: Создание SSH ключа
+
+На вашем локальном компьютере создайте новую пару SSH ключей:
 
 ```bash
-# Если используете существующего пользователя, пропустите этот шаг
-sudo adduser deploy
-sudo usermod -aG docker deploy
+# Создайте SSH ключ (без пароля для автоматизации)
+ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/github_actions_deploy -N ""
+
+# Или используйте RSA (если ed25519 не поддерживается)
+ssh-keygen -t rsa -b 4096 -C "github-actions-deploy" -f ~/.ssh/github_actions_deploy -N ""
 ```
 
-Создайте SSH ключ для GitHub Actions:
+**⚠️ ВАЖНО**: Не устанавливайте пароль на ключ (нажмите Enter при запросе passphrase), иначе GitHub Actions не сможет его использовать.
+
+##### Шаг 2: Добавление публичного ключа на сервер
 
 ```bash
-# На вашем локальном компьютере
-ssh-keygen -t rsa -b 4096 -C "github-actions-deploy" -f ~/.ssh/github_actions_deploy
+# Вариант 1: Используя ssh-copy-id (рекомендуется)
+# Замените USER и HOST на ваши значения
+ssh-copy-id -i ~/.ssh/github_actions_deploy.pub USER@HOST
 
-# Скопируйте публичный ключ на сервер
-ssh-copy-id -i ~/.ssh/github_actions_deploy.pub deploy@your-server-ip
+# Вариант 2: Вручную
+# Скопируйте содержимое публичного ключа
+cat ~/.ssh/github_actions_deploy.pub
 
-# Добавьте приватный ключ в GitHub Secrets как DEPLOY_SSH_KEY
+# На сервере добавьте ключ в authorized_keys
+# Подключитесь к серверу
+ssh USER@HOST
+
+# На сервере выполните:
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+echo "ВАШ_ПУБЛИЧНЫЙ_КЛЮЧ_СЮДА" >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+exit
+```
+
+##### Шаг 3: Проверка SSH подключения
+
+Проверьте, что подключение работает:
+
+```bash
+# Тест подключения с использованием приватного ключа
+# Замените USER, HOST и PORT на ваши значения
+ssh -i ~/.ssh/github_actions_deploy -p PORT USER@HOST \
+  "echo 'SSH connection successful' && hostname"
+```
+
+Если подключение успешно, переходите к следующему шагу.
+
+##### Шаг 4: Добавление приватного ключа в GitHub Secrets
+
+```bash
+# Покажите приватный ключ (скопируйте ВСЁ содержимое, включая заголовки)
 cat ~/.ssh/github_actions_deploy
-# Скопируйте содержимое и добавьте в GitHub Secrets
+```
+
+**Важно**: Копируйте весь ключ, включая строки:
+- `-----BEGIN OPENSSH PRIVATE KEY-----` (или `-----BEGIN RSA PRIVATE KEY-----`)
+- Все строки ключа
+- `-----END OPENSSH PRIVATE KEY-----` (или `-----END RSA PRIVATE KEY-----`)
+
+Добавьте скопированное содержимое в GitHub:
+1. Перейдите в репозиторий → **Settings** → **Secrets and variables** → **Actions**
+2. Нажмите **New repository secret**
+3. Name: `DEPLOY_SSH_KEY`
+4. Secret: вставьте весь приватный ключ
+5. Нажмите **Add secret**
+
+##### Шаг 5: Проверка прав доступа на сервере
+
+Убедитесь, что пользователь имеет необходимые права:
+
+```bash
+# На сервере (замените USER и PROJECT_PATH на ваши значения)
+sudo usermod -aG docker USER
+# Проверьте права на директорию проекта
+ls -la PROJECT_PATH
 ```
 
 #### 7. Настройка прав доступа
@@ -468,11 +532,63 @@ bash scripts/deploy.sh
 
 #### Проблема: GitHub Actions не может подключиться к серверу
 
+**Ошибка**: `Permission denied (publickey)`
+
 **Решение**:
-1. Проверьте, что SSH ключ добавлен в GitHub Secrets
-2. Убедитесь, что публичный ключ добавлен в `~/.ssh/authorized_keys` на сервере
-3. Проверьте firewall на сервере: `sudo ufw status`
-4. Проверьте SSH доступ вручную: `ssh -p 22 deploy@your-server-ip`
+
+1. **Проверьте, что SSH ключ добавлен в GitHub Secrets**:
+   - Убедитесь, что секрет `DEPLOY_SSH_KEY` существует
+   - Проверьте, что ключ скопирован полностью (включая заголовки `-----BEGIN` и `-----END`)
+   - Убедитесь, что нет лишних пробелов или переносов строк
+
+2. **Проверьте публичный ключ на сервере**:
+   ```bash
+   # На сервере
+   cat ~/.ssh/authorized_keys
+   # Должен быть ваш публичный ключ (начинается с ssh-ed25519 или ssh-rsa)
+   ```
+
+3. **Проверьте права доступа на сервере**:
+   ```bash
+   # На сервере
+   chmod 700 ~/.ssh
+   chmod 600 ~/.ssh/authorized_keys
+   ls -la ~/.ssh
+   ```
+
+4. **Проверьте SSH доступ вручную**:
+   ```bash
+   # На локальном компьютере
+   ssh -i ~/.ssh/github_actions_deploy -p PORT USER@HOST
+   ```
+
+5. **Проверьте firewall на сервере**:
+   ```bash
+   # На сервере
+   sudo ufw status
+   # Если SSH порт закрыт:
+   sudo ufw allow PORT/tcp
+   ```
+
+6. **Проверьте SSH сервис**:
+   ```bash
+   # На сервере
+   sudo systemctl status ssh
+   # Или для некоторых систем:
+   sudo systemctl status sshd
+   ```
+
+7. **Проверьте логи SSH на сервере**:
+   ```bash
+   # На сервере
+   sudo tail -f /var/log/auth.log
+   # Или для некоторых систем:
+   sudo tail -f /var/log/secure
+   ```
+
+8. **Убедитесь, что ключ без пароля**:
+   - Если ключ защищен паролем, GitHub Actions не сможет его использовать
+   - Создайте новый ключ без пароля: `ssh-keygen -t ed25519 -N ""`
 
 #### Проблема: Ошибка авторизации в Docker registry
 
