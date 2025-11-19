@@ -282,6 +282,11 @@ docker-compose up -d --build app
 
 - **`DOCKER_REGISTRY_URL`** - URL вашего приватного Docker registry
   - Пример: `registry.example.com` или `docker.io/username`
+  - ⚠️ **ВАЖНО**: 
+    - НЕ включайте протокол (`http://` или `https://`)
+    - НЕ добавляйте слэш в конце
+    - Правильно: `registry.example.com`
+    - Неправильно: `https://registry.example.com/` или `registry.example.com/`
   - ⚠️ **ОБЯЗАТЕЛЬНО**: Без этого секрета сборка образа не запустится
   
 - **`DOCKER_REGISTRY_USERNAME`** - Логин для доступа к Docker registry
@@ -292,6 +297,11 @@ docker-compose up -d --build app
   
 - **`DOCKER_IMAGE_NAME`** - Имя образа в registry
   - Пример: `atom-dbro-backend`
+  - ⚠️ **ВАЖНО**: 
+    - Используйте только строчные буквы, цифры, дефисы, подчеркивания и точки
+    - Не используйте заглавные буквы или специальные символы
+    - Правильно: `atom-dbro-backend`, `my-app`, `app_v1.0`
+    - Неправильно: `Atom-Dbro-Backend`, `my app`, `app@v1`
   - ⚠️ **ОБЯЗАТЕЛЬНО**: Без этого секрета сборка образа не запустится
   
 - **`DEPLOY_HOST`** - IP-адрес или домен сервера деплоя
@@ -589,6 +599,38 @@ bash scripts/deploy.sh
 8. **Убедитесь, что ключ без пароля**:
    - Если ключ защищен паролем, GitHub Actions не сможет его использовать
    - Создайте новый ключ без пароля: `ssh-keygen -t ed25519 -N ""`
+
+#### Проблема: Ошибка формата тега Docker образа
+
+**Ошибка**: `invalid tag "***/***:latest": invalid reference format`
+
+**Причины и решения**:
+
+1. **DOCKER_REGISTRY_URL содержит протокол**:
+   - ❌ Неправильно: `https://registry.example.com`
+   - ✅ Правильно: `registry.example.com`
+   - Решение: Удалите `http://` или `https://` из секрета
+
+2. **DOCKER_REGISTRY_URL содержит слэш в конце**:
+   - ❌ Неправильно: `registry.example.com/`
+   - ✅ Правильно: `registry.example.com`
+   - Решение: Удалите слэш в конце
+
+3. **DOCKER_IMAGE_NAME содержит недопустимые символы**:
+   - ❌ Неправильно: `Atom-Dbro-Backend`, `my app`, `app@v1`
+   - ✅ Правильно: `atom-dbro-backend`, `my-app`, `app_v1.0`
+   - Решение: Используйте только строчные буквы, цифры, дефисы, подчеркивания и точки
+
+4. **Пробелы в значениях секретов**:
+   - Пробелы в начале или конце значения могут вызвать ошибку
+   - Решение: Убедитесь, что в секретах нет лишних пробелов
+
+5. **Пустые значения**:
+   - Если секреты не установлены, будет ошибка
+   - Решение: Проверьте, что оба секрета (`DOCKER_REGISTRY_URL` и `DOCKER_IMAGE_NAME`) установлены
+
+**Проверка**:
+Workflow автоматически валидирует и очищает значения. Проверьте логи шага "Validate and sanitize environment variables" для деталей.
 
 #### Проблема: Ошибка авторизации в Docker registry
 

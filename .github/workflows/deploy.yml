@@ -18,11 +18,15 @@ jobs:
       image-tags: ${{ steps.meta.outputs.tags }}
       image-digest: ${{ steps.build.outputs.digest }}
       commit-sha: ${{ steps.commit.outputs.sha }}
-      full-image-name: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+      full-image-name: ${{ steps.validate.outputs.full_image }}:latest
+      registry: ${{ steps.validate.outputs.registry }}
+      image-name: ${{ steps.validate.outputs.image_name }}
     
     steps:
-      - name: Validate environment variables
+      - name: Validate and sanitize environment variables
+        id: validate
         run: |
+          # Проверка наличия переменных
           if [ -z "${{ env.DOCKER_REGISTRY }}" ]; then
             echo "❌ ERROR: DOCKER_REGISTRY_URL secret is not set"
             exit 1
@@ -31,9 +35,46 @@ jobs:
             echo "❌ ERROR: DOCKER_IMAGE_NAME secret is not set"
             exit 1
           fi
-          echo "✅ DOCKER_REGISTRY: ${{ env.DOCKER_REGISTRY }}"
-          echo "✅ DOCKER_IMAGE_NAME: ${{ env.DOCKER_IMAGE_NAME }}"
-          echo "✅ Full image name: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}"
+          
+          # Очистка от пробелов и переносов строк
+          REGISTRY=$(echo "${{ env.DOCKER_REGISTRY }}" | tr -d '[:space:]' | sed 's|^https\?://||' | sed 's|/$||')
+          IMAGE_NAME=$(echo "${{ env.DOCKER_IMAGE_NAME }}" | tr -d '[:space:]')
+          
+          # Валидация формата registry (не должен содержать протокол)
+          if [[ "$REGISTRY" =~ ^https?:// ]]; then
+            echo "❌ ERROR: DOCKER_REGISTRY_URL should not include protocol (http:// or https://)"
+            echo "   Current value: ${{ env.DOCKER_REGISTRY }}"
+            echo "   Should be: registry.example.com"
+            exit 1
+          fi
+          
+          # Валидация формата имени образа (только буквы, цифры, дефисы, подчеркивания, точки, слэши)
+          if [[ ! "$IMAGE_NAME" =~ ^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$ ]]; then
+            echo "❌ ERROR: DOCKER_IMAGE_NAME contains invalid characters"
+            echo "   Current value: ${{ env.DOCKER_IMAGE_NAME }}"
+            echo "   Allowed: lowercase letters, numbers, dots, dashes, underscores"
+            echo "   Example: atom-dbro-backend or my-registry/atom-dbro-backend"
+            exit 1
+          fi
+          
+          # Проверка длины
+          if [ ${#REGISTRY} -eq 0 ]; then
+            echo "❌ ERROR: DOCKER_REGISTRY_URL is empty after sanitization"
+            exit 1
+          fi
+          if [ ${#IMAGE_NAME} -eq 0 ]; then
+            echo "❌ ERROR: DOCKER_IMAGE_NAME is empty after sanitization"
+            exit 1
+          fi
+          
+          echo "✅ DOCKER_REGISTRY (sanitized): $REGISTRY"
+          echo "✅ DOCKER_IMAGE_NAME (sanitized): $IMAGE_NAME"
+          echo "✅ Full image name: $REGISTRY/$IMAGE_NAME"
+          
+          # Сохраняем очищенные значения
+          echo "registry=$REGISTRY" >> $GITHUB_OUTPUT
+          echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
+          echo "full_image=$REGISTRY/$IMAGE_NAME" >> $GITHUB_OUTPUT
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -45,7 +86,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}
+          images: ${{ steps.validate.outputs.full_image }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix={{branch}}-,format=short
@@ -59,8 +100,8 @@ jobs:
           push: false  # Только сборка, без отправки
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:buildcache,mode=max
+          cache-from: type=registry,ref=${{ steps.validate.outputs.full_image }}:buildcache
+          cache-to: type=registry,ref=${{ steps.validate.outputs.full_image }}:buildcache,mode=max
 
       - name: Get commit SHA
         id: commit
@@ -82,8 +123,10 @@ jobs:
     if: success() && needs.build.result == 'success'
     
     steps:
-      - name: Validate environment variables
+      - name: Validate and sanitize environment variables
+        id: validate
         run: |
+          # Проверка наличия переменных
           if [ -z "${{ env.DOCKER_REGISTRY }}" ]; then
             echo "❌ ERROR: DOCKER_REGISTRY_URL secret is not set"
             exit 1
@@ -92,8 +135,30 @@ jobs:
             echo "❌ ERROR: DOCKER_IMAGE_NAME secret is not set"
             exit 1
           fi
-          echo "✅ DOCKER_REGISTRY: ${{ env.DOCKER_REGISTRY }}"
-          echo "✅ DOCKER_IMAGE_NAME: ${{ env.DOCKER_IMAGE_NAME }}"
+          
+          # Очистка от пробелов и переносов строк
+          REGISTRY=$(echo "${{ env.DOCKER_REGISTRY }}" | tr -d '[:space:]' | sed 's|^https\?://||' | sed 's|/$||')
+          IMAGE_NAME=$(echo "${{ env.DOCKER_IMAGE_NAME }}" | tr -d '[:space:]')
+          
+          # Валидация формата registry
+          if [[ "$REGISTRY" =~ ^https?:// ]]; then
+            echo "❌ ERROR: DOCKER_REGISTRY_URL should not include protocol"
+            exit 1
+          fi
+          
+          # Валидация формата имени образа
+          if [[ ! "$IMAGE_NAME" =~ ^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$ ]]; then
+            echo "❌ ERROR: DOCKER_IMAGE_NAME contains invalid characters"
+            exit 1
+          fi
+          
+          echo "✅ DOCKER_REGISTRY (sanitized): $REGISTRY"
+          echo "✅ DOCKER_IMAGE_NAME (sanitized): $IMAGE_NAME"
+          
+          # Сохраняем очищенные значения
+          echo "registry=$REGISTRY" >> $GITHUB_OUTPUT
+          echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
+          echo "full_image=$REGISTRY/$IMAGE_NAME" >> $GITHUB_OUTPUT
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -104,7 +169,7 @@ jobs:
       - name: Log in to Docker Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.DOCKER_REGISTRY }}
+          registry: ${{ steps.validate.outputs.registry }}
           username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
 
@@ -112,7 +177,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}
+          images: ${{ steps.validate.outputs.full_image }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix={{branch}}-,format=short
@@ -126,8 +191,8 @@ jobs:
           push: true  # Отправка в registry
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:buildcache,mode=max
+          cache-from: type=registry,ref=${{ steps.validate.outputs.full_image }}:buildcache
+          cache-to: type=registry,ref=${{ steps.validate.outputs.full_image }}:buildcache,mode=max
 
       - name: Push Summary
         if: success()
@@ -135,7 +200,7 @@ jobs:
           echo "✅ Push completed successfully!"
           echo "📦 Image pushed to registry"
           echo "🏷️ Tags: ${{ steps.meta.outputs.tags }}"
-          echo "🔗 Full image: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:latest"
+          echo "🔗 Full image: ${{ steps.validate.outputs.full_image }}:latest"
 
   # SSH Connect: настройка SSH соединения
   ssh-connect:
