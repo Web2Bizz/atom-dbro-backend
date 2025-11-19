@@ -33,6 +33,38 @@ jobs:
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
 
+      - name: Verify image was built
+        run: |
+          if ! docker images | grep -q "${{ env.IMAGE_NAME }}.*latest"; then
+            echo "❌ ERROR: Docker image was not built successfully"
+            exit 1
+          fi
+          echo "✅ Docker image built successfully: ${{ env.IMAGE_NAME }}:latest"
+          docker images | grep "${{ env.IMAGE_NAME }}"
+
+  export:
+    name: Export Docker Image
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (for export)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          load: true
+          tags: ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
+
       - name: Export Docker image to tar.gz
         run: |
           echo "📦 Exporting Docker image to tar.gz..."
@@ -58,16 +90,13 @@ jobs:
           path: image.tar.gz
           retention-days: 1
 
-  deploy:
-    name: Deploy to Server
-    needs: build
+  transfer:
+    name: Transfer Image to Server
+    needs: export
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Download Docker image artifact
         uses: actions/download-artifact@v4
         with:
@@ -85,16 +114,39 @@ jobs:
           ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
             "echo 'SSH connection successful' && hostname"
 
-      - name: Transfer and deploy Docker image
+      - name: Transfer Docker image to server
         run: |
           SSH_PORT="${DEPLOY_SSH_PORT:-22}"
-          PROJECT_DIR="${{ secrets.DEPLOY_PROJECT_PATH }}"
           
           echo "📦 Transferring Docker image to server..."
+          echo "📊 Image file size: $(du -h image.tar.gz | cut -f1)"
+          
           # Передаем образ на сервер
           scp -o StrictHostKeyChecking=no -P "$SSH_PORT" image.tar.gz ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/
           
-          echo "🚀 Deploying on server..."
+          # Проверяем, что файл успешно передан
+          ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "if [ -f /tmp/image.tar.gz ]; then echo '✅ Image file transferred successfully'; ls -lh /tmp/image.tar.gz; else echo '❌ ERROR: Image file not found on server'; exit 1; fi"
+          
+          echo "✅ Docker image transferred successfully"
+        env:
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
+
+  deploy:
+    name: Deploy Application
+    needs: transfer
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Deploy application
+        run: |
+          SSH_PORT="${DEPLOY_SSH_PORT:-22}"
           ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'REMOTE_SCRIPT'
             set -e
             
@@ -125,6 +177,13 @@ jobs:
             # Удаляем временный файл
             rm -f /tmp/image.tar.gz
             echo "🧹 Cleaned up temporary image file"
+            
+            # Очищаем старые версии образа перед деплоем
+            echo "🧹 Removing old image versions (if any)..."
+            docker images "$IMAGE_NAME" --format "{{.Repository}}:{{.Tag}} {{.ID}}" | \
+              grep -v "latest" | \
+              awk '{print $2}' | \
+              xargs -r docker rmi -f || echo "No old image versions to remove"
             
             # Создание необходимых сетей Docker (если не существуют)
             echo "🌐 Ensuring Docker networks exist..."
@@ -201,9 +260,23 @@ jobs:
               exit 1
             fi
             
-            # Очистка старых образов (опционально, для экономии места)
-            echo "🧹 Cleaning up old Docker images..."
-            docker image prune -f || echo "Failed to clean up old images"
+            # Очистка неиспользуемых Docker ресурсов (для экономии места)
+            echo "🧹 Cleaning up unused Docker resources..."
+            echo "📊 Disk usage before cleanup:"
+            df -h / | tail -1 || true
+            
+            # Удаляем старые версии образа (если есть)
+            docker images "$IMAGE_NAME" --format "{{.Repository}}:{{.Tag}} {{.ID}}" | \
+              grep -v "latest" | \
+              awk '{print $2}' | \
+              xargs -r docker rmi -f || true
+            
+            # Полная очистка неиспользуемых ресурсов (без volumes для безопасности)
+            # Удаляет: остановленные контейнеры, неиспользуемые образы, build cache, сети
+            docker system prune -a -f || echo "⚠️ Warning: Some resources could not be cleaned up"
+            
+            echo "📊 Disk usage after cleanup:"
+            df -h / | tail -1 || true
             
             echo "✅ Deployment completed successfully!"
           REMOTE_SCRIPT
