@@ -121,8 +121,8 @@ jobs:
           push: false  # Только сборка, без отправки
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: ${{ env.DOCKER_REGISTRY_INSECURE != 'true' && format('type=registry,ref={0}:buildcache', steps.validate.outputs.full_image) || 'type=local' }}
-          cache-to: ${{ env.DOCKER_REGISTRY_INSECURE != 'true' && format('type=registry,ref={0}:buildcache,mode=max', steps.validate.outputs.full_image) || 'type=local' }}
+          cache-from: ${{ env.DOCKER_REGISTRY_INSECURE != 'true' && format('type=registry,ref={0}:buildcache', steps.validate.outputs.full_image) || 'type=gha' }}
+          cache-to: ${{ env.DOCKER_REGISTRY_INSECURE != 'true' && format('type=registry,ref={0}:buildcache,mode=max', steps.validate.outputs.full_image) || 'type=gha,mode=max' }}
           build-args: |
             BUILDKIT_INLINE_CACHE=1
 
@@ -236,8 +236,8 @@ jobs:
           push: true  # Отправка в registry
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: ${{ env.DOCKER_REGISTRY_INSECURE != 'true' && format('type=registry,ref={0}:buildcache', steps.validate.outputs.full_image) || 'type=local' }}
-          cache-to: ${{ env.DOCKER_REGISTRY_INSECURE != 'true' && format('type=registry,ref={0}:buildcache,mode=max', steps.validate.outputs.full_image) || 'type=local' }}
+          cache-from: ${{ env.DOCKER_REGISTRY_INSECURE != 'true' && format('type=registry,ref={0}:buildcache', steps.validate.outputs.full_image) || 'type=gha' }}
+          cache-to: ${{ env.DOCKER_REGISTRY_INSECURE != 'true' && format('type=registry,ref={0}:buildcache,mode=max', steps.validate.outputs.full_image) || 'type=gha,mode=max' }}
           build-args: |
             BUILDKIT_INLINE_CACHE=1
 
