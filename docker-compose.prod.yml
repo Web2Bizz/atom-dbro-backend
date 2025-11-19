@@ -19,38 +19,38 @@ services:
       retries: 5
     networks:
       - atom-internal-network
+    restart: unless-stopped
+
   app:
-    # Используем образ из registry, если задана переменная DOCKER_IMAGE
-    # Иначе собираем локально (для разработки)
-    image: ${DOCKER_IMAGE:-}
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ${DOCKER_REGISTRY:-registry.example.com}/${DOCKER_IMAGE_NAME:-atom-dbro-backend}:latest
     container_name: atom-dbro-app
     ports:
       - "3000:3000"
     env_file:
-      - .env  # Загружаем переменные из .env файла
+      - .env
     environment:
       PORT: ${PORT:-3000}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-atom_dbro}
     depends_on:
       postgres:
         condition: service_healthy
-    volumes:
-      - ./src:/app/src
-      - ./package.json:/app/package.json
-      - ./drizzle:/app/drizzle
     networks:
       - atom-external-network
       - atom-internal-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 volumes:
   postgres_data:
 
 networks:
   atom-external-network:
-    driver: bridge
+    external: true
   atom-internal-network:
     driver: bridge
-  
+

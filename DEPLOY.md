@@ -266,6 +266,230 @@ docker-compose up -d --build app
 6. **Настроить backup** базы данных
 7. **Использовать Docker secrets** для чувствительных данных
 
+## Автоматический деплой через CI/CD (GitHub Actions)
+
+Проект настроен для автоматического деплоя через GitHub Actions. При каждом push в ветку `main` происходит автоматическая сборка Docker образа, отправка в приватный registry и деплой на сервер.
+
+### Настройка GitHub Secrets
+
+Перед использованием CI/CD необходимо настроить секреты в GitHub:
+
+1. Перейдите в репозиторий на GitHub
+2. Откройте **Settings** → **Secrets and variables** → **Actions**
+3. Добавьте следующие секреты:
+
+#### Обязательные секреты:
+
+- **`DOCKER_REGISTRY_URL`** - URL вашего приватного Docker registry
+  - Пример: `registry.example.com` или `docker.io/username`
+  
+- **`DOCKER_REGISTRY_USERNAME`** - Логин для доступа к Docker registry
+  
+- **`DOCKER_REGISTRY_PASSWORD`** - Пароль для доступа к Docker registry
+  
+- **`DOCKER_IMAGE_NAME`** - Имя образа в registry
+  - Пример: `atom-dbro-backend`
+  
+- **`DEPLOY_HOST`** - IP-адрес или домен сервера деплоя
+  - Пример: `192.168.1.100` или `deploy.example.com`
+  
+- **`DEPLOY_USER`** - Пользователь для SSH подключения
+  - Пример: `root`, `deploy`, `ubuntu`
+  
+- **`DEPLOY_SSH_KEY`** - Приватный SSH ключ для доступа к серверу
+  - Содержимое файла `~/.ssh/id_rsa` (или другого приватного ключа)
+  - ⚠️ **ВАЖНО**: Используйте ключ без пароля или настройте ssh-agent
+
+#### Опциональные секреты:
+
+- **`DEPLOY_SSH_PORT`** - Порт SSH (по умолчанию: 22)
+
+### Настройка сервера для деплоя
+
+#### 1. Установка Docker и Docker Compose
+
+```bash
+# Ubuntu/Debian
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# Установка Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+```
+
+#### 2. Создание директории проекта
+
+```bash
+# Создайте директорию для проекта
+mkdir -p ~/atom-dbro-backend
+cd ~/atom-dbro-backend
+```
+
+#### 3. Копирование необходимых файлов на сервер
+
+Скопируйте на сервер следующие файлы:
+
+```bash
+# docker-compose.prod.yml
+# .env (с production переменными окружения)
+```
+
+Или клонируйте репозиторий (только для чтения):
+
+```bash
+git clone https://github.com/Web2Bizz/atom-dbro-backend.git ~/atom-dbro-backend
+cd ~/atom-dbro-backend
+```
+
+#### 4. Создание Docker сетей
+
+```bash
+docker network create atom-external-network
+docker network create atom-internal-network
+```
+
+#### 5. Настройка .env файла
+
+Создайте файл `.env` в директории проекта с production переменными:
+
+```env
+# База данных
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your-secure-password
+POSTGRES_DB=atom_dbro
+POSTGRES_PORT=5432
+
+# Приложение
+PORT=3000
+
+# JWT
+JWT_SECRET=your-very-secure-secret-key
+JWT_EXPIRES_IN=24h
+
+# Database URL
+DATABASE_URL=postgresql://postgres:your-secure-password@postgres:5432/atom_dbro
+
+# S3 Configuration
+S3_BUCKET_NAME=your-bucket-name
+S3_ACCESS_KEY_ID=your-access-key-id
+S3_SECRET_ACCESS_KEY=your-secret-access-key
+S3_REGION=us-east-1
+
+# Docker Registry (для docker-compose.prod.yml)
+DOCKER_REGISTRY=registry.example.com
+DOCKER_IMAGE_NAME=atom-dbro-backend
+```
+
+#### 6. Настройка SSH ключа для GitHub Actions
+
+На сервере создайте пользователя для деплоя (если еще не создан):
+
+```bash
+# Если используете существующего пользователя, пропустите этот шаг
+sudo adduser deploy
+sudo usermod -aG docker deploy
+```
+
+Создайте SSH ключ для GitHub Actions:
+
+```bash
+# На вашем локальном компьютере
+ssh-keygen -t rsa -b 4096 -C "github-actions-deploy" -f ~/.ssh/github_actions_deploy
+
+# Скопируйте публичный ключ на сервер
+ssh-copy-id -i ~/.ssh/github_actions_deploy.pub deploy@your-server-ip
+
+# Добавьте приватный ключ в GitHub Secrets как DEPLOY_SSH_KEY
+cat ~/.ssh/github_actions_deploy
+# Скопируйте содержимое и добавьте в GitHub Secrets
+```
+
+#### 7. Настройка прав доступа
+
+```bash
+# Убедитесь, что пользователь может выполнять docker команды
+sudo usermod -aG docker $USER
+
+# Настройте права на директорию проекта
+chmod 755 ~/atom-dbro-backend
+```
+
+### Процесс автоматического деплоя
+
+После настройки, при каждом push в ветку `main`:
+
+1. **GitHub Actions запускает workflow** (`.github/workflows/deploy.yml`)
+2. **Сборка Docker образа** с тегами:
+   - `latest` - последняя версия
+   - `sha-{commit_sha}` - версия конкретного коммита
+3. **Авторизация в Docker registry** и push образа
+4. **Подключение к серверу через SSH**
+5. **Выполнение деплоя**:
+   - Pull образа из registry
+   - Остановка старого контейнера
+   - Запуск нового контейнера через `docker-compose.prod.yml`
+   - Автоматическое выполнение миграций БД
+   - Health check приложения
+6. **Уведомление о результате** в GitHub Actions
+
+### Ручной деплой через скрипт
+
+Если нужно выполнить деплой вручную, можно использовать скрипт `scripts/deploy.sh`:
+
+```bash
+# На сервере
+cd ~/atom-dbro-backend
+
+# Установите переменные окружения
+export DOCKER_REGISTRY="registry.example.com"
+export DOCKER_IMAGE_NAME="atom-dbro-backend"
+export DOCKER_REGISTRY_USERNAME="your-username"
+export DOCKER_REGISTRY_PASSWORD="your-password"
+
+# Запустите скрипт деплоя
+bash scripts/deploy.sh
+```
+
+### Troubleshooting CI/CD
+
+#### Проблема: GitHub Actions не может подключиться к серверу
+
+**Решение**:
+1. Проверьте, что SSH ключ добавлен в GitHub Secrets
+2. Убедитесь, что публичный ключ добавлен в `~/.ssh/authorized_keys` на сервере
+3. Проверьте firewall на сервере: `sudo ufw status`
+4. Проверьте SSH доступ вручную: `ssh -p 22 deploy@your-server-ip`
+
+#### Проблема: Ошибка авторизации в Docker registry
+
+**Решение**:
+1. Проверьте правильность `DOCKER_REGISTRY_URL`, `DOCKER_REGISTRY_USERNAME` и `DOCKER_REGISTRY_PASSWORD` в GitHub Secrets
+2. Попробуйте авторизоваться вручную: `docker login registry.example.com`
+
+#### Проблема: Контейнер не запускается после деплоя
+
+**Решение**:
+1. Проверьте логи: `docker logs atom-dbro-app`
+2. Убедитесь, что `.env` файл настроен правильно
+3. Проверьте, что Docker сети созданы: `docker network ls`
+4. Проверьте доступность образа: `docker images | grep atom-dbro-backend`
+
+#### Проблема: Миграции не выполняются
+
+**Решение**:
+1. Проверьте подключение к БД: `docker exec atom-dbro-postgres psql -U postgres -d atom_dbro -c "SELECT 1;"`
+2. Проверьте переменную `DATABASE_URL` в контейнере
+3. Выполните миграции вручную: `docker exec atom-dbro-app npm run db:migrate`
+
+### Мониторинг деплоев
+
+Все деплои можно отслеживать в GitHub:
+- Перейдите в репозиторий → **Actions**
+- Выберите нужный workflow run
+- Просмотрите логи каждого шага
+
 ## Структура деплоя
 
 ```

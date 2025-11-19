@@ -1,0 +1,128 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY_URL }}
+  DOCKER_IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME }}
+  DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+  DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+  DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
+          password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix={{branch}}-,format=short
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:buildcache,mode=max
+
+      - name: Get commit SHA
+        id: commit
+        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          ssh-keyscan -p ${{ env.DEPLOY_SSH_PORT }} -H ${{ env.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        run: |
+          ssh -p ${{ env.DEPLOY_SSH_PORT }} -o StrictHostKeyChecking=no ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << ENDSSH
+            set -e
+            FULL_IMAGE_NAME="${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:latest"
+            
+            echo "🚀 Starting deployment..."
+            
+            # Navigate to project directory
+            cd ~/atom-dbro-backend || cd /opt/atom-dbro-backend || { echo "❌ Project directory not found"; exit 1; }
+            
+            # Login to Docker registry
+            echo "🔐 Logging in to Docker registry..."
+            echo '${{ secrets.DOCKER_REGISTRY_PASSWORD }}' | docker login '${{ env.DOCKER_REGISTRY }}' -u '${{ secrets.DOCKER_REGISTRY_USERNAME }}' --password-stdin
+            
+            # Pull latest image
+            echo "📥 Pulling latest image: \$FULL_IMAGE_NAME"
+            docker pull "\$FULL_IMAGE_NAME"
+            
+            # Stop old containers (only app service, keep postgres running)
+            echo "🛑 Stopping old application container..."
+            docker-compose stop app || true
+            docker-compose rm -f app || true
+            
+            # Start new container with image from registry
+            echo "▶️ Starting new container with image from registry..."
+            DOCKER_IMAGE="\$FULL_IMAGE_NAME" docker-compose up -d app
+            
+            # Wait for container to be ready
+            echo "⏳ Waiting for container to be ready..."
+            sleep 10
+            
+            # Run database migrations
+            echo "🗄️ Running database migrations..."
+            docker exec atom-dbro-app npm run db:migrate || { echo "⚠️ Migration failed, but continuing..."; }
+            
+            # Health check
+            echo "🏥 Performing health check..."
+            max_attempts=30
+            attempt=0
+            while [ \$attempt -lt \$max_attempts ]; do
+              if curl -f http://localhost:3000/api > /dev/null 2>&1; then
+                echo "✅ Application is healthy!"
+                exit 0
+              fi
+              attempt=\$((attempt + 1))
+              echo "Attempt \$attempt/\$max_attempts failed, retrying in 2 seconds..."
+              sleep 2
+            done
+            
+            echo "❌ Health check failed after \$max_attempts attempts"
+            echo "📋 Container logs:"
+            docker logs atom-dbro-app --tail 50
+            exit 1
+          ENDSSH
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "✅ Deployment completed successfully!"
+          echo "🌐 Application should be available at: http://${{ env.DEPLOY_HOST }}:3000"
+          echo "📚 Swagger docs: http://${{ env.DEPLOY_HOST }}:3000/api"
+
