@@ -152,6 +152,7 @@ jobs:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
       DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
+      DEPLOY_PROJECT_PATH: ${{ secrets.DEPLOY_PROJECT_PATH }}
       # Используем данные из build job
       FULL_IMAGE_NAME: ${{ needs.build.outputs.full-image-name }}
       IMAGE_TAGS: ${{ needs.build.outputs.image-tags }}
@@ -174,6 +175,7 @@ jobs:
           echo "🏷️ Tags: ${{ env.IMAGE_TAGS }}"
           echo "📝 Commit: ${{ env.COMMIT_SHA }}"
           echo "🌐 Target: ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_SSH_PORT }}"
+          echo "📁 Project path: ${{ env.DEPLOY_PROJECT_PATH }}"
 
       - name: Deploy to server
         run: |
@@ -184,7 +186,14 @@ jobs:
             echo "🚀 Starting deployment..."
             
             # Navigate to project directory
-            cd ~/atom-dbro-backend || cd /opt/atom-dbro-backend || { echo "❌ Project directory not found"; exit 1; }
+            PROJECT_PATH="${{ env.DEPLOY_PROJECT_PATH }}"
+            if [ -z "\$PROJECT_PATH" ]; then
+              echo "❌ DEPLOY_PROJECT_PATH is not set"
+              exit 1
+            fi
+            echo "📁 Navigating to project directory: \$PROJECT_PATH"
+            cd "\$PROJECT_PATH" || { echo "❌ Project directory not found: \$PROJECT_PATH"; exit 1; }
+            echo "✅ Current directory: \$(pwd)"
             
             # Login to Docker registry
             echo "🔐 Logging in to Docker registry..."

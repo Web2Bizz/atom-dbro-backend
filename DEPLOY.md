@@ -299,6 +299,10 @@ docker-compose up -d --build app
 - **`DEPLOY_SSH_KEY`** - Приватный SSH ключ для доступа к серверу
   - Содержимое файла `~/.ssh/id_rsa` (или другого приватного ключа)
   - ⚠️ **ВАЖНО**: Используйте ключ без пароля или настройте ssh-agent
+  
+- **`DEPLOY_PROJECT_PATH`** - Абсолютный путь к директории проекта на сервере
+  - Пример: `~/atom-dbro-backend` или `/opt/atom-dbro-backend`
+  - ⚠️ **ВАЖНО**: Путь должен существовать на сервере и содержать `docker-compose.yml`
 
 #### Опциональные секреты:
 
@@ -322,10 +326,18 @@ sudo chmod +x /usr/local/bin/docker-compose
 #### 2. Создание директории проекта
 
 ```bash
-# Создайте директорию для проекта
+# Создайте директорию для проекта (выберите подходящий путь)
+# Вариант 1: в домашней директории пользователя
 mkdir -p ~/atom-dbro-backend
 cd ~/atom-dbro-backend
+
+# Вариант 2: в системной директории
+sudo mkdir -p /opt/atom-dbro-backend
+sudo chown $USER:$USER /opt/atom-dbro-backend
+cd /opt/atom-dbro-backend
 ```
+
+**⚠️ ВАЖНО**: Запомните выбранный путь - он понадобится для секрета `DEPLOY_PROJECT_PATH` в GitHub!
 
 #### 3. Копирование необходимых файлов на сервер
 
