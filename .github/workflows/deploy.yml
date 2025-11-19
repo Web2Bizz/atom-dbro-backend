@@ -80,17 +80,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure BuildKit for HTTP registry
+      - name: Generate BuildKit config
         if: env.DOCKER_REGISTRY_INSECURE == 'true'
+        id: buildkit-config
         run: |
           REGISTRY="${{ steps.validate.outputs.registry }}"
-          mkdir -p ~/.docker
-          cat > ~/.docker/buildkitd.toml <<EOF
-          [registry."$REGISTRY"]
-            http = true
-            insecure = true
-          EOF
-          echo "✅ Configured BuildKit for HTTP registry: $REGISTRY"
+          CONFIG="[registry.\"$REGISTRY\"]"$'\n'"  http = true"$'\n'"  insecure = true"
+          echo "config<<EOF" >> $GITHUB_OUTPUT
+          echo "$CONFIG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -99,7 +97,7 @@ jobs:
           driver-opts: |
             network=host
             env.BUILDKIT_STEP_LOG_MAX_SIZE=10485760
-          config: ${{ env.DOCKER_REGISTRY_INSECURE == 'true' && '~/.docker/buildkitd.toml' || '' }}
+          config-inline: ${{ steps.buildkit-config.outputs.config || '' }}
 
       - name: Extract metadata
         id: meta
@@ -121,8 +119,8 @@ jobs:
           push: false  # Только сборка, без отправки
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=http://${{ steps.validate.outputs.full_image }}:buildcache
-          cache-to: type=registry,ref=http://${{ steps.validate.outputs.full_image }}:buildcache,mode=max
+          cache-from: type=registry,ref=${{ steps.validate.outputs.full_image }}:buildcache
+          cache-to: type=registry,ref=${{ steps.validate.outputs.full_image }}:buildcache,mode=max
           build-args: |
             BUILDKIT_INLINE_CACHE=1
 
@@ -186,23 +184,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure BuildKit for HTTP registry
+      - name: Generate BuildKit config
         if: env.DOCKER_REGISTRY_INSECURE == 'true'
+        id: buildkit-config
         run: |
           REGISTRY="${{ steps.validate.outputs.registry }}"
-          mkdir -p ~/.docker
-          cat > ~/.docker/buildkitd.toml <<EOF
-          [registry."$REGISTRY"]
-            http = true
-            insecure = true
-          EOF
-          echo "✅ Configured BuildKit for HTTP registry: $REGISTRY"
+          CONFIG="[registry.\"$REGISTRY\"]"$'\n'"  http = true"$'\n'"  insecure = true"
+          echo "config<<EOF" >> $GITHUB_OUTPUT
+          echo "$CONFIG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         id: buildx
         with:
-          config: ${{ env.DOCKER_REGISTRY_INSECURE == 'true' && '~/.docker/buildkitd.toml' || '' }}
+          config-inline: ${{ steps.buildkit-config.outputs.config || '' }}
 
       - name: Log in to Docker Registry
         uses: docker/login-action@v3
@@ -233,8 +229,8 @@ jobs:
           push: true  # Отправка в registry
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=http://${{ steps.validate.outputs.full_image }}:buildcache
-          cache-to: type=registry,ref=http://${{ steps.validate.outputs.full_image }}:buildcache,mode=max
+          cache-from: type=registry,ref=${{ steps.validate.outputs.full_image }}:buildcache
+          cache-to: type=registry,ref=${{ steps.validate.outputs.full_image }}:buildcache,mode=max
           build-args: |
             BUILDKIT_INLINE_CACHE=1
 
