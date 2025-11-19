@@ -80,7 +80,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure BuildKit for HTTP registry
-        if: secrets.DOCKER_REGISTRY_INSECURE == 'true'
+        if: ${{ secrets.DOCKER_REGISTRY_INSECURE == 'true' }}
         run: |
           REGISTRY="${{ steps.validate.outputs.registry }}"
           mkdir -p ~/.docker
@@ -186,7 +186,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure BuildKit for HTTP registry
-        if: secrets.DOCKER_REGISTRY_INSECURE == 'true'
+        if: ${{ secrets.DOCKER_REGISTRY_INSECURE == 'true' }}
         run: |
           REGISTRY="${{ steps.validate.outputs.registry }}"
           mkdir -p ~/.docker
