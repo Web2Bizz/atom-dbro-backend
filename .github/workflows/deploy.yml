@@ -130,8 +130,29 @@ jobs:
             IMAGE_NAME="atom-dbro-backend"
             PROJECT_DIR="$PROJECT_DIR_VALUE"
             
+            # Проверяем, что переменная PROJECT_DIR установлена
+            if [ -z "$PROJECT_DIR" ]; then
+              echo "❌ ERROR: PROJECT_DIR is not set"
+              exit 1
+            fi
+            
             # Переходим в директорию проекта
-            cd "$PROJECT_DIR" || exit 1
+            echo "📁 Changing to project directory: $PROJECT_DIR"
+            cd "$PROJECT_DIR" || {
+              echo "❌ ERROR: Failed to change to project directory: $PROJECT_DIR"
+              exit 1
+            }
+            
+            # Проверяем, что docker-compose.yml существует
+            if [ ! -f "docker-compose.yml" ]; then
+              echo "❌ ERROR: docker-compose.yml not found in $PROJECT_DIR"
+              echo "Current directory: $(pwd)"
+              echo "Files in directory:"
+              ls -la || true
+              exit 1
+            fi
+            
+            echo "✅ Found docker-compose.yml in $(pwd)"
             
             # Загружаем образ в Docker
             echo "📥 Importing Docker image from tar.gz..."
@@ -169,11 +190,12 @@ jobs:
             
             # Остановка и удаление старых контейнеров
             echo "🛑 Stopping old containers..."
-            docker compose -f docker-compose.prod.yml down || echo "No running containers to stop"
+            echo "Working directory: $(pwd)"
+            docker compose -f "$PROJECT_DIR/docker-compose.yml" down || echo "No running containers to stop"
             
             # Запуск новых контейнеров
             echo "▶️ Starting new containers..."
-            docker compose -f docker-compose.prod.yml up -d
+            docker compose -f "$PROJECT_DIR/docker-compose.yml" up -d
             
             # Ожидание готовности контейнера
             echo "⏳ Waiting for application container to be ready..."
