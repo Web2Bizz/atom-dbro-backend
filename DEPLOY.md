@@ -64,13 +64,13 @@ S3_REGION=us-east-1
 #### Первый запуск (сборка образов):
 
 ```bash
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 #### Последующие запуски (без пересборки):
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 Эта команда:
@@ -105,20 +105,20 @@ docker exec -it atom-dbro-app npm run db:migrate
 #### Проверить статус контейнеров:
 
 ```bash
-docker-compose ps
+docker compose ps
 ```
 
 #### Просмотреть логи:
 
 ```bash
 # Все сервисы
-docker-compose logs -f
+docker compose logs -f
 
 # Только приложение
-docker-compose logs -f app
+docker compose logs -f app
 
 # Только база данных
-docker-compose logs -f postgres
+docker compose logs -f postgres
 ```
 
 #### Проверить доступность API:
@@ -168,19 +168,19 @@ ipconfig
 #### Остановка контейнеров (без удаления):
 
 ```bash
-docker-compose stop
+docker compose stop
 ```
 
 #### Остановка и удаление контейнеров:
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
 #### Остановка, удаление контейнеров и volumes (⚠️ удалит данные БД):
 
 ```bash
-docker-compose down -v
+docker compose down -v
 ```
 
 ## Полезные команды
@@ -188,7 +188,7 @@ docker-compose down -v
 ### Пересборка приложения после изменений:
 
 ```bash
-docker-compose up -d --build app
+docker compose up -d --build app
 ```
 
 ### Выполнение команд внутри контейнера:
@@ -204,7 +204,7 @@ docker exec -it atom-dbro-app npm run import:cities
 ### Просмотр логов в реальном времени:
 
 ```bash
-docker-compose logs -f app
+docker compose logs -f app
 ```
 
 ### Проверка подключения к базе данных:
@@ -238,21 +238,22 @@ POSTGRES_PORT=5433
 ### Проблема: Приложение не подключается к БД
 
 **Решение**: 
-1. Убедитесь, что PostgreSQL контейнер запущен: `docker-compose ps`
+1. Убедитесь, что PostgreSQL контейнер запущен: `docker compose ps`
 2. Проверьте переменную `DATABASE_URL` в контейнере: `docker exec atom-dbro-app env | grep DATABASE_URL`
-3. Проверьте логи: `docker-compose logs postgres`
+3. Проверьте логи: `docker compose logs postgres`
 
 ### Проблема: Изменения в коде не применяются
 
 **Решение**: 
 - В development режиме код монтируется через volumes, но нужно перезапустить контейнер:
 ```bash
-docker-compose restart app
+docker compose restart app
 ```
 - Для production изменений нужно пересобрать образ:
 ```bash
-docker-compose up -d --build app
+docker compose up -d --build app
 ```
+- При автоматическом деплое через GitHub Actions образ пересобирается автоматически при каждом push
 
 ## Production деплой
 
@@ -268,7 +269,7 @@ docker-compose up -d --build app
 
 ## Автоматический деплой через CI/CD (GitHub Actions)
 
-Проект настроен для автоматического деплоя через GitHub Actions. При каждом push в ветку `main` происходит автоматическая сборка Docker образа, отправка в приватный registry и деплой на сервер.
+Проект настроен для автоматического деплоя через GitHub Actions. При каждом push в ветку `main` происходит автоматическая сборка Docker образа, экспорт в архив, передача на сервер через SSH и деплой.
 
 ### Настройка GitHub Secrets
 
@@ -280,30 +281,6 @@ docker-compose up -d --build app
 
 #### Обязательные секреты:
 
-- **`DOCKER_REGISTRY_URL`** - URL вашего приватного Docker registry
-  - Пример: `registry.example.com` или `docker.io/username`
-  - ⚠️ **ВАЖНО**: 
-    - НЕ включайте протокол (`http://` или `https://`)
-    - НЕ добавляйте слэш в конце
-    - Правильно: `registry.example.com`
-    - Неправильно: `https://registry.example.com/` или `registry.example.com/`
-  - ⚠️ **ОБЯЗАТЕЛЬНО**: Без этого секрета сборка образа не запустится
-  
-- **`DOCKER_REGISTRY_USERNAME`** - Логин для доступа к Docker registry
-  - ⚠️ **ОБЯЗАТЕЛЬНО**: Необходим для авторизации в registry
-  
-- **`DOCKER_REGISTRY_PASSWORD`** - Пароль для доступа к Docker registry
-  - ⚠️ **ОБЯЗАТЕЛЬНО**: Необходим для авторизации в registry
-  
-- **`DOCKER_IMAGE_NAME`** - Имя образа в registry
-  - Пример: `atom-dbro-backend`
-  - ⚠️ **ВАЖНО**: 
-    - Используйте только строчные буквы, цифры, дефисы, подчеркивания и точки
-    - Не используйте заглавные буквы или специальные символы
-    - Правильно: `atom-dbro-backend`, `my-app`, `app_v1.0`
-    - Неправильно: `Atom-Dbro-Backend`, `my app`, `app@v1`
-  - ⚠️ **ОБЯЗАТЕЛЬНО**: Без этого секрета сборка образа не запустится
-  
 - **`DEPLOY_HOST`** - IP-адрес или домен сервера деплоя
   - Пример: `192.168.1.100` или `deploy.example.com`
   
@@ -315,19 +292,36 @@ docker-compose up -d --build app
   - ⚠️ **ВАЖНО**: Используйте ключ без пароля или настройте ssh-agent
   
 - **`DEPLOY_PROJECT_PATH`** - Абсолютный путь к директории проекта на сервере
-  - Пример: `~/atom-dbro-backend` или `/opt/atom-dbro-backend`
-  - ⚠️ **ВАЖНО**: Путь должен существовать на сервере и содержать `docker-compose.yml`
+  - Пример: `/home/user/atom-dbro-backend` или `/opt/atom-dbro-backend`
+  - ⚠️ **ВАЖНО**: 
+    - Путь должен существовать на сервере и содержать `docker-compose.yml`
+    - Используйте абсолютный путь (не `~/`)
 
-#### Опциональные секреты:
+#### Опциональные секреты (с значениями по умолчанию):
 
-- **`DEPLOY_SSH_PORT`** - Порт SSH (по умолчанию: 22)
+- **`DOCKER_IMAGE_NAME`** - Название Docker образа
+  - По умолчанию: `atom-dbro-backend`
+  - ⚠️ **ВАЖНО**: 
+    - Используйте только строчные буквы, цифры, дефисы, подчеркивания и точки
+    - Не используйте заглавные буквы или специальные символы
+    - Правильно: `atom-dbro-backend`, `my-app`, `app_v1.0`
+    - Неправильно: `Atom-Dbro-Backend`, `my app`, `app@v1`
 
-- **`DOCKER_REGISTRY_INSECURE`** - Использовать insecure registry (для самоподписанных сертификатов)
-  - Установите в `true`, если ваш registry использует самоподписанный сертификат или IP-адрес
-  - **⚠️ ОБЯЗАТЕЛЬНО установите, если получаете ошибку**: `x509: certificate signed by unknown authority` или `tls: failed to verify certificate`
-  - По умолчанию: не установлен (используется HTTPS с проверкой сертификата)
-  - Workflow автоматически настроит Docker daemon для работы с insecure registry
-  - ⚠️ **ВНИМАНИЕ**: Использование insecure registry снижает безопасность! Используйте только в доверенных сетях.
+- **`DEPLOY_CONTAINER_NAME`** - Название контейнера приложения
+  - По умолчанию: `atom-dbro-app`
+  - Должно соответствовать `container_name` в `docker-compose.yml`
+
+- **`DEPLOY_SERVICE_NAME`** - Название сервиса в docker-compose.yml
+  - По умолчанию: `app`
+  - Должно соответствовать имени сервиса в `docker-compose.yml`
+
+- **`DEPLOY_COMPOSE_PROJECT_NAME`** - Имя проекта (стек) для docker compose
+  - По умолчанию: не установлен (используется имя директории)
+  - Используйте, если нужно явно указать имя стека
+  - Пример: `atom-dbro-backend`
+
+- **`DEPLOY_SSH_PORT`** - Порт SSH
+  - По умолчанию: `22`
 
 ### Настройка сервера для деплоя
 
@@ -358,14 +352,16 @@ sudo chown $USER:$USER /opt/atom-dbro-backend
 cd /opt/atom-dbro-backend
 ```
 
-**⚠️ ВАЖНО**: Запомните выбранный путь - он понадобится для секрета `DEPLOY_PROJECT_PATH` в GitHub!
+**⚠️ ВАЖНО**: 
+- Запомните выбранный путь - он понадобится для секрета `DEPLOY_PROJECT_PATH` в GitHub!
+- Используйте абсолютный путь (например, `/home/user/atom-dbro-backend`, а не `~/atom-dbro-backend`)
 
 #### 3. Копирование необходимых файлов на сервер
 
 Скопируйте на сервер следующие файлы:
 
 ```bash
-# docker-compose.prod.yml
+# docker-compose.yml
 # .env (с production переменными окружения)
 ```
 
@@ -375,6 +371,8 @@ cd /opt/atom-dbro-backend
 git clone https://github.com/Web2Bizz/atom-dbro-backend.git ~/atom-dbro-backend
 cd ~/atom-dbro-backend
 ```
+
+**⚠️ ВАЖНО**: Убедитесь, что файл `docker-compose.yml` находится в корне директории проекта!
 
 #### 4. Создание Docker сетей
 
@@ -410,9 +408,9 @@ S3_ACCESS_KEY_ID=your-access-key-id
 S3_SECRET_ACCESS_KEY=your-secret-access-key
 S3_REGION=us-east-1
 
-# Docker Registry (для docker-compose.prod.yml)
-DOCKER_REGISTRY=registry.example.com
-DOCKER_IMAGE_NAME=atom-dbro-backend
+# Docker Image (для docker-compose.yml)
+# Переменная DOCKER_IMAGE будет установлена автоматически при деплое
+# Не нужно указывать в .env файле
 ```
 
 #### 6. Настройка SSH ключа для GitHub Actions
@@ -514,36 +512,40 @@ chmod 755 ~/atom-dbro-backend
 После настройки, при каждом push в ветку `main`:
 
 1. **GitHub Actions запускает workflow** (`.github/workflows/deploy.yml`)
-2. **Сборка Docker образа** с тегами:
-   - `latest` - последняя версия
-   - `sha-{commit_sha}` - версия конкретного коммита
-3. **Авторизация в Docker registry** и push образа
-4. **Подключение к серверу через SSH**
-5. **Выполнение деплоя**:
-   - Pull образа из registry
-   - Остановка старого контейнера
-   - Запуск нового контейнера через `docker-compose.prod.yml`
-   - Автоматическое выполнение миграций БД
-   - Health check приложения
+2. **Сборка Docker образа** с тегом `latest`
+3. **Экспорт образа** в архив `image.tar.gz`
+4. **Передача образа на сервер** через SSH (SCP)
+5. **Подключение к серверу через SSH** и выполнение деплоя:
+   - Загрузка образа в Docker (`docker load`)
+   - Остановка и удаление старого контейнера приложения
+   - Запуск нового контейнера через `docker compose` (только сервис приложения, без зависимостей)
+   - Проверка готовности контейнера
+   - Health check приложения (проверка доступности API)
+   - Очистка неиспользуемых Docker ресурсов
 6. **Уведомление о результате** в GitHub Actions
 
-### Ручной деплой через скрипт
+**⚠️ ВАЖНО**: 
+- Миграции базы данных **не выполняются автоматически** - их нужно запускать вручную при необходимости
+- Перезапускается **только контейнер приложения**, база данных не затрагивается
+- Используется `docker compose` (не `docker-compose`)
 
-Если нужно выполнить деплой вручную, можно использовать скрипт `scripts/deploy.sh`:
+### Ручной деплой
 
+Для ручного деплоя выполните следующие шаги:
+
+1. **Соберите Docker образ** (локально или на сервере):
 ```bash
-# На сервере
-cd ~/atom-dbro-backend
-
-# Установите переменные окружения
-export DOCKER_REGISTRY="registry.example.com"
-export DOCKER_IMAGE_NAME="atom-dbro-backend"
-export DOCKER_REGISTRY_USERNAME="your-username"
-export DOCKER_REGISTRY_PASSWORD="your-password"
-
-# Запустите скрипт деплоя
-bash scripts/deploy.sh
+docker build -t atom-dbro-backend:latest .
 ```
+
+2. **На сервере перезапустите контейнер**:
+```bash
+cd /path/to/project
+export DOCKER_IMAGE="atom-dbro-backend:latest"
+docker compose up -d --force-recreate --no-deps app
+```
+
+Или используйте скрипт `scripts/deploy.sh` (если он существует и настроен).
 
 ### Troubleshooting CI/CD
 
@@ -607,125 +609,61 @@ bash scripts/deploy.sh
    - Если ключ защищен паролем, GitHub Actions не сможет его использовать
    - Создайте новый ключ без пароля: `ssh-keygen -t ed25519 -N ""`
 
-#### Проблема: Ошибка формата тега Docker образа
+#### Проблема: Ошибка "PROJECT_DIR is not set"
 
-**Ошибка**: `invalid tag "***/***:latest": invalid reference format`
-
-**Причины и решения**:
-
-1. **DOCKER_REGISTRY_URL содержит протокол**:
-   - ❌ Неправильно: `https://registry.example.com`
-   - ✅ Правильно: `registry.example.com`
-   - Решение: Удалите `http://` или `https://` из секрета
-
-2. **DOCKER_REGISTRY_URL содержит слэш в конце**:
-   - ❌ Неправильно: `registry.example.com/`
-   - ✅ Правильно: `registry.example.com`
-   - Решение: Удалите слэш в конце
-
-3. **DOCKER_IMAGE_NAME содержит недопустимые символы**:
-   - ❌ Неправильно: `Atom-Dbro-Backend`, `my app`, `app@v1`
-   - ✅ Правильно: `atom-dbro-backend`, `my-app`, `app_v1.0`
-   - Решение: Используйте только строчные буквы, цифры, дефисы, подчеркивания и точки
-
-4. **Пробелы в значениях секретов**:
-   - Пробелы в начале или конце значения могут вызвать ошибку
-   - Решение: Убедитесь, что в секретах нет лишних пробелов
-
-5. **Пустые значения**:
-   - Если секреты не установлены, будет ошибка
-   - Решение: Проверьте, что оба секрета (`DOCKER_REGISTRY_URL` и `DOCKER_IMAGE_NAME`) установлены
-
-**Проверка**:
-Workflow автоматически валидирует и очищает значения. Проверьте логи шага "Validate and sanitize environment variables" для деталей.
-
-#### Проблема: Ошибка TLS сертификата при работе с registry
-
-**Ошибка**: `x509: certificate signed by unknown authority` или `tls: failed to verify certificate` или `Error response from daemon: Get "https://***/v2/": tls: failed to verify certificate`
-
-**Причина**: Registry использует самоподписанный сертификат или IP-адрес вместо домена.
+**Ошибка**: `❌ ERROR: PROJECT_DIR is not set`
 
 **Решение**:
+1. Убедитесь, что секрет `DEPLOY_PROJECT_PATH` установлен в GitHub Secrets
+2. Используйте абсолютный путь (например, `/home/user/atom-dbro-backend`, а не `~/atom-dbro-backend`)
+3. Проверьте, что путь существует на сервере
 
-##### Для GitHub Actions (автоматический деплой):
+#### Проблема: Ошибка "Service 'app' not found in docker-compose.yml"
 
-1. **Добавьте секрет `DOCKER_REGISTRY_INSECURE` со значением `true` в GitHub Secrets**
-   - Перейдите в репозиторий → **Settings** → **Secrets and variables** → **Actions**
-   - Создайте секрет `DOCKER_REGISTRY_INSECURE` со значением `true`
-   - GitHub Actions workflow автоматически настроит Docker daemon для работы с insecure registry
-
-2. **Workflow автоматически настроит insecure registry** перед push образа
-   - Не требуется дополнительная настройка на стороне GitHub Actions runner
-   - Docker daemon будет настроен автоматически через `/etc/docker/daemon.json`
-
-##### Для ручного деплоя (на сервере):
-
-1. **Если registry использует самоподписанный сертификат или IP-адрес**:
-   - Установите переменную окружения `DOCKER_REGISTRY_INSECURE=true` перед запуском `deploy.sh`
-   - Скрипт проверит настройку Docker daemon и выведет инструкции при необходимости
-
-2. **Настройка Docker daemon на сервере** (если скрипт выдает предупреждение):
-   ```bash
-   # На сервере создайте или отредактируйте /etc/docker/daemon.json
-   sudo mkdir -p /etc/docker
-   
-   # Замените REGISTRY_URL на ваш registry URL
-   sudo tee /etc/docker/daemon.json <<EOF
-   {
-     "insecure-registries": ["REGISTRY_URL"]
-   }
-   EOF
-   
-   # Перезапустите Docker daemon
-   sudo systemctl restart docker
-   # Или для некоторых систем:
-   sudo service docker restart
-   ```
-
-3. **Проверка настройки**:
-   ```bash
-   # Проверьте, что registry добавлен в insecure registries
-   docker info | grep -A 5 "Insecure Registries"
-   
-   # Попробуйте авторизоваться
-   docker login REGISTRY_URL -u USERNAME -p PASSWORD
-   ```
-
-4. **Использование скрипта deploy.sh с insecure registry**:
-   ```bash
-   export DOCKER_REGISTRY="registry.example.com"
-   export DOCKER_IMAGE_NAME="atom-dbro-backend"
-   export DOCKER_REGISTRY_USERNAME="your-username"
-   export DOCKER_REGISTRY_PASSWORD="your-password"
-   export DOCKER_REGISTRY_INSECURE="true"  # Важно!
-   export PROJECT_DIR="~/atom-dbro-backend"
-   
-   bash scripts/deploy.sh
-   ```
-
-**⚠️ ВНИМАНИЕ**: Использование insecure registry снижает безопасность. Используйте только в доверенных сетях или для тестирования.
-
-#### Проблема: Ошибка авторизации в Docker registry
+**Ошибка**: `❌ ERROR: Service 'app' not found in docker-compose.yml`
 
 **Решение**:
-1. Проверьте правильность `DOCKER_REGISTRY_URL`, `DOCKER_REGISTRY_USERNAME` и `DOCKER_REGISTRY_PASSWORD` в GitHub Secrets
-2. Попробуйте авторизоваться вручную: `docker login registry.example.com`
-3. Если используется insecure registry, добавьте флаг: `docker login --insecure-registry registry.example.com`
+1. Убедитесь, что файл `docker-compose.yml` существует в директории проекта
+2. Проверьте, что сервис с нужным именем существует в `docker-compose.yml`
+3. Если сервис называется по-другому, установите секрет `DEPLOY_SERVICE_NAME` с правильным именем
+
+#### Проблема: Ошибка "no such service: app"
+
+**Ошибка**: `no such service: app`
+
+**Решение**:
+1. Проверьте, что в `docker-compose.yml` есть сервис с именем, указанным в `DEPLOY_SERVICE_NAME` (по умолчанию `app`)
+2. Убедитесь, что вы находитесь в правильной директории проекта
+3. Проверьте синтаксис `docker-compose.yml`
 
 #### Проблема: Контейнер не запускается после деплоя
 
 **Решение**:
-1. Проверьте логи: `docker logs atom-dbro-app`
+1. Проверьте логи: `docker logs <CONTAINER_NAME>` (замените на имя вашего контейнера)
 2. Убедитесь, что `.env` файл настроен правильно
 3. Проверьте, что Docker сети созданы: `docker network ls`
-4. Проверьте доступность образа: `docker images | grep atom-dbro-backend`
+4. Проверьте доступность образа: `docker images | grep <IMAGE_NAME>`
+5. Проверьте, что переменная `DOCKER_IMAGE` установлена в окружении перед запуском `docker compose`
 
-#### Проблема: Миграции не выполняются
+#### Проблема: Health check не проходит
+
+**Ошибка**: `❌ Health check failed after 30 attempts`
 
 **Решение**:
-1. Проверьте подключение к БД: `docker exec atom-dbro-postgres psql -U postgres -d atom_dbro -c "SELECT 1;"`
-2. Проверьте переменную `DATABASE_URL` в контейнере
-3. Выполните миграции вручную: `docker exec atom-dbro-app npm run db:migrate`
+1. Проверьте логи контейнера: `docker logs <CONTAINER_NAME> --tail 100`
+2. Убедитесь, что приложение запустилось и слушает на порту 3000
+3. Проверьте, что порт 3000 проброшен в `docker-compose.yml`
+4. Проверьте доступность приложения вручную: `curl http://localhost:3000/api`
+5. Убедитесь, что приложение полностью инициализировалось (может потребоваться больше времени)
+
+#### Проблема: Запускается неправильный стек (project name)
+
+**Ошибка**: Запускается стек с неправильным именем (например, `atom-dbro-gateway` вместо нужного)
+
+**Решение**:
+1. Установите секрет `DEPLOY_COMPOSE_PROJECT_NAME` с правильным именем стека
+2. Или убедитесь, что вы находитесь в правильной директории проекта
+3. Проверьте, какой project name использует docker compose: `docker compose ps`
 
 ### Мониторинг деплоев
 
