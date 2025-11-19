@@ -322,6 +322,11 @@ docker-compose up -d --build app
 
 - **`DEPLOY_SSH_PORT`** - Порт SSH (по умолчанию: 22)
 
+- **`DOCKER_REGISTRY_INSECURE`** - Использовать insecure registry (для самоподписанных сертификатов)
+  - Установите в `true`, если ваш registry использует самоподписанный сертификат или IP-адрес
+  - По умолчанию: не установлен (используется HTTPS с проверкой сертификата)
+  - ⚠️ **ВНИМАНИЕ**: Использование insecure registry снижает безопасность!
+
 ### Настройка сервера для деплоя
 
 #### 1. Установка Docker и Docker Compose
@@ -632,11 +637,48 @@ bash scripts/deploy.sh
 **Проверка**:
 Workflow автоматически валидирует и очищает значения. Проверьте логи шага "Validate and sanitize environment variables" для деталей.
 
+#### Проблема: Ошибка TLS сертификата при работе с registry
+
+**Ошибка**: `x509: certificate signed by unknown authority` или `tls: failed to verify certificate`
+
+**Причина**: Registry использует самоподписанный сертификат или IP-адрес вместо домена.
+
+**Решение**:
+
+1. **Если registry использует самоподписанный сертификат**:
+   - Добавьте секрет `DOCKER_REGISTRY_INSECURE` со значением `true` в GitHub Secrets
+   - Это позволит использовать insecure registry (без проверки сертификата)
+
+2. **Если registry использует IP-адрес**:
+   - Также установите `DOCKER_REGISTRY_INSECURE=true`
+   - Или настройте DNS для использования доменного имени
+
+3. **Настройка на сервере** (для деплоя):
+   ```bash
+   # На сервере создайте или отредактируйте /etc/docker/daemon.json
+   sudo mkdir -p /etc/docker
+   sudo tee /etc/docker/daemon.json <<EOF
+   {
+     "insecure-registries": ["${{ secrets.DOCKER_REGISTRY_URL }}"]
+   }
+   EOF
+   sudo systemctl restart docker
+   ```
+
+4. **Проверка подключения**:
+   ```bash
+   # Локально (если insecure)
+   docker login --insecure-registry ${{ secrets.DOCKER_REGISTRY_URL }}
+   ```
+
+**⚠️ ВНИМАНИЕ**: Использование insecure registry снижает безопасность. Используйте только в доверенных сетях или для тестирования.
+
 #### Проблема: Ошибка авторизации в Docker registry
 
 **Решение**:
 1. Проверьте правильность `DOCKER_REGISTRY_URL`, `DOCKER_REGISTRY_USERNAME` и `DOCKER_REGISTRY_PASSWORD` в GitHub Secrets
 2. Попробуйте авторизоваться вручную: `docker login registry.example.com`
+3. Если используется insecure registry, добавьте флаг: `docker login --insecure-registry registry.example.com`
 
 #### Проблема: Контейнер не запускается после деплоя
 

@@ -81,6 +81,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            network=host
+            env.BUILDKIT_STEP_LOG_MAX_SIZE=10485760
 
       - name: Extract metadata
         id: meta
@@ -94,6 +98,8 @@ jobs:
       - name: Build Docker image
         id: build
         uses: docker/build-push-action@v5
+        env:
+          BUILDKIT_PROGRESS: plain
         with:
           context: .
           file: ./Dockerfile
@@ -102,6 +108,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=${{ steps.validate.outputs.full_image }}:buildcache
           cache-to: type=registry,ref=${{ steps.validate.outputs.full_image }}:buildcache,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
 
       - name: Get commit SHA
         id: commit
@@ -172,6 +180,7 @@ jobs:
           registry: ${{ steps.validate.outputs.registry }}
           username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
+          insecure: ${{ secrets.DOCKER_REGISTRY_INSECURE == 'true' }}
 
       - name: Extract metadata
         id: meta
@@ -184,6 +193,9 @@ jobs:
 
       - name: Build and push Docker image
         id: push
+        env:
+          BUILDKIT_PROGRESS: plain
+          DOCKER_BUILDKIT: 1
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -193,6 +205,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=${{ steps.validate.outputs.full_image }}:buildcache
           cache-to: type=registry,ref=${{ steps.validate.outputs.full_image }}:buildcache,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
 
       - name: Push Summary
         if: success()
@@ -297,6 +311,7 @@ jobs:
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
       DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
       DEPLOY_PROJECT_PATH: ${{ secrets.DEPLOY_PROJECT_PATH }}
+      DOCKER_REGISTRY: ${{ needs.build.outputs.registry }}
       # Используем данные из build job
       FULL_IMAGE_NAME: ${{ needs.build.outputs.full-image-name }}
       IMAGE_TAGS: ${{ needs.build.outputs.image-tags }}
@@ -341,7 +356,30 @@ jobs:
             
             # Login to Docker registry
             echo "🔐 Logging in to Docker registry..."
-            echo '${{ secrets.DOCKER_REGISTRY_PASSWORD }}' | docker login '${{ env.DOCKER_REGISTRY }}' -u '${{ secrets.DOCKER_REGISTRY_USERNAME }}' --password-stdin
+            REGISTRY_URL="${{ env.DOCKER_REGISTRY }}"
+            # Если используется insecure registry, настраиваем Docker daemon
+            if [ "${{ secrets.DOCKER_REGISTRY_INSECURE }}" = "true" ]; then
+              echo "⚠️ Configuring insecure registry..."
+              # Настройка Docker daemon для insecure registry
+              sudo mkdir -p /etc/docker
+              # Проверяем, есть ли уже insecure-registries в daemon.json
+              if [ -f /etc/docker/daemon.json ] && grep -q "insecure-registries" /etc/docker/daemon.json; then
+                echo "⚠️ insecure-registries already configured in daemon.json"
+                echo "⚠️ Please manually add \$REGISTRY_URL to /etc/docker/daemon.json if needed"
+              else
+                # Создаем или обновляем файл
+                if [ -f /etc/docker/daemon.json ]; then
+                  # Если файл существует, добавляем insecure-registries (простой способ)
+                  sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
+                  echo "⚠️ Backed up existing daemon.json"
+                  echo "⚠️ You may need to manually merge insecure-registries"
+                fi
+                # Создаем минимальный файл с insecure registry
+                echo "{\"insecure-registries\": [\"\$REGISTRY_URL\"]}" | sudo tee /etc/docker/daemon.json
+                sudo systemctl restart docker || echo "⚠️ Could not restart docker, continuing..."
+              fi
+            fi
+            echo '${{ secrets.DOCKER_REGISTRY_PASSWORD }}' | docker login "\$REGISTRY_URL" -u '${{ secrets.DOCKER_REGISTRY_USERNAME }}' --password-stdin
             
             # Pull latest image
             echo "📥 Pulling latest image: \$FULL_IMAGE_NAME"
