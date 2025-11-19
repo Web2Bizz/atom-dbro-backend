@@ -10,19 +10,13 @@ env:
   NODE_VERSION: '20'
 
 jobs:
-  build-and-push:
-    name: Build and Push Docker Image
+  validate:
+    name: Validate Environment Variables
     runs-on: ubuntu-latest
-    env:
-      DOCKER_REGISTRY_INSECURE: ${{ secrets.DOCKER_REGISTRY_INSECURE }}
-    
+    outputs:
+      registry_url: ${{ steps.validate.outputs.registry_url }}
+      image_name: ${{ steps.validate.outputs.image_name }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Validate and sanitize environment variables
         id: validate
         run: |
@@ -55,88 +49,228 @@ jobs:
           DOCKER_REGISTRY_URL: ${{ secrets.DOCKER_REGISTRY_URL }}
           DOCKER_IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME }}
 
-      - name: Configure Docker for insecure registry (if needed)
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: validate
+    env:
+      DOCKER_REGISTRY_INSECURE: ${{ secrets.DOCKER_REGISTRY_INSECURE }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install jq (for daemon.json manipulation)
+        if: env.DOCKER_REGISTRY_INSECURE == 'true'
         run: |
-          if [ "$DOCKER_REGISTRY_INSECURE" != "true" ]; then
-            echo "ℹ️ DOCKER_REGISTRY_INSECURE not set to 'true', skipping insecure registry configuration"
-            exit 0
-          fi
-          
-          echo "⚠️ Configuring Docker for insecure registry..."
-          REGISTRY_URL="${{ steps.validate.outputs.registry_url }}"
+          sudo apt-get update -qq
+          sudo apt-get install -y jq
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure Docker for insecure registry (if needed)
+        if: env.DOCKER_REGISTRY_INSECURE == 'true'
+        run: |
+          echo "⚠️ Configuring Docker for insecure registry (TLS verification disabled)..."
+          REGISTRY_URL="${{ needs.validate.outputs.registry_url }}"
           
           # Настраиваем insecure registry в Docker daemon
           sudo mkdir -p /etc/docker
           
-          # Проверяем, существует ли уже daemon.json
+          # Читаем существующий daemon.json или создаем новый
           if [ -f /etc/docker/daemon.json ]; then
             echo "📋 Existing daemon.json found, backing up..."
             sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
-            # Объединяем с существующим конфигом (простая версия)
-            echo "{\"insecure-registries\": [\"$REGISTRY_URL\"]}" | sudo tee /etc/docker/daemon.json
+            
+            # Пытаемся использовать jq для безопасного добавления insecure-registries
+            if command -v jq &> /dev/null; then
+              echo "Using jq to merge insecure-registries..."
+              sudo cat /etc/docker/daemon.json | jq --arg reg "$REGISTRY_URL" \
+                '.insecure-registries = (if .insecure-registries then (. + [$reg] | unique) else [$reg] end)' | \
+                sudo tee /etc/docker/daemon.json > /dev/null
+            else
+              # Fallback: перезаписываем (может потерять другие настройки)
+              echo "⚠️ jq not available, overwriting daemon.json"
+              echo "{\"insecure-registries\": [\"$REGISTRY_URL\"]}" | sudo tee /etc/docker/daemon.json
+            fi
           else
+            echo "Creating new daemon.json..."
             echo "{\"insecure-registries\": [\"$REGISTRY_URL\"]}" | sudo tee /etc/docker/daemon.json
           fi
           
-          # Перезапускаем Docker daemon
-          echo "🔄 Restarting Docker daemon..."
-          if command -v systemctl &> /dev/null; then
-            sudo systemctl restart docker || true
-          elif command -v service &> /dev/null; then
-            sudo service docker restart || true
+          # Отключаем TLS для Docker клиента (для Buildx и других инструментов)
+          export DOCKER_TLS_CERTDIR=""
+          echo "DOCKER_TLS_CERTDIR=" >> $GITHUB_ENV
+          
+          # Пытаемся перезапустить Docker daemon
+          echo "🔄 Attempting to restart Docker daemon..."
+          if sudo systemctl is-active --quiet docker 2>/dev/null; then
+            sudo systemctl restart docker || echo "⚠️ Could not restart via systemctl (may not be needed)"
+          elif sudo service docker status >/dev/null 2>&1; then
+            sudo service docker restart || echo "⚠️ Could not restart via service (may not be needed)"
           else
-            # В GitHub Actions runner Docker может управляться по-другому
-            echo "⚠️ Could not restart Docker daemon automatically"
-            echo "⚠️ Please ensure Docker daemon is restarted manually if needed"
+            echo "ℹ️ Docker daemon restart skipped (managed by GitHub Actions runner)"
           fi
           
-          # Даем время на перезапуск и проверяем, что Docker работает
-          sleep 5
-          docker info > /dev/null 2>&1 || {
-            echo "⚠️ Docker may not have restarted properly, but continuing..."
-          }
+          # Даем время на перезапуск (если он произошел)
+          sleep 3
+          
+          # Проверяем конфигурацию
+          echo "📋 Current Docker daemon configuration:"
+          sudo cat /etc/docker/daemon.json || echo "⚠️ Could not read daemon.json"
+          
+          # Проверяем, что Docker работает
+          if docker info > /dev/null 2>&1; then
+            echo "✅ Docker is running"
+            echo "📋 Insecure registries:"
+            docker info 2>/dev/null | grep -A 5 "Insecure Registries" || echo "  (not shown in info)"
+          else
+            echo "⚠️ Docker info check failed, but continuing..."
+          fi
+          
+          echo "✅ Insecure registry configured: $REGISTRY_URL"
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-,format=short
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          load: true
+          tags: ${{ steps.meta.outputs.tags }},${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}:latest
+          cache-from: type=registry,ref=${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}:buildcache
+          cache-to: type=registry,ref=${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}:buildcache,mode=max
+        env:
+          DOCKER_TLS_CERTDIR: ${{ env.DOCKER_TLS_CERTDIR || '' }}
+
+  push:
+    name: Push Docker Image
+    runs-on: ubuntu-latest
+    needs: [validate, build]
+    env:
+      DOCKER_REGISTRY_INSECURE: ${{ secrets.DOCKER_REGISTRY_INSECURE }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install jq (for daemon.json manipulation)
+        if: env.DOCKER_REGISTRY_INSECURE == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y jq
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure Docker for insecure registry (if needed)
+        if: env.DOCKER_REGISTRY_INSECURE == 'true'
+        run: |
+          echo "⚠️ Configuring Docker for insecure registry (TLS verification disabled)..."
+          REGISTRY_URL="${{ needs.validate.outputs.registry_url }}"
+          
+          # Настраиваем insecure registry в Docker daemon
+          sudo mkdir -p /etc/docker
+          
+          # Читаем существующий daemon.json или создаем новый
+          if [ -f /etc/docker/daemon.json ]; then
+            echo "📋 Existing daemon.json found, backing up..."
+            sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
+            
+            # Пытаемся использовать jq для безопасного добавления insecure-registries
+            if command -v jq &> /dev/null; then
+              echo "Using jq to merge insecure-registries..."
+              sudo cat /etc/docker/daemon.json | jq --arg reg "$REGISTRY_URL" \
+                '.insecure-registries = (if .insecure-registries then (. + [$reg] | unique) else [$reg] end)' | \
+                sudo tee /etc/docker/daemon.json > /dev/null
+            else
+              # Fallback: перезаписываем (может потерять другие настройки)
+              echo "⚠️ jq not available, overwriting daemon.json"
+              echo "{\"insecure-registries\": [\"$REGISTRY_URL\"]}" | sudo tee /etc/docker/daemon.json
+            fi
+          else
+            echo "Creating new daemon.json..."
+            echo "{\"insecure-registries\": [\"$REGISTRY_URL\"]}" | sudo tee /etc/docker/daemon.json
+          fi
+          
+          # Отключаем TLS для Docker клиента (для Buildx и других инструментов)
+          export DOCKER_TLS_CERTDIR=""
+          echo "DOCKER_TLS_CERTDIR=" >> $GITHUB_ENV
+          
+          # Пытаемся перезапустить Docker daemon
+          echo "🔄 Attempting to restart Docker daemon..."
+          if sudo systemctl is-active --quiet docker 2>/dev/null; then
+            sudo systemctl restart docker || echo "⚠️ Could not restart via systemctl (may not be needed)"
+          elif sudo service docker status >/dev/null 2>&1; then
+            sudo service docker restart || echo "⚠️ Could not restart via service (may not be needed)"
+          else
+            echo "ℹ️ Docker daemon restart skipped (managed by GitHub Actions runner)"
+          fi
+          
+          # Даем время на перезапуск (если он произошел)
+          sleep 3
+          
+          # Проверяем конфигурацию
+          echo "📋 Current Docker daemon configuration:"
+          sudo cat /etc/docker/daemon.json || echo "⚠️ Could not read daemon.json"
+          
+          # Проверяем, что Docker работает
+          if docker info > /dev/null 2>&1; then
+            echo "✅ Docker is running"
+            echo "📋 Insecure registries:"
+            docker info 2>/dev/null | grep -A 5 "Insecure Registries" || echo "  (not shown in info)"
+          else
+            echo "⚠️ Docker info check failed, but continuing..."
+          fi
           
           echo "✅ Insecure registry configured: $REGISTRY_URL"
 
       - name: Log in to Docker Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ steps.validate.outputs.registry_url }}
+          registry: ${{ needs.validate.outputs.registry_url }}
           username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
+        env:
+          DOCKER_TLS_CERTDIR: ${{ env.DOCKER_TLS_CERTDIR || '' }}
 
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.validate.outputs.registry_url }}/${{ steps.validate.outputs.image_name }}
+          images: ${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}
           tags: |
             type=ref,event=branch
             type=sha,prefix=sha-,format=short
 
-      - name: Build and push Docker image
+      - name: Push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }},${{ steps.validate.outputs.registry_url }}/${{ steps.validate.outputs.image_name }}:latest
-          cache-from: type=registry,ref=${{ steps.validate.outputs.registry_url }}/${{ steps.validate.outputs.image_name }}:buildcache
-          cache-to: type=registry,ref=${{ steps.validate.outputs.registry_url }}/${{ steps.validate.outputs.image_name }}:buildcache,mode=max
-      
-      - name: Set job outputs
-        id: job_outputs
-        run: |
-          echo "registry_url=${{ steps.validate.outputs.registry_url }}" >> $GITHUB_OUTPUT
-          echo "image_name=${{ steps.validate.outputs.image_name }}" >> $GITHUB_OUTPUT
+          tags: ${{ steps.meta.outputs.tags }},${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}:latest
+          cache-from: type=registry,ref=${{ needs.validate.outputs.registry_url }}/${{ needs.validate.outputs.image_name }}:buildcache
+        env:
+          DOCKER_TLS_CERTDIR: ${{ env.DOCKER_TLS_CERTDIR || '' }}
 
     outputs:
-      registry_url: ${{ steps.job_outputs.outputs.registry_url }}
-      image_name: ${{ steps.job_outputs.outputs.image_name }}
+      registry_url: ${{ needs.validate.outputs.registry_url }}
+      image_name: ${{ needs.validate.outputs.image_name }}
 
   deploy:
     name: Deploy to Server
-    needs: build-and-push
+    needs: push
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     env:
@@ -181,8 +315,8 @@ jobs:
           REMOTE_SCRIPT
         env:
           DOCKER_REGISTRY_INSECURE_VALUE: ${{ env.DOCKER_REGISTRY_INSECURE }}
-          DOCKER_REGISTRY_VALUE: ${{ needs.build-and-push.outputs.registry_url }}
-          DOCKER_IMAGE_NAME_VALUE: ${{ needs.build-and-push.outputs.image_name }}
+          DOCKER_REGISTRY_VALUE: ${{ needs.push.outputs.registry_url }}
+          DOCKER_IMAGE_NAME_VALUE: ${{ needs.push.outputs.image_name }}
           DOCKER_REGISTRY_USERNAME_VALUE: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
           DOCKER_REGISTRY_PASSWORD_VALUE: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
           PROJECT_DIR_VALUE: ${{ secrets.DEPLOY_PROJECT_PATH }}

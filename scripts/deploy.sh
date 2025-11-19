@@ -61,13 +61,63 @@ log "🔐 Logging in to Docker registry: $DOCKER_REGISTRY"
 # Настройка insecure registry, если необходимо
 if [ "$DOCKER_REGISTRY_INSECURE" = "true" ]; then
     warning "Using insecure registry (TLS verification disabled)"
+    
     # Проверяем, настроен ли insecure registry в Docker daemon
     if ! docker info 2>/dev/null | grep -q "Insecure Registries:.*$DOCKER_REGISTRY"; then
-        warning "Registry $DOCKER_REGISTRY needs to be added to Docker daemon insecure-registries"
-        warning "Please add it to /etc/docker/daemon.json and restart Docker daemon:"
-        warning '  {"insecure-registries": ["'$DOCKER_REGISTRY'"]}'
-        warning "Attempting login anyway (may fail if registry not configured)..."
+        warning "Registry $DOCKER_REGISTRY not found in insecure-registries, configuring..."
+        
+        # Настраиваем insecure registry в Docker daemon
+        sudo mkdir -p /etc/docker
+        
+        # Читаем существующий daemon.json или создаем новый
+        if [ -f /etc/docker/daemon.json ]; then
+            log "📋 Existing daemon.json found, backing up..."
+            sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
+            
+            # Пытаемся использовать jq для безопасного добавления insecure-registries
+            if command -v jq &> /dev/null; then
+                log "Using jq to merge insecure-registries..."
+                sudo cat /etc/docker/daemon.json | jq --arg reg "$DOCKER_REGISTRY" \
+                    '.insecure-registries = (if .insecure-registries then (. + [$reg] | unique) else [$reg] end)' | \
+                    sudo tee /etc/docker/daemon.json > /dev/null
+            else
+                # Fallback: перезаписываем (может потерять другие настройки)
+                warning "jq not available, overwriting daemon.json"
+                echo "{\"insecure-registries\": [\"$DOCKER_REGISTRY\"]}" | sudo tee /etc/docker/daemon.json
+            fi
+        else
+            log "Creating new daemon.json..."
+            echo "{\"insecure-registries\": [\"$DOCKER_REGISTRY\"]}" | sudo tee /etc/docker/daemon.json
+        fi
+        
+        # Отключаем TLS для Docker клиента
+        export DOCKER_TLS_CERTDIR=""
+        
+        # Перезапускаем Docker daemon
+        log "🔄 Restarting Docker daemon..."
+        if command -v systemctl &> /dev/null && sudo systemctl is-active --quiet docker 2>/dev/null; then
+            sudo systemctl restart docker || warning "Could not restart via systemctl"
+        elif command -v service &> /dev/null && sudo service docker status >/dev/null 2>&1; then
+            sudo service docker restart || warning "Could not restart via service"
+        else
+            warning "Docker daemon restart skipped"
+        fi
+        
+        # Даем время на перезапуск
+        sleep 3
+        
+        # Проверяем конфигурацию
+        if docker info > /dev/null 2>&1; then
+            log "✅ Docker daemon restarted successfully"
+        else
+            warning "Docker info check failed, but continuing..."
+        fi
+    else
+        log "✅ Insecure registry already configured: $DOCKER_REGISTRY"
     fi
+    
+    # Отключаем TLS для Docker клиента (на всякий случай)
+    export DOCKER_TLS_CERTDIR=""
 fi
 
 # Выполняем вход в registry
@@ -78,6 +128,7 @@ echo "$DOCKER_REGISTRY_PASSWORD" | docker login "$DOCKER_REGISTRY" -u "$DOCKER_R
         error "1. Registry is added to /etc/docker/daemon.json as insecure-registry"
         error "2. Docker daemon has been restarted"
         error "3. Registry URL is correct: $DOCKER_REGISTRY"
+        error "4. Credentials are valid"
         exit 1
     else
         error "Failed to login to registry. Check credentials and network connectivity."
