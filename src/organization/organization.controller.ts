@@ -44,9 +44,7 @@ interface MulterFile {
 }
 
 @ApiTags('Организации')
-@ApiBearerAuth()
 @Controller('organizations')
-@UseGuards(JwtAuthGuard)
 export class OrganizationController {
   constructor(
     private readonly organizationService: OrganizationService,
@@ -60,6 +58,8 @@ export class OrganizationController {
   @ApiResponse({ status: 201, description: 'Организация успешно создана', type: CreateOrganizationDtoClass })
   @ApiResponse({ status: 400, description: 'Неверные данные' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   create(
     @Body() createOrganizationDto: CreateOrganizationDto,
     @CurrentUser() user: { userId: number; email: string },
