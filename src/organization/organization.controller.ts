@@ -28,6 +28,7 @@ import { AddHelpTypeDto, addHelpTypeSchema, AddHelpTypeDtoClass } from './dto/ad
 import { CreateOrganizationsBulkDto, createOrganizationsBulkSchema } from './dto/create-organizations-bulk.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 
 interface MulterFile {
@@ -67,18 +68,18 @@ export class OrganizationController {
   }
 
   @Get()
+  @Public()
   @ApiOperation({ summary: 'Получить все организации' })
   @ApiResponse({ status: 200, description: 'Список организаций' })
-  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findAll() {
     return this.organizationService.findAll();
   }
 
   @Get(':id')
+  @Public()
   @ApiOperation({ summary: 'Получить организацию по ID' })
   @ApiResponse({ status: 200, description: 'Организация найдена' })
   @ApiResponse({ status: 404, description: 'Организация не найдена' })
-  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.organizationService.findOne(id);
   }
