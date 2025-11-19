@@ -124,7 +124,7 @@ jobs:
       - name: Deploy application
         run: |
           SSH_PORT="${DEPLOY_SSH_PORT:-22}"
-          ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'REMOTE_SCRIPT'
+          ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "export PROJECT_DIR_VALUE='$PROJECT_DIR_VALUE'; bash -s" << 'REMOTE_SCRIPT'
             set -e
             
             IMAGE_NAME="atom-dbro-backend"
