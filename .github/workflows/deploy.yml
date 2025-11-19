@@ -124,13 +124,14 @@ jobs:
       - name: Deploy application
         run: |
           SSH_PORT="${DEPLOY_SSH_PORT:-22}"
-          ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "export PROJECT_DIR_VALUE='$PROJECT_DIR_VALUE' CONTAINER_NAME='$CONTAINER_NAME' IMAGE_NAME='$IMAGE_NAME' SERVICE_NAME='$SERVICE_NAME'; bash -s" << 'REMOTE_SCRIPT'
+          ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "export PROJECT_DIR_VALUE='$PROJECT_DIR_VALUE' CONTAINER_NAME='$CONTAINER_NAME' IMAGE_NAME='$IMAGE_NAME' SERVICE_NAME='$SERVICE_NAME' COMPOSE_PROJECT_NAME='$COMPOSE_PROJECT_NAME'; bash -s" << 'REMOTE_SCRIPT'
             set -e
             
             IMAGE_NAME="${IMAGE_NAME:-atom-dbro-backend}"
             PROJECT_DIR="$PROJECT_DIR_VALUE"
             CONTAINER_NAME="${CONTAINER_NAME:-atom-dbro-app}"
             SERVICE_NAME="${SERVICE_NAME:-app}"
+            COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-}"
             
             # Проверяем, что переменная PROJECT_DIR установлена
             if [ -z "$PROJECT_DIR" ]; then
@@ -218,9 +219,17 @@ jobs:
               exit 1
             fi
             
-            # Устанавливаем переменную DOCKER_IMAGE для docker-compose
+            # Устанавливаем переменные для docker-compose
             export DOCKER_IMAGE="$IMAGE_NAME:latest"
             echo "✅ DOCKER_IMAGE environment variable set to: $DOCKER_IMAGE"
+            
+            # Устанавливаем имя проекта (стек) для docker-compose, если указано
+            if [ -n "$COMPOSE_PROJECT_NAME" ]; then
+              export COMPOSE_PROJECT_NAME="$COMPOSE_PROJECT_NAME"
+              echo "✅ COMPOSE_PROJECT_NAME set to: $COMPOSE_PROJECT_NAME"
+            else
+              echo "ℹ️ COMPOSE_PROJECT_NAME not set, using default (directory name)"
+            fi
             
             # Останавливаем и удаляем только контейнер приложения (если существует)
             if docker ps -a --format "{{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
@@ -244,9 +253,16 @@ jobs:
             # --force-recreate: пересоздает контейнер даже если конфигурация не изменилась
             # --no-deps: не запускает зависимости
             # --pull never: не пытается скачать образ (он уже загружен)
+            # -p или --project-name: явно указываем имя проекта (стек)
             echo "▶️ Starting service '$SERVICE_NAME' with docker compose..."
-            echo "Command: docker compose -f '$COMPOSE_FILE' up -d --force-recreate --no-deps --pull never '$SERVICE_NAME'"
-            docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-deps --pull never "$SERVICE_NAME"
+            
+            if [ -n "$COMPOSE_PROJECT_NAME" ]; then
+              echo "Command: docker compose -f '$COMPOSE_FILE' -p '$COMPOSE_PROJECT_NAME' up -d --force-recreate --no-deps --pull never '$SERVICE_NAME'"
+              docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" up -d --force-recreate --no-deps --pull never "$SERVICE_NAME"
+            else
+              echo "Command: docker compose -f '$COMPOSE_FILE' up -d --force-recreate --no-deps --pull never '$SERVICE_NAME'"
+              docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-deps --pull never "$SERVICE_NAME"
+            fi
             
             # Проверяем, что контейнер запустился
             if ! docker ps --format "{{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
@@ -287,6 +303,10 @@ jobs:
               exit 1
             fi
             
+            # Даем приложению время на полный запуск
+            echo "⏳ Waiting for application to fully start (10 seconds)..."
+            sleep 10
+            
             # Health check приложения
             echo "🏥 Performing health check..."
             MAX_HEALTH_CHECK_ATTEMPTS=30
@@ -294,13 +314,19 @@ jobs:
             HEALTH_CHECK_SUCCESS=false
             
             while [ $HEALTH_CHECK_ATTEMPT -lt $MAX_HEALTH_CHECK_ATTEMPTS ]; do
-              if curl -f http://localhost:3000/api > /dev/null 2>&1; then
+              # Проверяем доступность через curl
+              if curl -f -s -o /dev/null -w "%{http_code}" http://localhost:3000/api | grep -q "200\|301\|302"; then
                 HEALTH_CHECK_SUCCESS=true
                 break
               fi
               HEALTH_CHECK_ATTEMPT=$((HEALTH_CHECK_ATTEMPT + 1))
               if [ $HEALTH_CHECK_ATTEMPT -lt $MAX_HEALTH_CHECK_ATTEMPTS ]; then
                 echo "Health check attempt $HEALTH_CHECK_ATTEMPT/$MAX_HEALTH_CHECK_ATTEMPTS failed, retrying in 2 seconds..."
+                # Показываем последние логи для отладки
+                if [ $((HEALTH_CHECK_ATTEMPT % 5)) -eq 0 ]; then
+                  echo "📋 Recent container logs:"
+                  docker logs "$CONTAINER_NAME" --tail 20 2>&1 | tail -5 || true
+                fi
                 sleep 2
               fi
             done
@@ -341,3 +367,4 @@ jobs:
           CONTAINER_NAME: ${{ secrets.DEPLOY_CONTAINER_NAME || 'atom-dbro-app' }}
           SERVICE_NAME: ${{ secrets.DEPLOY_SERVICE_NAME || 'app' }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          COMPOSE_PROJECT_NAME: ${{ secrets.DEPLOY_COMPOSE_PROJECT_NAME || '' }}
