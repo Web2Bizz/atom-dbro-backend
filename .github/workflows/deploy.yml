@@ -1,4 +1,4 @@
-name: Build and Deploy
+name: CI/CD Pipeline
 
 on:
   push:
@@ -8,13 +8,64 @@ on:
 env:
   DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY_URL }}
   DOCKER_IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME }}
-  DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-  DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-  DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
 
 jobs:
-  build-and-deploy:
+  # Build: сборка Docker образа
+  build:
+    name: Build Docker Image
     runs-on: ubuntu-latest
+    outputs:
+      image-tags: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+      commit-sha: ${{ steps.commit.outputs.sha }}
+      full-image-name: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix={{branch}}-,format=short
+
+      - name: Build Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false  # Только сборка, без отправки
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:buildcache,mode=max
+
+      - name: Get commit SHA
+        id: commit
+        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Build Summary
+        if: success()
+        run: |
+          echo "✅ Build completed successfully!"
+          echo "📦 Image built locally"
+          echo "🏷️ Tags: ${{ steps.meta.outputs.tags }}"
+          echo "📝 Commit: ${{ steps.commit.outputs.sha }}"
+
+  # Push: отправка образа в registry
+  push:
+    name: Push to Registry
+    runs-on: ubuntu-latest
+    needs: build
+    if: success() && needs.build.result == 'success'
     
     steps:
       - name: Checkout code
@@ -40,20 +91,36 @@ jobs:
             type=sha,prefix={{branch}}-,format=short
 
       - name: Build and push Docker image
+        id: push
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
-          push: true
+          push: true  # Отправка в registry
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:buildcache
           cache-to: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:buildcache,mode=max
 
-      - name: Get commit SHA
-        id: commit
-        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: Push Summary
+        if: success()
+        run: |
+          echo "✅ Push completed successfully!"
+          echo "📦 Image pushed to registry"
+          echo "🏷️ Tags: ${{ steps.meta.outputs.tags }}"
+          echo "🔗 Full image: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:latest"
 
+  # SSH Connect: настройка SSH соединения
+  ssh-connect:
+    name: SSH Connection Setup
+    runs-on: ubuntu-latest
+    
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
+    
+    steps:
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -63,11 +130,56 @@ jobs:
         run: |
           ssh-keyscan -p ${{ env.DEPLOY_SSH_PORT }} -H ${{ env.DEPLOY_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Test SSH connection
+        run: |
+          echo "🔌 Testing SSH connection..."
+          ssh -p ${{ env.DEPLOY_SSH_PORT }} -o StrictHostKeyChecking=no ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "echo '✅ SSH connection successful' && hostname && uname -a"
+
+      - name: SSH Connection Summary
+        if: success()
+        run: |
+          echo "✅ SSH connection established!"
+          echo "🌐 Server: ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_SSH_PORT }}"
+
+  # Deploy: деплой на сервер
+  deploy:
+    name: Deploy to Server
+    runs-on: ubuntu-latest
+    needs: [push, ssh-connect]  # Запускается после успешного push и настройки SSH
+    if: success() && needs.push.result == 'success' && needs.ssh-connect.result == 'success'
+    
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
+      # Используем данные из build job
+      FULL_IMAGE_NAME: ${{ needs.build.outputs.full-image-name }}
+      IMAGE_TAGS: ${{ needs.build.outputs.image-tags }}
+      COMMIT_SHA: ${{ needs.build.outputs.commit-sha }}
+    
+    steps:
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          ssh-keyscan -p ${{ env.DEPLOY_SSH_PORT }} -H ${{ env.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Display deployment info
+        run: |
+          echo "🚀 Starting deployment..."
+          echo "📦 Image: ${{ env.FULL_IMAGE_NAME }}"
+          echo "🏷️ Tags: ${{ env.IMAGE_TAGS }}"
+          echo "📝 Commit: ${{ env.COMMIT_SHA }}"
+          echo "🌐 Target: ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_SSH_PORT }}"
+
       - name: Deploy to server
         run: |
           ssh -p ${{ env.DEPLOY_SSH_PORT }} -o StrictHostKeyChecking=no ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << ENDSSH
             set -e
-            FULL_IMAGE_NAME="${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:latest"
+            FULL_IMAGE_NAME="${{ env.FULL_IMAGE_NAME }}"
             
             echo "🚀 Starting deployment..."
             
@@ -123,6 +235,8 @@ jobs:
         if: success()
         run: |
           echo "✅ Deployment completed successfully!"
+          echo "📦 Deployed image: ${{ env.FULL_IMAGE_NAME }}"
+          echo "📝 Commit: ${{ env.COMMIT_SHA }}"
           echo "🌐 Application should be available at: http://${{ env.DEPLOY_HOST }}:3000"
           echo "📚 Swagger docs: http://${{ env.DEPLOY_HOST }}:3000/api"
 
