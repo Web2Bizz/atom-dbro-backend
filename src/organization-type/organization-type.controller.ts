@@ -18,13 +18,13 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Public } from '../auth/decorators/public.decorator';
 
 @ApiTags('Типы организаций')
-@ApiBearerAuth()
 @Controller('organization-types')
-@UseGuards(JwtAuthGuard)
 export class OrganizationTypeController {
   constructor(private readonly organizationTypeService: OrganizationTypeService) {}
 
   @Post()
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ZodValidation(createOrganizationTypeSchema)
   @ApiOperation({ summary: 'Создать тип организации' })
   @ApiBody({ type: CreateOrganizationTypeDtoClass })
@@ -36,7 +36,6 @@ export class OrganizationTypeController {
   }
 
   @Get()
-  @Public()
   @ApiOperation({ summary: 'Получить все типы организаций' })
   @ApiResponse({ status: 200, description: 'Список типов организаций' })
   findAll() {
@@ -44,7 +43,6 @@ export class OrganizationTypeController {
   }
 
   @Get(':id')
-  @Public()
   @ApiOperation({ summary: 'Получить тип организации по ID' })
   @ApiResponse({ status: 200, description: 'Тип организации найден' })
   @ApiResponse({ status: 404, description: 'Тип организации не найден' })
@@ -53,6 +51,8 @@ export class OrganizationTypeController {
   }
 
   @Patch(':id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ZodValidation(updateOrganizationTypeSchema)
   @ApiOperation({ summary: 'Обновить тип организации' })
   @ApiBody({ type: UpdateOrganizationTypeDtoClass })
@@ -68,6 +68,8 @@ export class OrganizationTypeController {
   }
 
   @Delete(':id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Удалить тип организации' })
   @ApiResponse({ status: 200, description: 'Тип организации удален' })
   @ApiResponse({ status: 404, description: 'Тип организации не найден' })
