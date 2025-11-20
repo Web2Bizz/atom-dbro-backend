@@ -57,6 +57,8 @@ export class QuestUpdateController {
   }
 
   @Patch(':id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ZodValidation(updateQuestUpdateSchema)
   @ApiOperation({ summary: 'Обновить обновление квеста' })
   @ApiBody({ type: UpdateQuestUpdateDtoClass })
