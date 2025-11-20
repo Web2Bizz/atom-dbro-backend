@@ -134,6 +134,13 @@
       "when": 1764000000000,
       "tag": "0018_remove_users_quest_id",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1764000100000,
+      "tag": "0019_make_quest_achievement_id_nullable",
+      "breakpoints": true
     }
   ]
 }
