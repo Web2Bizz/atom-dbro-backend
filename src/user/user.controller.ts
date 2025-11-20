@@ -37,8 +37,11 @@ export class UserController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить всех пользователей' })
   @ApiResponse({ status: 200, description: 'Список пользователей' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findAll() {
     return this.userService.findAll();
   }
@@ -60,9 +63,12 @@ export class UserController {
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить пользователя по ID' })
   @ApiResponse({ status: 200, description: 'Пользователь найден' })
   @ApiResponse({ status: 404, description: 'Пользователь не найден' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.userService.findOne(id);
   }

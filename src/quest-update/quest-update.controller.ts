@@ -36,6 +36,8 @@ export class QuestUpdateController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить все обновления квестов' })
   @ApiQuery({ 
     name: 'questId', 
@@ -44,14 +46,18 @@ export class QuestUpdateController {
     description: 'ID квеста для фильтрации' 
   })
   @ApiResponse({ status: 200, description: 'Список обновлений квестов' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findAll(@Query('questId', new ParseIntPipe({ optional: true })) questId?: number) {
     return this.questUpdateService.findAll(questId);
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить обновление квеста по ID' })
   @ApiResponse({ status: 200, description: 'Обновление квеста найдено' })
   @ApiResponse({ status: 404, description: 'Обновление квеста не найдено' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.questUpdateService.findOne(id);
   }

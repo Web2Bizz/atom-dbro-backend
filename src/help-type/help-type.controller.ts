@@ -34,16 +34,22 @@ export class HelpTypeController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить все виды помощи' })
   @ApiResponse({ status: 200, description: 'Список видов помощи' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findAll() {
     return this.helpTypeService.findAll();
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить вид помощи по ID' })
   @ApiResponse({ status: 200, description: 'Вид помощи найден' })
   @ApiResponse({ status: 404, description: 'Вид помощи не найден' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.helpTypeService.findOne(id);
   }

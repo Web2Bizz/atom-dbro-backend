@@ -35,16 +35,22 @@ export class OrganizationTypeController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить все типы организаций' })
   @ApiResponse({ status: 200, description: 'Список типов организаций' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findAll() {
     return this.organizationTypeService.findAll();
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить тип организации по ID' })
   @ApiResponse({ status: 200, description: 'Тип организации найден' })
   @ApiResponse({ status: 404, description: 'Тип организации не найден' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.organizationTypeService.findOne(id);
   }

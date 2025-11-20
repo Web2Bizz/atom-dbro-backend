@@ -16,7 +16,6 @@ import { CityService } from './city.service';
 import { CreateCityDto, createCitySchema, CreateCityDtoClass } from './dto/create-city.dto';
 import { UpdateCityDto, updateCitySchema, UpdateCityDtoClass } from './dto/update-city.dto';
 import { CreateCitiesBulkDto, createCitiesBulkSchema } from './dto/create-cities-bulk.dto';
-import { Public } from '../auth/decorators/public.decorator';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -38,19 +37,23 @@ export class CityController {
   }
 
   @Get()
-  @Public()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить все города (опционально фильтр по региону)' })
   @ApiQuery({ name: 'regionId', required: false, type: Number, description: 'ID региона для фильтрации' })
   @ApiResponse({ status: 200, description: 'Список городов' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findAll(@Query('regionId', new ParseIntPipe({ optional: true })) regionId?: number) {
     return this.cityService.findAll(regionId);
   }
 
   @Get(':id')
-  @Public()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить город по ID' })
   @ApiResponse({ status: 200, description: 'Город найден' })
   @ApiResponse({ status: 404, description: 'Город не найден' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.cityService.findOne(id);
   }

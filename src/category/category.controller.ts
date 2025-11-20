@@ -61,16 +61,22 @@ export class CategoryController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: "Получить все категории" })
   @ApiResponse({ status: 200, description: "Список категорий" })
+  @ApiResponse({ status: 401, description: "Не авторизован" })
   findAll() {
     return this.categoryService.findAll();
   }
 
   @Get(":id")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: "Получить категорию по ID" })
   @ApiResponse({ status: 200, description: "Категория найдена" })
   @ApiResponse({ status: 404, description: "Категория не найдена" })
+  @ApiResponse({ status: 401, description: "Не авторизован" })
   findOne(@Param("id", ParseIntPipe) id: number) {
     return this.categoryService.findOne(id);
   }

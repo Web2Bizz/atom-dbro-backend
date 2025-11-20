@@ -33,16 +33,22 @@ export class AchievementController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить все достижения' })
   @ApiResponse({ status: 200, description: 'Список достижений' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findAll() {
     return this.achievementService.findAll();
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить достижение по ID' })
   @ApiResponse({ status: 200, description: 'Достижение найдено' })
   @ApiResponse({ status: 404, description: 'Достижение не найдено' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.achievementService.findOne(id);
   }
@@ -87,9 +93,12 @@ export class AchievementController {
   }
 
   @Get('user/:userId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить достижения пользователя' })
   @ApiResponse({ status: 200, description: 'Список достижений пользователя' })
   @ApiResponse({ status: 404, description: 'Пользователь не найден' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   getUserAchievements(@Param('userId', ParseIntPipe) userId: number) {
     return this.achievementService.getUserAchievements(userId);
   }

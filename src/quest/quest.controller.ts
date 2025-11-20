@@ -48,6 +48,8 @@ export class QuestController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить все квесты' })
   @ApiQuery({ 
     name: 'cityId', 
@@ -62,6 +64,7 @@ export class QuestController {
     description: 'ID категории для фильтрации' 
   })
   @ApiResponse({ status: 200, description: 'Список квестов' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findAll(
     @Query('cityId', new ParseIntPipe({ optional: true })) cityId?: number,
     @Query('categoryId', new ParseIntPipe({ optional: true })) categoryId?: number,
@@ -70,6 +73,8 @@ export class QuestController {
   }
 
   @Get('filter')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить квесты с фильтрацией по статусу, городу и категории' })
   @ApiQuery({ 
     name: 'status', 
@@ -90,6 +95,7 @@ export class QuestController {
     description: 'ID категории для фильтрации' 
   })
   @ApiResponse({ status: 200, description: 'Список квестов с примененными фильтрами' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   filter(
     @Query('status') status?: 'active' | 'archived' | 'completed',
     @Query('cityId', new ParseIntPipe({ optional: true })) cityId?: number,
@@ -102,9 +108,12 @@ export class QuestController {
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить квест по ID' })
   @ApiResponse({ status: 200, description: 'Квест найден' })
   @ApiResponse({ status: 404, description: 'Квест не найден' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.questService.findOne(id);
   }
@@ -183,33 +192,45 @@ export class QuestController {
   }
 
   @Get('user/:userId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить квесты пользователя' })
   @ApiResponse({ status: 200, description: 'Список квестов пользователя' })
   @ApiResponse({ status: 404, description: 'Пользователь не найден' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   getUserQuests(@Param('userId', ParseIntPipe) userId: number) {
     return this.questService.getUserQuests(userId);
   }
 
   @Get('available/:userId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить доступные квесты для пользователя' })
   @ApiResponse({ status: 200, description: 'Список доступных квестов' })
   @ApiResponse({ status: 404, description: 'Пользователь не найден' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   getAvailableQuests(@Param('userId', ParseIntPipe) userId: number) {
     return this.questService.getAvailableQuests(userId);
   }
 
   @Get('events')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Sse('events')
   @ApiOperation({ summary: 'Подписаться на события квестов (Server-Sent Events)' })
   @ApiResponse({ status: 200, description: 'Поток событий квестов' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   streamQuestEvents(): Observable<MessageEvent> {
     return this.questEventsService.getQuestEvents();
   }
 
   @Get('events/:questId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Sse('events/:questId')
   @ApiOperation({ summary: 'Подписаться на события конкретного квеста (Server-Sent Events)' })
   @ApiResponse({ status: 200, description: 'Поток событий для конкретного квеста' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   streamQuestEventsByQuestId(@Param('questId', ParseIntPipe) questId: number): Observable<MessageEvent> {
     return this.questEventsService.getQuestEventsByQuestId(questId);
   }

@@ -68,16 +68,22 @@ export class OrganizationController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить все организации1' })
   @ApiResponse({ status: 200, description: 'Список организаций' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findAll() {
     return this.organizationService.findAll();
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить организацию по ID' })
   @ApiResponse({ status: 200, description: 'Организация найдена' })
   @ApiResponse({ status: 404, description: 'Организация не найдена' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.organizationService.findOne(id);
   }
@@ -262,9 +268,12 @@ export class OrganizationController {
   }
 
   @Get(':id/gallery/:fileName')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить изображение из галереи организации (шлюз)' })
   @ApiResponse({ status: 200, description: 'Изображение найдено', content: { 'image/*': {} } })
   @ApiResponse({ status: 404, description: 'Изображение не найдено' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   async getImage(
     @Param('id', ParseIntPipe) organizationId: number,
     @Param('fileName') fileName: string,
