@@ -1,54 +1,45 @@
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { VersioningType } from '@nestjs/common';
+import { VersioningType, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { json } from 'express';
 
 async function bootstrap() {
   try {
-    console.log('Starting application...');
     const app = await NestFactory.create(AppModule);
-    console.log('App created successfully');
 
-    // Явно настраиваем body parser для JSON
     app.use(json({ limit: '10mb' }));
 
-    // Middleware для логирования parsed body (после парсинга)
+    const organizationsLogger = new Logger('OrganizationsRequestLogger');
+
     app.use((req: any, res: any, next: any) => {
       if (req.method === 'POST' && req.path.includes('/organizations')) {
-        console.log('=== Request Body (после парсинга) ===');
-        console.log('Path:', req.path);
-        console.log('Content-Type:', req.headers['content-type']);
-        console.log('req.body:', req.body);
-        if (req.body && typeof req.body === 'object') {
-          console.log('Keys:', Object.keys(req.body));
-          console.log('cityId:', req.body.cityId, typeof req.body.cityId);
-          console.log('typeId:', req.body.typeId, typeof req.body.typeId);
-          console.log('helpTypeIds:', req.body.helpTypeIds, Array.isArray(req.body.helpTypeIds));
-        }
-        console.log('=== Конец Request Body ===\n');
+        const endpoint = req.originalUrl ?? req.path;
+        const method = req.method;
+        const bodyContent =
+          req.body && typeof req.body === 'object' ? JSON.stringify(req.body) : String(req.body ?? '');
+        const bodyBits = Buffer.byteLength(bodyContent, 'utf8') * 8;
+
+        organizationsLogger.debug(
+          `Organizations request -> endpoint: ${endpoint}, method: ${method}, body size: ${bodyBits} bits`,
+        );
       }
       next();
     });
 
-    // Настраиваем CORS для всех источников
     app.enableCors({
-      origin: true, // Разрешить все источники
+      origin: true,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
     });
 
-    // Настраиваем версионирование API
     app.enableVersioning({
       type: VersioningType.URI,
       defaultVersion: '1',
     });
 
-    // Устанавливаем глобальный префикс для API
     app.setGlobalPrefix('api');
-
-    // Валидация теперь выполняется через декоратор @ZodValidation на уровне методов контроллеров
 
     const config = new DocumentBuilder()
       .setTitle('Atom DBRO Backend API')
