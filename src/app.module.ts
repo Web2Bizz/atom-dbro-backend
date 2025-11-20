@@ -20,8 +20,8 @@ import { AppController } from './app.controller';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env', // Явно указываем путь к .env файлу
-      expandVariables: true, // Поддержка переменных в .env файле
+      envFilePath: '.env',
+      expandVariables: true,
     }),
     DatabaseModule,
     RegionModule,
