@@ -96,7 +96,7 @@ export class UserService {
         role: createUserDto.role ?? 'USER',
         level: 1,
         experience: 0,
-        questId: createUserDto.questId ?? null,
+        questId: createUserDto.questId || [],
         organisationId: createUserDto.organisationId ?? null,
       })
       .returning();

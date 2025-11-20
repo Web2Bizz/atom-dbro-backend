@@ -748,7 +748,6 @@ export class QuestService {
   }
 
   async joinQuest(userId: number, questId: number) {
-    // Проверяем существование пользователя (исключая удаленные)
     const [user] = await this.db
       .select()
       .from(users)
@@ -760,7 +759,6 @@ export class QuestService {
       throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
     }
 
-    // Проверяем существование квеста (исключая удаленные)
     const [quest] = await this.db
       .select()
       .from(quests)
@@ -772,12 +770,10 @@ export class QuestService {
       throw new NotFoundException(`Квест с ID ${questId} не найден`);
     }
 
-    // Проверяем, что квест активен
     if (quest.status !== 'active') {
       throw new BadRequestException('Квест не доступен для выполнения');
     }
 
-    // Проверяем, не присоединился ли уже этот квест пользователем
     const [existingUserQuest] = await this.db
       .select()
       .from(userQuests)
@@ -791,7 +787,6 @@ export class QuestService {
       throw new ConflictException('Пользователь уже присоединился к этому квесту');
     }
 
-    // Присоединяемся к квесту
     const result = await this.db
       .insert(userQuests)
       .values({
@@ -805,7 +800,16 @@ export class QuestService {
       throw new Error('Не удалось присоединиться к квесту');
     }
 
-    // Получаем данные пользователя для события (исключая удаленные)
+    // Обновляем массив questId в таблице users
+    const currentQuestIds = user.questId || [];
+    if (!currentQuestIds.includes(questId)) {
+      const updatedQuestIds = [...currentQuestIds, questId];
+      await this.db
+        .update(users)
+        .set({ questId: updatedQuestIds })
+        .where(eq(users.id, userId));
+    }
+
     const [userData] = await this.db
       .select({
         id: users.id,
@@ -819,7 +823,6 @@ export class QuestService {
         ne(users.recordStatus, 'DELETED')
       ));
 
-    // Эмитим событие присоединения пользователя
     this.questEventsService.emitUserJoined(questId, userId, userData || {});
 
     return userQuest;
@@ -878,6 +881,15 @@ export class QuestService {
     if (!deletedUserQuest) {
       throw new Error('Не удалось покинуть квест');
     }
+
+    // Обновляем массив questId в таблице users - удаляем questId из массива
+    const currentQuestIds = user.questId || [];
+    const updatedQuestIds = currentQuestIds.filter(id => id !== questId);
+    await this.db
+      .update(users)
+      .set({ questId: updatedQuestIds })
+      .where(eq(users.id, userId));
+
     return deletedUserQuest;
   }
 

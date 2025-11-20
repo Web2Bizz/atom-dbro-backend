@@ -35,7 +35,7 @@ export const users = pgTable('users', {
   role: varchar('role', { length: 20 }).default('USER').notNull(),
   level: integer('level').default(1).notNull(),
   experience: integer('experience').default(0).notNull(),
-  questId: integer('quest_id').references(() => quests.id),
+  questId: integer('quest_id').array(),
   organisationId: integer('organisation_id').references(() => organizations.id, { onDelete: 'set null' }),
   recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
@@ -224,10 +224,6 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   achievements: many(userAchievements),
   quests: many(userQuests),
   ownedQuests: many(quests),
-  quest: one(quests, {
-    fields: [users.questId],
-    references: [quests.id],
-  }),
   organisation: one(organizations, {
     fields: [users.organisationId],
     references: [organizations.id],
