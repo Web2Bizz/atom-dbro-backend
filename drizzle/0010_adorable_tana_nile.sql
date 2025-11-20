@@ -3,14 +3,42 @@ CREATE TABLE IF NOT EXISTS "quest_help_types" (
 	"help_type_id" integer NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "quests" ADD COLUMN "city_id" integer;--> statement-breakpoint
-ALTER TABLE "quests" ADD COLUMN "cover_image" varchar(500);--> statement-breakpoint
-ALTER TABLE "quests" ADD COLUMN "gallery" jsonb;--> statement-breakpoint
-ALTER TABLE "quests" ADD COLUMN "steps" jsonb;--> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "quests" ADD CONSTRAINT "quests_city_id_cities_id_fk" FOREIGN KEY ("city_id") REFERENCES "cities"("id") ON DELETE no action ON UPDATE no action;
+	IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quests' AND column_name = 'city_id') THEN
+		ALTER TABLE "quests" ADD COLUMN "city_id" integer;
+	END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+	IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quests' AND column_name = 'cover_image') THEN
+		ALTER TABLE "quests" ADD COLUMN "cover_image" varchar(500);
+	END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+	IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quests' AND column_name = 'gallery') THEN
+		ALTER TABLE "quests" ADD COLUMN "gallery" jsonb;
+	END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+	IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quests' AND column_name = 'steps') THEN
+		ALTER TABLE "quests" ADD COLUMN "steps" jsonb;
+	END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+	IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quests' AND column_name = 'city_id') THEN
+		IF NOT EXISTS (
+			SELECT 1 FROM information_schema.table_constraints 
+			WHERE table_name = 'quests' 
+			AND constraint_name = 'quests_city_id_cities_id_fk'
+		) THEN
+			ALTER TABLE "quests" ADD CONSTRAINT "quests_city_id_cities_id_fk" FOREIGN KEY ("city_id") REFERENCES "cities"("id") ON DELETE no action ON UPDATE no action;
+		END IF;
+	END IF;
 EXCEPTION
- WHEN duplicate_object THEN null;
+	WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
