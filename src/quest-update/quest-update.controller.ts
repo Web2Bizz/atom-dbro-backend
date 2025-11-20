@@ -42,9 +42,8 @@ export class QuestUpdateController {
     description: 'ID квеста для фильтрации' 
   })
   @ApiResponse({ status: 200, description: 'Список обновлений квестов' })
-  findAll(@Query('questId') questId?: string) {
-    const questIdNum = questId ? parseInt(questId, 10) : undefined;
-    return this.questUpdateService.findAll(questIdNum);
+  findAll(@Query('questId', new ParseIntPipe({ optional: true })) questId?: number) {
+    return this.questUpdateService.findAll(questId);
   }
 
   @Get(':id')

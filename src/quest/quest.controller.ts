@@ -10,7 +10,6 @@ import {
   ParseIntPipe,
   BadRequestException,
   UseGuards,
-  UnauthorizedException,
   Sse,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiBody } from '@nestjs/swagger';
@@ -42,11 +41,8 @@ export class QuestController {
   @ApiResponse({ status: 403, description: 'Недостаточный уровень для создания квеста (требуется уровень 5+)' })
   create(
     @Body() createQuestDto: CreateQuestDto,
-    @CurrentUser() user: { userId: number; email: string } | undefined,
+    @CurrentUser() user: { userId: number; email: string },
   ) {
-    if (!user || !user.userId) {
-      throw new UnauthorizedException('Требуется аутентификация');
-    }
     return this.questService.create(createQuestDto, user.userId);
   }
 
@@ -66,12 +62,10 @@ export class QuestController {
   })
   @ApiResponse({ status: 200, description: 'Список квестов' })
   findAll(
-    @Query('cityId') cityId?: string,
-    @Query('categoryId') categoryId?: string,
+    @Query('cityId', new ParseIntPipe({ optional: true })) cityId?: number,
+    @Query('categoryId', new ParseIntPipe({ optional: true })) categoryId?: number,
   ) {
-    const cityIdNum = cityId ? parseInt(cityId, 10) : undefined;
-    const categoryIdNum = categoryId ? parseInt(categoryId, 10) : undefined;
-    return this.questService.findAll(cityIdNum, categoryIdNum);
+    return this.questService.findAll(cityId, categoryId);
   }
 
   @Get('filter')
@@ -97,16 +91,13 @@ export class QuestController {
   @ApiResponse({ status: 200, description: 'Список квестов с примененными фильтрами' })
   filter(
     @Query('status') status?: 'active' | 'archived' | 'completed',
-    @Query('cityId') cityId?: string,
-    @Query('categoryId') categoryId?: string,
+    @Query('cityId', new ParseIntPipe({ optional: true })) cityId?: number,
+    @Query('categoryId', new ParseIntPipe({ optional: true })) categoryId?: number,
   ) {
-    // Валидация статуса
     if (status && !['active', 'archived', 'completed'].includes(status)) {
       throw new BadRequestException('Недопустимый статус. Допустимые значения: active, archived, completed');
     }
-    const cityIdNum = cityId ? parseInt(cityId, 10) : undefined;
-    const categoryIdNum = categoryId ? parseInt(categoryId, 10) : undefined;
-    return this.questService.findByStatus(status, cityIdNum, categoryIdNum);
+    return this.questService.findByStatus(status, cityId, categoryId);
   }
 
   @Get(':id')
@@ -185,11 +176,8 @@ export class QuestController {
   @ApiResponse({ status: 409, description: 'Квест уже выполнен' })
   completeQuest(
     @Param('id', ParseIntPipe) questId: number,
-    @CurrentUser() user: { userId: number; email: string } | undefined,
+    @CurrentUser() user: { userId: number; email: string },
   ) {
-    if (!user || !user.userId) {
-      throw new UnauthorizedException('Требуется аутентификация');
-    }
     return this.questService.completeQuest(user.userId, questId);
   }
 

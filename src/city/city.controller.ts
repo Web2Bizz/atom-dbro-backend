@@ -42,9 +42,8 @@ export class CityController {
   @ApiOperation({ summary: 'Получить все города (опционально фильтр по региону)' })
   @ApiQuery({ name: 'regionId', required: false, type: Number, description: 'ID региона для фильтрации' })
   @ApiResponse({ status: 200, description: 'Список городов' })
-  findAll(@Query('regionId') regionId?: string) {
-    const regionIdNum = regionId ? parseInt(regionId, 10) : undefined;
-    return this.cityService.findAll(regionIdNum);
+  findAll(@Query('regionId', new ParseIntPipe({ optional: true })) regionId?: number) {
+    return this.cityService.findAll(regionId);
   }
 
   @Get(':id')
