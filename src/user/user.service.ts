@@ -32,6 +32,23 @@ export class UserService {
   }
 
   /**
+   * Нормализует questId: преобразует в массив, если это не массив
+   */
+  private normalizeQuestId(questId: any): number[] {
+    if (!questId) {
+      return [];
+    }
+    if (Array.isArray(questId)) {
+      return questId;
+    }
+    if (typeof questId === 'number') {
+      // Если это число (старая запись), преобразуем в массив
+      return [questId];
+    }
+    return [];
+  }
+
+  /**
    * Преобразует объект пользователя, заменяя роль на читаемый формат
    */
   private formatUser(user: any): any {
@@ -41,6 +58,7 @@ export class UserService {
     return {
       ...user,
       role: this.formatRole(user.role),
+      questId: this.normalizeQuestId(user.questId),
     };
   }
 

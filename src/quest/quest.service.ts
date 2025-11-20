@@ -801,7 +801,17 @@ export class QuestService {
     }
 
     // Обновляем массив questId в таблице users
-    const currentQuestIds = user.questId || [];
+    // Нормализуем questId: если это не массив, преобразуем в массив
+    let currentQuestIds: number[] = [];
+    if (user.questId) {
+      if (Array.isArray(user.questId)) {
+        currentQuestIds = user.questId;
+      } else if (typeof user.questId === 'number') {
+        // Если это число (старая запись), преобразуем в массив
+        currentQuestIds = [user.questId];
+      }
+    }
+    
     if (!currentQuestIds.includes(questId)) {
       const updatedQuestIds = [...currentQuestIds, questId];
       await this.db
@@ -883,7 +893,17 @@ export class QuestService {
     }
 
     // Обновляем массив questId в таблице users - удаляем questId из массива
-    const currentQuestIds = user.questId || [];
+    // Нормализуем questId: если это не массив, преобразуем в массив
+    let currentQuestIds: number[] = [];
+    if (user.questId) {
+      if (Array.isArray(user.questId)) {
+        currentQuestIds = user.questId;
+      } else if (typeof user.questId === 'number') {
+        // Если это число (старая запись), преобразуем в массив
+        currentQuestIds = [user.questId];
+      }
+    }
+    
     const updatedQuestIds = currentQuestIds.filter(id => id !== questId);
     await this.db
       .update(users)
