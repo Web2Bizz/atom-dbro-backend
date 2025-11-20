@@ -1,14 +1,17 @@
-import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { quests, userQuests, users, achievements, userAchievements, cities, organizationTypes, categories, questCategories } from '../database/schema';
 import { eq, and, ne, inArray } from 'drizzle-orm';
 import { CreateQuestDto } from './dto/create-quest.dto';
 import { UpdateQuestDto } from './dto/update-quest.dto';
+import { UpdateRequirementDto } from './dto/update-requirement.dto';
 import { QuestEventsService } from './quest.events';
 
 @Injectable()
 export class QuestService {
+  private readonly logger = new Logger(QuestService.name);
+
   constructor(
     @Inject(DATABASE_CONNECTION)
     private db: NodePgDatabase,
@@ -678,7 +681,54 @@ export class QuestService {
       }
       updateData.gallery = updateQuestDto.gallery;
     }
+    let requirementsChanged = false;
     if (updateQuestDto.steps !== undefined) {
+      // Проверяем, изменились ли requirements в этапах
+      if (existingQuest.steps && Array.isArray(existingQuest.steps) && Array.isArray(updateQuestDto.steps)) {
+        const maxLength = Math.max(existingQuest.steps.length, updateQuestDto.steps.length);
+        for (let i = 0; i < maxLength; i++) {
+          const newStep = updateQuestDto.steps[i];
+          const oldStep = existingQuest.steps[i];
+          
+          // Проверяем наличие requirement в новом или старом этапе
+          const hasNewRequirement = newStep?.requirement !== undefined && newStep?.requirement !== null;
+          const hasOldRequirement = oldStep?.requirement !== undefined && oldStep?.requirement !== null;
+          
+          // Если requirement был добавлен или удален
+          if (hasNewRequirement !== hasOldRequirement) {
+            requirementsChanged = true;
+            break;
+          }
+          
+          // Если оба имеют requirement, проверяем изменения
+          if (hasNewRequirement && hasOldRequirement) {
+            const newReq = newStep.requirement as { currentValue?: number; targetValue?: number };
+            const oldReq = oldStep.requirement as { currentValue?: number; targetValue?: number };
+            
+            // Проверяем, изменились ли currentValue или targetValue
+            if (
+              (newReq.currentValue !== undefined && newReq.currentValue !== oldReq.currentValue) ||
+              (newReq.targetValue !== undefined && newReq.targetValue !== oldReq.targetValue)
+            ) {
+              requirementsChanged = true;
+              break;
+            }
+          }
+        }
+      } else if (updateQuestDto.steps && Array.isArray(updateQuestDto.steps)) {
+        // Если старых steps не было, но новые есть с requirements
+        const hasRequirements = updateQuestDto.steps.some(step => step?.requirement);
+        if (hasRequirements) {
+          requirementsChanged = true;
+        }
+      } else if (existingQuest.steps && Array.isArray(existingQuest.steps)) {
+        // Если старые steps были с requirements, а новых нет
+        const hadRequirements = existingQuest.steps.some(step => step?.requirement);
+        if (hadRequirements) {
+          requirementsChanged = true;
+        }
+      }
+      
       updateData.steps = updateQuestDto.steps;
     }
 
@@ -693,6 +743,12 @@ export class QuestService {
     const quest = Array.isArray(result) ? result[0] : result;
     if (!quest) {
       throw new NotFoundException(`Квест с ID ${id} не найден`);
+    }
+
+    // Эмитим событие, если изменились requirements
+    if (requirementsChanged) {
+      this.logger.log(`Requirements changed for quest ${id}`);
+      this.questEventsService.emitRequirementUpdated(id, quest.steps);
     }
 
     // Обновляем категории, если указаны
@@ -1191,6 +1247,104 @@ export class QuestService {
       ...quest,
       categories: categoriesByQuestId.get(quest.id) || [],
     }));
+  }
+
+  async updateRequirementCurrentValue(
+    questId: number,
+    stepIndex: number,
+    updateRequirementDto: UpdateRequirementDto,
+  ) {
+    // Проверяем существование квеста (исключая удаленные)
+    const [quest] = await this.db
+      .select()
+      .from(quests)
+      .where(and(
+        eq(quests.id, questId),
+        ne(quests.recordStatus, 'DELETED')
+      ));
+    
+    if (!quest) {
+      throw new NotFoundException(`Квест с ID ${questId} не найден`);
+    }
+
+    // Проверяем статус квеста
+    if (quest.status !== 'active') {
+      throw new BadRequestException(`Квест со статусом '${quest.status}' не может быть изменен`);
+    }
+
+    // Проверяем наличие steps
+    if (!quest.steps || !Array.isArray(quest.steps)) {
+      throw new BadRequestException('У квеста нет этапов');
+    }
+
+    // Проверяем, что индекс этапа валиден
+    if (stepIndex < 0 || stepIndex >= quest.steps.length) {
+      throw new BadRequestException(`Индекс этапа ${stepIndex} выходит за границы массива этапов (длина: ${quest.steps.length})`);
+    }
+
+    const step = quest.steps[stepIndex];
+    if (!step) {
+      throw new BadRequestException(`Этап с индексом ${stepIndex} не найден`);
+    }
+
+    // Проверяем наличие requirement
+    if (!step.requirement) {
+      throw new BadRequestException(`У этапа с индексом ${stepIndex} нет требования`);
+    }
+
+    const requirement = step.requirement as { currentValue?: number; targetValue?: number };
+    
+    // Проверяем, что targetValue существует
+    if (requirement.targetValue === undefined || requirement.targetValue === null) {
+      throw new BadRequestException('У требования отсутствует targetValue');
+    }
+
+    const newCurrentValue = updateRequirementDto.currentValue;
+
+    // Валидация: currentValue должен быть положительным
+    if (newCurrentValue < 0) {
+      throw new BadRequestException('currentValue должен быть неотрицательным числом');
+    }
+
+    // Валидация: currentValue не может превышать targetValue, может быть только равным
+    if (newCurrentValue > requirement.targetValue) {
+      throw new BadRequestException(`currentValue (${newCurrentValue}) не может превышать targetValue (${requirement.targetValue})`);
+    }
+
+    // Обновляем currentValue
+    const updatedSteps = [...quest.steps];
+    updatedSteps[stepIndex] = {
+      ...step,
+      requirement: {
+        ...requirement,
+        currentValue: newCurrentValue,
+      },
+    };
+
+    // Обновляем квест в базе данных
+    const result = await this.db
+      .update(quests)
+      .set({
+        steps: updatedSteps,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(quests.id, questId),
+        ne(quests.recordStatus, 'DELETED')
+      ))
+      .returning();
+    
+    const updatedQuest = Array.isArray(result) ? result[0] : result;
+    if (!updatedQuest) {
+      throw new NotFoundException(`Квест с ID ${questId} не найден`);
+    }
+
+    // Эмитим событие обновления requirement
+    this.logger.log(`Requirement currentValue updated for quest ${questId}, step ${stepIndex}: ${newCurrentValue}`);
+    this.questEventsService.emitRequirementUpdated(questId, updatedQuest.steps);
+
+    // Возвращаем обновленный квест с полной информацией
+    return this.findOne(questId);
   }
 }
 

@@ -18,6 +18,7 @@ import { QuestService } from './quest.service';
 import { QuestEventsService } from './quest.events';
 import { CreateQuestDto, createQuestSchema, CreateQuestDtoClass } from './dto/create-quest.dto';
 import { UpdateQuestDto, updateQuestSchema, UpdateQuestDtoClass } from './dto/update-quest.dto';
+import { UpdateRequirementDto, updateRequirementSchema, UpdateRequirementDtoClass } from './dto/update-requirement.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
@@ -211,6 +212,24 @@ export class QuestController {
   @ApiResponse({ status: 200, description: 'Поток событий для конкретного квеста' })
   streamQuestEventsByQuestId(@Param('questId', ParseIntPipe) questId: number): Observable<MessageEvent> {
     return this.questEventsService.getQuestEventsByQuestId(questId);
+  }
+
+  @Patch(':id/steps/:stepIndex/requirement')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ZodValidation(updateRequirementSchema)
+  @ApiOperation({ summary: 'Обновить currentValue требования в этапе квеста' })
+  @ApiBody({ type: UpdateRequirementDtoClass })
+  @ApiResponse({ status: 200, description: 'Требование успешно обновлено' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
+  @ApiResponse({ status: 404, description: 'Квест или этап не найден' })
+  @ApiResponse({ status: 400, description: 'Некорректные данные или статус квеста' })
+  updateRequirementCurrentValue(
+    @Param('id', ParseIntPipe) questId: number,
+    @Param('stepIndex', ParseIntPipe) stepIndex: number,
+    @Body() updateRequirementDto: UpdateRequirementDto,
+  ) {
+    return this.questService.updateRequirementCurrentValue(questId, stepIndex, updateRequirementDto);
   }
 }
 
