@@ -156,7 +156,10 @@ export const quests = pgTable('quests', {
     description?: string;
     status: string;
     progress: number;
-    requirement?: any;
+    requirement?: {
+      currentValue: number;
+      targetValue: number;
+    };
     deadline?: Date | string;
   }>>(),
   recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),

@@ -141,6 +141,20 @@
       "when": 1764000100000,
       "tag": "0019_make_quest_achievement_id_nullable",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1764000200000,
+      "tag": "0020_update_quest_requirement_structure",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1763672912636,
+      "tag": "0021_cultured_quasar",
+      "breakpoints": true
     }
   ]
 }
