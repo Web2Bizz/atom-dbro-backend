@@ -20,10 +20,7 @@ DO $$ BEGIN
 			-- Если колонка существует, но имеет другой тип, изменяем тип
 			IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quests' AND column_name = 'achievement_id' AND data_type != 'integer') THEN
 				-- Удаляем внешний ключ если он есть
-				DO $$ BEGIN
-					ALTER TABLE "quests" DROP CONSTRAINT IF EXISTS "quests_achievement_id_achievements_id_fk";
-				EXCEPTION WHEN OTHERS THEN NULL;
-				END $$;
+				ALTER TABLE "quests" DROP CONSTRAINT IF EXISTS "quests_achievement_id_achievements_id_fk";
 				-- Изменяем тип колонки
 				ALTER TABLE "quests" ALTER COLUMN "achievement_id" TYPE integer USING achievement_id::integer;
 			END IF;
