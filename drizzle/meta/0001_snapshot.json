@@ -1,10 +1,8 @@
 {
-  "id": "a7857343-3e79-4856-9f83-3f2dc2eff413",
-  "prevId": "8d72d4bf-d57f-4b6c-a08c-9043d4d30d00",
-  "version": "5",
-  "dialect": "pg",
+  "version": "7",
+  "dialect": "postgresql",
   "tables": {
-    "cities": {
+    "public.cities": {
       "name": "cities",
       "schema": "",
       "columns": {
@@ -58,21 +56,24 @@
         "cities_region_id_regions_id_fk": {
           "name": "cities_region_id_regions_id_fk",
           "tableFrom": "cities",
-          "tableTo": "regions",
           "columnsFrom": [
             "region_id"
           ],
+          "tableTo": "regions",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "help_types": {
+    "public.help_types": {
       "name": "help_types",
       "schema": "",
       "columns": {
@@ -109,14 +110,17 @@
       "uniqueConstraints": {
         "help_types_name_unique": {
           "name": "help_types_name_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "name"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
-      }
+      },
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "organization_help_types": {
+    "public.organization_help_types": {
       "name": "organization_help_types",
       "schema": "",
       "columns": {
@@ -138,34 +142,37 @@
         "organization_help_types_organization_id_organizations_id_fk": {
           "name": "organization_help_types_organization_id_organizations_id_fk",
           "tableFrom": "organization_help_types",
-          "tableTo": "organizations",
           "columnsFrom": [
             "organization_id"
           ],
+          "tableTo": "organizations",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "organization_help_types_help_type_id_help_types_id_fk": {
           "name": "organization_help_types_help_type_id_help_types_id_fk",
           "tableFrom": "organization_help_types",
-          "tableTo": "help_types",
           "columnsFrom": [
             "help_type_id"
           ],
+          "tableTo": "help_types",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "organization_owners": {
+    "public.organization_owners": {
       "name": "organization_owners",
       "schema": "",
       "columns": {
@@ -187,34 +194,37 @@
         "organization_owners_organization_id_organizations_id_fk": {
           "name": "organization_owners_organization_id_organizations_id_fk",
           "tableFrom": "organization_owners",
-          "tableTo": "organizations",
           "columnsFrom": [
             "organization_id"
           ],
+          "tableTo": "organizations",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "organization_owners_user_id_users_id_fk": {
           "name": "organization_owners_user_id_users_id_fk",
           "tableFrom": "organization_owners",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "organizations": {
+    "public.organizations": {
       "name": "organizations",
       "schema": "",
       "columns": {
@@ -268,21 +278,24 @@
         "organizations_city_id_cities_id_fk": {
           "name": "organizations_city_id_cities_id_fk",
           "tableFrom": "organizations",
-          "tableTo": "cities",
           "columnsFrom": [
             "city_id"
           ],
+          "tableTo": "cities",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "regions": {
+    "public.regions": {
       "name": "regions",
       "schema": "",
       "columns": {
@@ -316,9 +329,12 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "users": {
+    "public.users": {
       "name": "users",
       "schema": "",
       "columns": {
@@ -398,34 +414,43 @@
         "users_city_id_cities_id_fk": {
           "name": "users_city_id_cities_id_fk",
           "tableFrom": "users",
-          "tableTo": "cities",
           "columnsFrom": [
             "city_id"
           ],
+          "tableTo": "cities",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "users_email_unique": {
           "name": "users_email_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "email"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
-      }
+      },
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     }
   },
   "enums": {},
   "schemas": {},
   "_meta": {
-    "columns": {},
     "schemas": {},
-    "tables": {}
-  }
+    "tables": {},
+    "columns": {}
+  },
+  "id": "a7857343-3e79-4856-9f83-3f2dc2eff413",
+  "prevId": "8d72d4bf-d57f-4b6c-a08c-9043d4d30d00",
+  "sequences": {},
+  "policies": {},
+  "views": {},
+  "roles": {}
 }
