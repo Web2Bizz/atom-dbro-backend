@@ -800,26 +800,6 @@ export class QuestService {
       throw new Error('Не удалось присоединиться к квесту');
     }
 
-    // Обновляем массив questId в таблице users
-    // Нормализуем questId: если это не массив, преобразуем в массив
-    let currentQuestIds: number[] = [];
-    if (user.questId) {
-      if (Array.isArray(user.questId)) {
-        currentQuestIds = user.questId;
-      } else if (typeof user.questId === 'number') {
-        // Если это число (старая запись), преобразуем в массив
-        currentQuestIds = [user.questId];
-      }
-    }
-    
-    if (!currentQuestIds.includes(questId)) {
-      const updatedQuestIds = [...currentQuestIds, questId];
-      await this.db
-        .update(users)
-        .set({ questId: updatedQuestIds })
-        .where(eq(users.id, userId));
-    }
-
     const [userData] = await this.db
       .select({
         id: users.id,
@@ -891,24 +871,6 @@ export class QuestService {
     if (!deletedUserQuest) {
       throw new Error('Не удалось покинуть квест');
     }
-
-    // Обновляем массив questId в таблице users - удаляем questId из массива
-    // Нормализуем questId: если это не массив, преобразуем в массив
-    let currentQuestIds: number[] = [];
-    if (user.questId) {
-      if (Array.isArray(user.questId)) {
-        currentQuestIds = user.questId;
-      } else if (typeof user.questId === 'number') {
-        // Если это число (старая запись), преобразуем в массив
-        currentQuestIds = [user.questId];
-      }
-    }
-    
-    const updatedQuestIds = currentQuestIds.filter(id => id !== questId);
-    await this.db
-      .update(users)
-      .set({ questId: updatedQuestIds })
-      .where(eq(users.id, userId));
 
     return deletedUserQuest;
   }

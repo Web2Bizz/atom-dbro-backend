@@ -32,23 +32,6 @@ export class UserService {
   }
 
   /**
-   * Нормализует questId: преобразует в массив, если это не массив
-   */
-  private normalizeQuestId(questId: any): number[] {
-    if (!questId) {
-      return [];
-    }
-    if (Array.isArray(questId)) {
-      return questId;
-    }
-    if (typeof questId === 'number') {
-      // Если это число (старая запись), преобразуем в массив
-      return [questId];
-    }
-    return [];
-  }
-
-  /**
    * Преобразует объект пользователя, заменяя роль на читаемый формат
    */
   private formatUser(user: any): any {
@@ -58,7 +41,6 @@ export class UserService {
     return {
       ...user,
       role: this.formatRole(user.role),
-      questId: this.normalizeQuestId(user.questId),
     };
   }
 
@@ -114,7 +96,6 @@ export class UserService {
         role: createUserDto.role ?? 'USER',
         level: 1,
         experience: 0,
-        questId: createUserDto.questId || [],
         organisationId: createUserDto.organisationId ?? null,
       })
       .returning();
@@ -133,7 +114,6 @@ export class UserService {
         role: users.role,
         level: users.level,
         experience: users.experience,
-        questId: users.questId,
         organisationId: users.organisationId,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
@@ -155,7 +135,6 @@ export class UserService {
         role: users.role,
         level: users.level,
         experience: users.experience,
-        questId: users.questId,
         organisationId: users.organisationId,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,

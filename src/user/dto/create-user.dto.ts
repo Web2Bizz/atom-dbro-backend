@@ -11,7 +11,6 @@ export const createUserSchema = z.object({
   role: z.nativeEnum(UserRole, {
     message: 'Роль должна быть одним из: USER, MODERATOR',
   }).optional(),
-  questId: z.array(z.number().int().positive('ID квеста должен быть положительным числом')).optional(),
   organisationId: z.number().int().positive('ID организации должен быть положительным числом').nullable().optional(),
 });
 
@@ -35,9 +34,6 @@ export class CreateUserDtoClass {
 
   @ApiProperty({ description: 'Роль пользователя', enum: UserRole, example: UserRole.USER, required: false })
   role?: UserRole;
-
-  @ApiProperty({ description: 'Массив ID квестов', example: [1, 2, 3], required: false, type: [Number] })
-  questId?: number[];
 
   @ApiProperty({ description: 'ID организации', example: 1, required: false, nullable: true })
   organisationId?: number | null;

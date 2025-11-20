@@ -35,7 +35,6 @@ export const users = pgTable('users', {
   role: varchar('role', { length: 20 }).default('USER').notNull(),
   level: integer('level').default(1).notNull(),
   experience: integer('experience').default(0).notNull(),
-  questId: integer('quest_id').array().default([]),
   organisationId: integer('organisation_id').references(() => organizations.id, { onDelete: 'set null' }),
   recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
