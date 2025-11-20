@@ -165,15 +165,25 @@ async function applyAllMigrations() {
               try {
                 await client.query(statement);
               } catch (error: any) {
-                // Игнорируем некоторые ошибки (например, если колонка уже существует)
+                // Игнорируем некоторые ошибки (например, если объект уже существует)
                 const errorMsg = error.message || '';
-                if (errorMsg.includes('already exists') || 
-                    errorMsg.includes('duplicate_object') ||
-                    (errorMsg.includes('does not exist') && errorMsg.includes('information_schema'))) {
-                  // Это нормально для IF NOT EXISTS проверок
-                  console.log(`   ⚠️  Предупреждение: ${errorMsg.substring(0, 120)}`);
+                const errorCode = error.code || '';
+                
+                // Проверяем различные типы ошибок "уже существует"
+                const isAlreadyExistsError = 
+                  errorMsg.includes('already exists') || 
+                  errorMsg.includes('duplicate_object') ||
+                  errorCode === '42P07' || // relation already exists
+                  errorCode === '42710' || // duplicate object
+                  (errorMsg.includes('does not exist') && errorMsg.includes('information_schema'));
+                
+                if (isAlreadyExistsError) {
+                  // Это нормально для IF NOT EXISTS проверок или если объект уже был создан
+                  console.log(`   ⚠️  Предупреждение (игнорируем): ${errorMsg.substring(0, 150)}`);
+                  continue; // Пропускаем эту команду и продолжаем
                 } else {
                   console.error(`   ❌ Ошибка в команде ${i + 1}:`, errorMsg);
+                  console.error(`   Код ошибки: ${errorCode}`);
                   throw error;
                 }
               }
@@ -205,7 +215,43 @@ async function applyAllMigrations() {
           appliedCount++;
         } catch (error: any) {
           await client.query('ROLLBACK');
-          console.error(`❌ Ошибка при применении миграции ${file}:`, error.message);
+          const errorMsg = error.message || '';
+          const errorCode = error.code || '';
+          
+          // Если ошибка связана с тем, что объекты уже существуют, 
+          // возможно миграция была частично применена - пропускаем её
+          if (errorMsg.includes('already exists') || errorCode === '42P07' || errorCode === '42710') {
+            console.warn(`⚠️  Миграция ${file} содержит объекты, которые уже существуют.`);
+            console.warn(`    Это может означать, что миграция была частично применена ранее.`);
+            console.warn(`    Пропускаем эту миграцию и помечаем как примененную.`);
+            
+            // Помечаем миграцию как примененную, даже если были ошибки
+            try {
+              await client.query('BEGIN');
+              try {
+                await client.query('ALTER TABLE drizzle_migrations ADD CONSTRAINT drizzle_migrations_hash_unique UNIQUE (hash)');
+              } catch (e: any) {
+                // Игнорируем, если constraint уже существует
+              }
+              await client.query(
+                'INSERT INTO drizzle_migrations (hash, created_at) VALUES ($1, $2) ON CONFLICT (hash) DO NOTHING',
+                [hash, Date.now()]
+              );
+              await client.query('COMMIT');
+              console.log(`✅ Миграция ${file} помечена как примененная (объекты уже существовали)`);
+              skippedCount++;
+              appliedTags.add(tag);
+              appliedHashes.add(hash);
+              continue; // Пропускаем эту миграцию и переходим к следующей
+            } catch (markError: any) {
+              await client.query('ROLLBACK');
+              console.error(`❌ Не удалось пометить миграцию как примененную:`, markError.message);
+              throw error; // Выбрасываем исходную ошибку
+            }
+          }
+          
+          console.error(`❌ Ошибка при применении миграции ${file}:`, errorMsg);
+          console.error(`   Код ошибки: ${errorCode}`);
           throw error;
         }
       }

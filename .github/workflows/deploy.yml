@@ -327,8 +327,11 @@ jobs:
                   docker logs "$CONTAINER_NAME" --tail 20 2>&1 | tail -5 || true
                   sleep 5
                 else
-                  echo "⚠️ Custom migration script failed, trying drizzle-kit migrate as fallback..."
+                  echo "⚠️ Custom migration script failed after $MAX_MIGRATION_ATTEMPTS attempts"
+                  echo "⚠️ WARNING: Using drizzle-kit migrate as fallback - this may cause issues if migrations were partially applied"
+                  echo "⚠️ Trying drizzle-kit migrate as fallback..."
                   # Fallback на стандартную команду drizzle-kit migrate
+                  # ВНИМАНИЕ: drizzle-kit migrate не проверяет, какие миграции уже применены
                   if docker exec "$CONTAINER_NAME" npm run db:migrate 2>&1; then
                     MIGRATION_SUCCESS=true
                     echo "✅ Database migrations completed successfully (using drizzle-kit migrate)"
