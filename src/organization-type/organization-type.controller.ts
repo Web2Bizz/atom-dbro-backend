@@ -15,7 +15,6 @@ import { CreateOrganizationTypeDto, createOrganizationTypeSchema, CreateOrganiza
 import { UpdateOrganizationTypeDto, updateOrganizationTypeSchema, UpdateOrganizationTypeDtoClass } from './dto/update-organization-type.dto';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { Public } from '../auth/decorators/public.decorator';
 
 @ApiTags('Типы организаций')
 @Controller('organization-types')

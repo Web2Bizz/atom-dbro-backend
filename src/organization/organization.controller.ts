@@ -83,6 +83,8 @@ export class OrganizationController {
   }
 
   @Patch(':id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ZodValidation(updateOrganizationSchema)
   @ApiOperation({ summary: 'Обновить организацию' })
   @ApiBody({ type: UpdateOrganizationDtoClass })
@@ -109,6 +111,8 @@ export class OrganizationController {
 
   @Post(':id/owners')
   @ZodValidation(addOwnerSchema)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Добавить владельца организации' })
   @ApiBody({ type: AddOwnerDtoClass })
   @ApiResponse({ status: 201, description: 'Владелец успешно добавлен', type: AddOwnerDtoClass })
@@ -123,6 +127,8 @@ export class OrganizationController {
   }
 
   @Delete(':id/owners/:userId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Удалить владельца организации' })
   @ApiResponse({ status: 200, description: 'Владелец успешно удален' })
   @ApiResponse({ status: 404, description: 'Связь не найдена' })
@@ -136,6 +142,8 @@ export class OrganizationController {
 
   @Post(':id/help-types')
   @ZodValidation(addHelpTypeSchema)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Добавить вид помощи организации' })
   @ApiBody({ type: AddHelpTypeDtoClass })
   @ApiResponse({ status: 201, description: 'Вид помощи успешно добавлен', type: AddHelpTypeDtoClass })
@@ -150,6 +158,8 @@ export class OrganizationController {
   }
 
   @Delete(':id/help-types/:helpTypeId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Удалить вид помощи организации' })
   @ApiResponse({ status: 200, description: 'Вид помощи успешно удален' })
   @ApiResponse({ status: 404, description: 'Связь не найдена' })
@@ -162,6 +172,8 @@ export class OrganizationController {
   }
 
   @Post(':id/gallery')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @UseInterceptors(
     FilesInterceptor('images', 20), // Максимум 20 файлов
   )
@@ -226,7 +238,6 @@ export class OrganizationController {
   }
 
   @Get(':id/gallery/:fileName')
-  @Public()
   @ApiOperation({ summary: 'Получить изображение из галереи организации (шлюз)' })
   @ApiResponse({ status: 200, description: 'Изображение найдено', content: { 'image/*': {} } })
   @ApiResponse({ status: 404, description: 'Изображение не найдено' })
@@ -263,6 +274,8 @@ export class OrganizationController {
   @Post()
   @Version('2')
   @HttpCode(201)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ZodValidation(createOrganizationsBulkSchema)
   @ApiOperation({ summary: 'Массовое добавление организаций (v2)' })
   @ApiBody({ 
