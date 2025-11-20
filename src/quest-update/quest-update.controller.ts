@@ -29,6 +29,8 @@ export class QuestUpdateController {
   @ApiResponse({ status: 201, description: 'Обновление квеста успешно создано', type: CreateQuestUpdateDtoClass })
   @ApiResponse({ status: 400, description: 'Ошибка валидации' })
   @ApiResponse({ status: 404, description: 'Квест не найден' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   create(@Body() createQuestUpdateDto: CreateQuestUpdateDto) {
     return this.questUpdateService.create(createQuestUpdateDto);
   }

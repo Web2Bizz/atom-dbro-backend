@@ -27,6 +27,8 @@ export class HelpTypeController {
   @ApiBody({ type: CreateHelpTypeDtoClass })
   @ApiResponse({ status: 201, description: 'Вид помощи успешно создан', type: CreateHelpTypeDtoClass })
   @ApiResponse({ status: 400, description: 'Вид помощи с таким названием уже существует' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   create(@Body() createHelpTypeDto: CreateHelpTypeDto) {
     return this.helpTypeService.create(createHelpTypeDto);
   }
