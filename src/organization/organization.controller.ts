@@ -98,6 +98,30 @@ export class OrganizationController {
     return this.organizationService.update(id, updateOrganizationDto);
   }
 
+  @Patch(':id/approve')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Подтвердить организацию' })
+  @ApiResponse({ status: 200, description: 'Организация успешно подтверждена' })
+  @ApiResponse({ status: 400, description: 'Организация уже подтверждена' })
+  @ApiResponse({ status: 404, description: 'Организация не найдена' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
+  approveOrganization(@Param('id', ParseIntPipe) id: number) {
+    return this.organizationService.approveOrganization(id);
+  }
+
+  @Patch(':id/disapprove')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Отменить подтверждение организации' })
+  @ApiResponse({ status: 200, description: 'Подтверждение организации успешно отменено' })
+  @ApiResponse({ status: 400, description: 'Организация не подтверждена, отмена невозможна' })
+  @ApiResponse({ status: 404, description: 'Организация не найдена' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
+  disapproveOrganization(@Param('id', ParseIntPipe) id: number) {
+    return this.organizationService.disapproveOrganization(id);
+  }
+
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

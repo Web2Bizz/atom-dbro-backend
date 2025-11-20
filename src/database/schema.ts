@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, decimal, integer, timestamp, text, jsonb, unique } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, decimal, integer, timestamp, text, jsonb, unique, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { UserRole } from '../user/user.types';
 
@@ -84,6 +84,7 @@ export const organizations = pgTable('organizations', {
   address: text('address'),
   contacts: jsonb('contacts').$type<Array<{ name: string; value: string }>>(),
   gallery: jsonb('gallery').$type<string[]>(),
+  isApproved: boolean('is_approved').default(false).notNull(),
   recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),

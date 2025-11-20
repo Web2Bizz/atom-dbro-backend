@@ -150,6 +150,7 @@ export class OrganizationService {
         address: organizations.address,
         contacts: organizations.contacts,
         gallery: organizations.gallery,
+        isApproved: organizations.isApproved,
         createdAt: organizations.createdAt,
         updatedAt: organizations.updatedAt,
         cityName: cities.name,
@@ -211,6 +212,7 @@ export class OrganizationService {
       address: org.address,
       contacts: org.contacts,
       gallery: org.gallery ? this.s3Service.getImageUrls(org.gallery) : [],
+      isApproved: org.isApproved,
       createdAt: org.createdAt,
       updatedAt: org.updatedAt,
       city: org.cityName ? {
@@ -243,6 +245,7 @@ export class OrganizationService {
         address: organizations.address,
         contacts: organizations.contacts,
         gallery: organizations.gallery,
+        isApproved: organizations.isApproved,
         createdAt: organizations.createdAt,
         updatedAt: organizations.updatedAt,
         cityName: cities.name,
@@ -288,6 +291,7 @@ export class OrganizationService {
       address: orgData.address,
       contacts: orgData.contacts,
       gallery: orgData.gallery ? this.s3Service.getImageUrls(orgData.gallery) : [],
+      isApproved: orgData.isApproved,
       createdAt: orgData.createdAt,
       updatedAt: orgData.updatedAt,
       city: orgData.cityName ? {
@@ -455,6 +459,82 @@ export class OrganizationService {
     if (!organization) {
       throw new NotFoundException(`Организация с ID ${id} не найдена`);
     }
+    return organization;
+  }
+
+  async approveOrganization(id: number) {
+    // Проверяем существование организации (исключая удаленные)
+    const [existingOrg] = await this.db
+      .select()
+      .from(organizations)
+      .where(and(
+        eq(organizations.id, id),
+        ne(organizations.recordStatus, 'DELETED')
+      ));
+    if (!existingOrg) {
+      throw new NotFoundException(`Организация с ID ${id} не найдена`);
+    }
+
+    // Проверяем, что организация еще не подтверждена
+    if (existingOrg.isApproved) {
+      throw new BadRequestException(`Организация с ID ${id} уже подтверждена`);
+    }
+
+    // Устанавливаем isApproved в true
+    const [organization] = await this.db
+      .update(organizations)
+      .set({
+        isApproved: true,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(organizations.id, id),
+        ne(organizations.recordStatus, 'DELETED')
+      ))
+      .returning();
+    
+    if (!organization) {
+      throw new NotFoundException(`Организация с ID ${id} не найдена`);
+    }
+
+    return organization;
+  }
+
+  async disapproveOrganization(id: number) {
+    // Проверяем существование организации (исключая удаленные)
+    const [existingOrg] = await this.db
+      .select()
+      .from(organizations)
+      .where(and(
+        eq(organizations.id, id),
+        ne(organizations.recordStatus, 'DELETED')
+      ));
+    if (!existingOrg) {
+      throw new NotFoundException(`Организация с ID ${id} не найдена`);
+    }
+
+    // Проверяем, что организация подтверждена (можно отменить только подтвержденную)
+    if (!existingOrg.isApproved) {
+      throw new BadRequestException(`Организация с ID ${id} не подтверждена, отмена невозможна`);
+    }
+
+    // Устанавливаем isApproved в false
+    const [organization] = await this.db
+      .update(organizations)
+      .set({
+        isApproved: false,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(organizations.id, id),
+        ne(organizations.recordStatus, 'DELETED')
+      ))
+      .returning();
+    
+    if (!organization) {
+      throw new NotFoundException(`Организация с ID ${id} не найдена`);
+    }
+
     return organization;
   }
 
