@@ -40,7 +40,7 @@ export class CityService {
   }
 
   async findAll(regionId?: number) {
-    const baseConditions = [ne(cities.recordStatus, 'DELETED')];
+    const baseConditions = [];
     
     if (regionId) {
       baseConditions.push(eq(cities.regionId, regionId));
@@ -53,6 +53,7 @@ export class CityService {
         latitude: cities.latitude,
         longitude: cities.longitude,
         regionId: cities.regionId,
+        recordStatus: cities.recordStatus,
         region: {
           id: regions.id,
           name: regions.name,
@@ -62,7 +63,7 @@ export class CityService {
       })
       .from(cities)
       .leftJoin(regions, eq(cities.regionId, regions.id))
-      .where(and(...baseConditions));
+      .where(baseConditions.length > 0 ? and(...baseConditions) : undefined);
   }
 
   async findOne(id: number) {

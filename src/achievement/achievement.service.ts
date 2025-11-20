@@ -38,7 +38,7 @@ export class AchievementService {
   }
 
   async findAll() {
-    return this.db.select().from(achievements).where(ne(achievements.recordStatus, 'DELETED'));
+    return this.db.select().from(achievements);
   }
 
   async findOne(id: number) {

@@ -297,6 +297,7 @@ export class QuestService {
           coverImage: quests.coverImage,
           gallery: quests.gallery,
           steps: quests.steps,
+          recordStatus: quests.recordStatus,
           createdAt: quests.createdAt,
           updatedAt: quests.updatedAt,
           achievement: {
@@ -341,7 +342,7 @@ export class QuestService {
         ));
 
       // Применяем фильтры
-      const conditions = [ne(quests.recordStatus, 'DELETED')];
+      const conditions = [];
       if (cityId) {
         conditions.push(eq(quests.cityId, cityId));
       }
@@ -349,7 +350,9 @@ export class QuestService {
         query = query.innerJoin(questCategories, eq(quests.id, questCategories.questId)) as any;
         conditions.push(eq(questCategories.categoryId, categoryId));
       }
-      query = query.where(conditions.length === 1 ? conditions[0] : and(...conditions)) as any;
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions)) as any;
+      }
 
       const questsList = await query;
 

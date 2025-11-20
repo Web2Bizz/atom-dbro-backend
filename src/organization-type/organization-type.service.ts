@@ -34,7 +34,7 @@ export class OrganizationTypeService {
   }
 
   async findAll() {
-    return this.db.select().from(organizationTypes).where(ne(organizationTypes.recordStatus, 'DELETED'));
+    return this.db.select().from(organizationTypes);
   }
 
   async findOne(id: number) {

@@ -22,7 +22,7 @@ export class RegionService {
   }
 
   async findAll() {
-    return this.db.select().from(regions).where(ne(regions.recordStatus, 'DELETED'));
+    return this.db.select().from(regions);
   }
 
   async findOne(id: number) {
