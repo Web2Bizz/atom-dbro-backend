@@ -244,13 +244,66 @@ DO $$ BEGIN
 END $$;
 --> statement-breakpoint
 
--- Добавление quest_id в users, если его нет
+-- Изменение типа quest_id в users с integer на integer[]
 DO $$ BEGIN
+	-- Если колонка не существует, создаем её как массив
 	IF NOT EXISTS (
 		SELECT 1 FROM information_schema.columns 
 		WHERE table_name = 'users' AND column_name = 'quest_id'
 	) THEN
-		ALTER TABLE "users" ADD COLUMN "quest_id" integer[];
+		ALTER TABLE "users" ADD COLUMN "quest_id" integer[] DEFAULT ARRAY[]::integer[];
+	ELSE
+		-- Если колонка существует, проверяем её тип
+		IF EXISTS (
+			SELECT 1 FROM information_schema.columns 
+			WHERE table_name = 'users' 
+			AND column_name = 'quest_id' 
+			AND data_type = 'integer'
+		) THEN
+			-- Удаляем внешний ключ, если он существует
+			ALTER TABLE "users" DROP CONSTRAINT IF EXISTS "users_quest_id_quests_id_fk";
+			
+			-- Преобразуем существующие данные: NULL -> пустой массив, integer -> массив с одним элементом
+			UPDATE "users" 
+			SET "quest_id" = CASE 
+				WHEN "quest_id" IS NOT NULL THEN ARRAY["quest_id"]::integer
+				ELSE ARRAY[]::integer[]
+			END
+			WHERE "quest_id" IS NOT NULL OR "quest_id" IS NULL;
+			
+			-- Изменяем тип колонки на integer[]
+			ALTER TABLE "users" ALTER COLUMN "quest_id" TYPE integer[] USING 
+				CASE 
+					WHEN "quest_id" IS NOT NULL THEN ARRAY["quest_id"]::integer
+					ELSE ARRAY[]::integer[]
+				END;
+			
+			-- Устанавливаем значение по умолчанию
+			ALTER TABLE "users" ALTER COLUMN "quest_id" SET DEFAULT ARRAY[]::integer[];
+		ELSE
+			-- Если колонка уже имеет тип integer[], но может содержать NULL значения, обновляем их
+			IF EXISTS (
+				SELECT 1 FROM information_schema.columns 
+				WHERE table_name = 'users' 
+				AND column_name = 'quest_id' 
+				AND data_type = 'ARRAY'
+			) THEN
+				-- Обновляем все NULL значения на пустой массив
+				UPDATE "users" 
+				SET "quest_id" = ARRAY[]::integer[]
+				WHERE "quest_id" IS NULL;
+				
+				-- Устанавливаем значение по умолчанию, если его нет
+				IF EXISTS (
+					SELECT 1 FROM information_schema.columns 
+					WHERE table_name = 'users' 
+					AND column_name = 'quest_id' 
+					AND column_default IS NULL
+				) THEN
+					ALTER TABLE "users" ALTER COLUMN "quest_id" SET DEFAULT ARRAY[]::integer[];
+				END IF;
+			END IF;
+		END IF;
 	END IF;
 END $$;
 --> statement-breakpoint
