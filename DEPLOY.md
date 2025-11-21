@@ -39,6 +39,9 @@ JWT_EXPIRES_IN=24h
 JWT_REFRESH_SECRET=your-refresh-secret-key-change-in-production
 JWT_REFRESH_EXPIRES_IN=7d
 
+# CORS (опционально, по умолчанию разрешены localhost:5173 и localhost:3000)
+# CORS_ORIGINS=http://localhost:5173,https://yourdomain.com
+
 # Database URL (автоматически формируется из переменных выше)
 DATABASE_URL=postgresql://postgres:postgres@postgres:5432/atom_dbro
 
@@ -402,6 +405,9 @@ JWT_SECRET=your-very-secure-secret-key
 JWT_EXPIRES_IN=24h
 JWT_REFRESH_SECRET=your-very-secure-refresh-secret-key
 JWT_REFRESH_EXPIRES_IN=7d
+
+# CORS (для production укажите домены фронтенда)
+# CORS_ORIGINS=https://yourdomain.com,https://app.yourdomain.com
 
 # Database URL
 DATABASE_URL=postgresql://postgres:your-secure-password@postgres:5432/atom_dbro

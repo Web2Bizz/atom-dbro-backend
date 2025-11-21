@@ -3,10 +3,12 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { VersioningType, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { json } from 'express';
+import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   try {
     const app = await NestFactory.create(AppModule);
+    const configService = app.get(ConfigService);
 
     app.use(json({ limit: '10mb' }));
 
@@ -27,11 +29,43 @@ async function bootstrap() {
       next();
     });
 
+    // CORS конфигурация
+    const corsOriginsEnv = configService.get<string>('CORS_ORIGINS');
+    const allowedOrigins = corsOriginsEnv
+      ? corsOriginsEnv.split(',').map((origin) => origin.trim())
+      : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000'];
+
     app.enableCors({
-      origin: true,
+      origin: (origin, callback) => {
+        // Разрешаем запросы без origin (например, Postman, мобильные приложения)
+        if (!origin) {
+          return callback(null, true);
+        }
+        // Разрешаем если origin в списке разрешенных
+        if (allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+        // В development разрешаем все локальные адреса
+        const isDevelopment = process.env.NODE_ENV !== 'production';
+        if (isDevelopment && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))) {
+          return callback(null, true);
+        }
+        callback(new Error('Not allowed by CORS'));
+      },
       credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'Accept',
+        'Origin',
+        'X-Requested-With',
+        'Access-Control-Allow-Origin',
+        'Access-Control-Allow-Headers',
+        'Access-Control-Allow-Methods',
+      ],
+      exposedHeaders: ['Authorization'],
+      maxAge: 86400, // 24 часа
     });
 
     app.enableVersioning({

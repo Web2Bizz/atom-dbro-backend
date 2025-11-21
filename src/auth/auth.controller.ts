@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto, registerSchema, RegisterDtoClass } from './dto/register.dto';
@@ -6,6 +6,7 @@ import { LoginDto, loginSchema, LoginDtoClass } from './dto/login.dto';
 import { RefreshTokenDto, refreshTokenSchema, RefreshTokenDtoClass } from './dto/refresh-token.dto';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 import { Public } from './decorators/public.decorator';
+import { RefreshTokenGuard } from './guards/refresh-token.guard';
 
 @ApiTags('Авторизация')
 @Controller('auth')
@@ -37,12 +38,12 @@ export class AuthController {
   }
 
   @Post('refresh')
-  @Public()
+  @UseGuards(RefreshTokenGuard)
   @ZodValidation(refreshTokenSchema)
-  @ApiOperation({ summary: 'Обновить access token используя refresh token' })
+  @ApiOperation({ summary: 'Обновить access token используя refresh token (требуется валидный refresh token в body)' })
   @ApiBody({ type: RefreshTokenDtoClass })
   @ApiResponse({ status: 200, description: 'Токены успешно обновлены', type: RefreshTokenDtoClass })
-  @ApiResponse({ status: 401, description: 'Недействительный refresh token' })
+  @ApiResponse({ status: 401, description: 'Недействительный refresh token или refresh token не предоставлен' })
   refresh(@Body() refreshTokenDto: RefreshTokenDto) {
     return this.authService.refresh(refreshTokenDto);
   }

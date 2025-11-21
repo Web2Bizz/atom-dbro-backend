@@ -34,6 +34,21 @@ S3_REGION=ru1
 
 Подробная документация по настройке S3: [docs/S3_CONFIGURATION.md](docs/S3_CONFIGURATION.md)
 
+### CORS настройка
+
+API настроен для работы с фронтендом на `localhost:5173` (Vite dev server). По умолчанию разрешены следующие источники:
+- `http://localhost:5173`
+- `http://localhost:3000`
+- `http://127.0.0.1:5173`
+- `http://127.0.0.1:3000`
+
+Для настройки других источников используйте переменную окружения `CORS_ORIGINS`:
+```env
+CORS_ORIGINS=http://localhost:5173,https://yourdomain.com,https://app.yourdomain.com
+```
+
+**Примечание:** В development режиме (`NODE_ENV !== 'production'`) автоматически разрешаются все локальные адреса (`localhost:*` и `127.0.0.1:*`).
+
 ## Запуск
 
 ```bash
@@ -111,6 +126,7 @@ Response: {
   "user": { ... }
 }
 ```
+**Примечание:** Endpoint требует валидный refresh token (авторизованный пользователь).
 
 ### Использование токенов
 
