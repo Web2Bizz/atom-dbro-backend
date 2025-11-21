@@ -52,7 +52,7 @@ export class OrganizationController {
   ) {}
 
   @Post()
-  // @ZodValidation(createOrganizationSchema) // Временно отключено для отладки
+  @ZodValidation(createOrganizationSchema)
   @ApiOperation({ summary: 'Создать организацию' })
   @ApiBody({ type: CreateOrganizationDtoClass })
   @ApiResponse({ status: 201, description: 'Организация успешно создана', type: CreateOrganizationDtoClass })
