@@ -50,7 +50,7 @@ export class UserRepository {
    * @param id ID пользователя
    * @returns Пользователь или undefined
    */
-  async findById(id: number): Promise<typeof users.$inferSelect | undefined> {
+  async findById(id: number): Promise<Omit<typeof users.$inferSelect, 'passwordHash'> | undefined> {
     try {
       const [user] = await this.db
         .select({
@@ -64,6 +64,7 @@ export class UserRepository {
           level: users.level,
           experience: users.experience,
           organisationId: users.organisationId,
+          recordStatus: users.recordStatus,
           createdAt: users.createdAt,
           updatedAt: users.updatedAt,
         })
@@ -140,6 +141,7 @@ export class UserRepository {
           level: users.level,
           experience: users.experience,
           organisationId: users.organisationId,
+          recordStatus: users.recordStatus,
           createdAt: users.createdAt,
           updatedAt: users.updatedAt,
         })
