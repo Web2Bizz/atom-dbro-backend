@@ -13,9 +13,6 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:apply-migration": "ts-node src/scripts/apply-migration.ts",
-    "db:apply-all": "ts-node src/scripts/apply-all-migrations.ts",
-    "db:fix-quest-id": "ts-node src/scripts/fix-quest-id-array.ts",
     "db:studio": "drizzle-kit studio"
   },
   "repository": {
