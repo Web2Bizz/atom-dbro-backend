@@ -36,6 +36,7 @@ PORT=3000
 # JWT
 JWT_SECRET=your-secret-key-change-in-production
 JWT_EXPIRES_IN=24h
+JWT_REFRESH_EXPIRES_IN=7d
 
 # Database URL (автоматически формируется из переменных выше)
 DATABASE_URL=postgresql://postgres:postgres@postgres:5432/atom_dbro
@@ -398,6 +399,7 @@ PORT=3000
 # JWT
 JWT_SECRET=your-very-secure-secret-key
 JWT_EXPIRES_IN=24h
+JWT_REFRESH_EXPIRES_IN=7d
 
 # Database URL
 DATABASE_URL=postgresql://postgres:your-secure-password@postgres:5432/atom_dbro

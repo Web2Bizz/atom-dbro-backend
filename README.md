@@ -57,6 +57,78 @@ npm run start:prod
 http://localhost:3000/api
 ```
 
+## Аутентификация
+
+API использует JWT (JSON Web Tokens) для аутентификации. При успешном входе пользователь получает два токена:
+
+- **access_token** - короткоживущий токен для доступа к защищенным ресурсам (по умолчанию 24 часа)
+- **refresh_token** - долгоживущий токен для обновления access_token (по умолчанию 7 дней)
+
+### Endpoints
+
+#### Регистрация
+```
+POST /auth/register
+Body: {
+  "firstName": "Иван",
+  "lastName": "Иванов",
+  "email": "ivan@example.com",
+  "password": "password123",
+  "confirmPassword": "password123"
+}
+```
+
+#### Вход
+```
+POST /auth/login
+Body: {
+  "email": "ivan@example.com",
+  "password": "password123"
+}
+
+Response: {
+  "access_token": "...",
+  "refresh_token": "...",
+  "user": {
+    "id": 1,
+    "email": "ivan@example.com",
+    "firstName": "Иван",
+    "lastName": "Иванов"
+  }
+}
+```
+
+#### Обновление токена
+```
+POST /auth/refresh
+Body: {
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+
+Response: {
+  "access_token": "...",
+  "refresh_token": "...",
+  "user": { ... }
+}
+```
+
+### Использование токенов
+
+Для доступа к защищенным эндпоинтам добавьте токен в заголовок Authorization:
+```
+Authorization: Bearer <access_token>
+```
+
+### Настройка токенов
+
+Срок действия токенов настраивается через переменные окружения:
+
+```env
+JWT_EXPIRES_IN=24h              # Срок действия access token (по умолчанию 24h)
+JWT_REFRESH_EXPIRES_IN=7d      # Срок действия refresh token (по умолчанию 7d)
+JWT_SECRET=your-secret-key     # Секретный ключ для подписи токенов
+```
+
 ## Структура проекта
 
 - `src/organization/` - модуль организаций с поддержкой галереи изображений
