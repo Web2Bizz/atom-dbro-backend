@@ -126,7 +126,8 @@ Authorization: Bearer <access_token>
 ```env
 JWT_EXPIRES_IN=24h              # Срок действия access token (по умолчанию 24h)
 JWT_REFRESH_EXPIRES_IN=7d      # Срок действия refresh token (по умолчанию 7d)
-JWT_SECRET=your-secret-key     # Секретный ключ для подписи токенов
+JWT_SECRET=your-secret-key     # Секретный ключ для подписи access токенов
+JWT_REFRESH_SECRET=your-refresh-secret-key  # Секретный ключ для подписи refresh токенов (опционально, по умолчанию используется JWT_SECRET)
 ```
 
 ## Структура проекта

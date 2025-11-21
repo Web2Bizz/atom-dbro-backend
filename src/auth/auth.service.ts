@@ -43,10 +43,14 @@ export class AuthService {
     const payload = { email: user.email, sub: user.id };
     const accessTokenExpiresIn = this.configService.get<string>('JWT_EXPIRES_IN') || '24h';
     const refreshTokenExpiresIn = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d';
+    const refreshTokenSecret = this.configService.get<string>('JWT_REFRESH_SECRET') || this.configService.get<string>('JWT_SECRET') || 'your-secret-key';
 
     return {
       access_token: this.jwtService.sign(payload, { expiresIn: accessTokenExpiresIn }),
-      refresh_token: this.jwtService.sign(payload, { expiresIn: refreshTokenExpiresIn }),
+      refresh_token: this.jwtService.sign(payload, { 
+        expiresIn: refreshTokenExpiresIn,
+        secret: refreshTokenSecret,
+      }),
       user: {
         id: user.id,
         email: user.email,
@@ -59,7 +63,8 @@ export class AuthService {
 
   async refresh(refreshTokenDto: RefreshTokenDto) {
     try {
-      const payload = this.jwtService.verify(refreshTokenDto.refresh_token);
+      const refreshTokenSecret = this.configService.get<string>('JWT_REFRESH_SECRET') || this.configService.get<string>('JWT_SECRET') || 'your-secret-key';
+      const payload = this.jwtService.verify(refreshTokenDto.refresh_token, { secret: refreshTokenSecret });
       const user = await this.userService.findOne(payload.sub);
       
       if (!user) {
@@ -72,7 +77,10 @@ export class AuthService {
 
       return {
         access_token: this.jwtService.sign(newPayload, { expiresIn: accessTokenExpiresIn }),
-        refresh_token: this.jwtService.sign(newPayload, { expiresIn: refreshTokenExpiresIn }),
+        refresh_token: this.jwtService.sign(newPayload, { 
+          expiresIn: refreshTokenExpiresIn,
+          secret: refreshTokenSecret,
+        }),
         user: {
           id: user.id,
           email: user.email,

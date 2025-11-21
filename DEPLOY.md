@@ -36,6 +36,7 @@ PORT=3000
 # JWT
 JWT_SECRET=your-secret-key-change-in-production
 JWT_EXPIRES_IN=24h
+JWT_REFRESH_SECRET=your-refresh-secret-key-change-in-production
 JWT_REFRESH_EXPIRES_IN=7d
 
 # Database URL (автоматически формируется из переменных выше)
@@ -399,6 +400,7 @@ PORT=3000
 # JWT
 JWT_SECRET=your-very-secure-secret-key
 JWT_EXPIRES_IN=24h
+JWT_REFRESH_SECRET=your-very-secure-refresh-secret-key
 JWT_REFRESH_EXPIRES_IN=7d
 
 # Database URL
