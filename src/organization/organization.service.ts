@@ -159,18 +159,14 @@ export class OrganizationService {
           cityName: cities.name,
           cityLatitude: cities.latitude,
           cityLongitude: cities.longitude,
+          cityRecordStatus: cities.recordStatus,
           organizationTypeId: organizationTypes.id,
           organizationTypeName: organizationTypes.name,
+          organizationTypeRecordStatus: organizationTypes.recordStatus,
         })
         .from(organizations)
-        .leftJoin(cities, and(
-          eq(organizations.cityId, cities.id),
-          ne(cities.recordStatus, 'DELETED')
-        ))
-        .leftJoin(organizationTypes, and(
-          eq(organizations.organizationTypeId, organizationTypes.id),
-          ne(organizationTypes.recordStatus, 'DELETED')
-        ))
+        .leftJoin(cities, eq(organizations.cityId, cities.id))
+        .leftJoin(organizationTypes, eq(organizations.organizationTypeId, organizationTypes.id))
         .where(ne(organizations.recordStatus, 'DELETED'));
 
       // Получаем helpTypes для всех организаций (исключая удаленные)
@@ -218,13 +214,13 @@ export class OrganizationService {
         isApproved: org.isApproved,
         createdAt: org.createdAt,
         updatedAt: org.updatedAt,
-        city: org.cityName ? {
+        city: org.cityName && org.cityRecordStatus && org.cityRecordStatus !== 'DELETED' ? {
           id: org.cityId,
           name: org.cityName,
           latitude: this.parseCoordinate(org.cityLatitude),
           longitude: this.parseCoordinate(org.cityLongitude),
         } : null,
-        type: org.organizationTypeName ? {
+        type: org.organizationTypeName && org.organizationTypeRecordStatus && org.organizationTypeRecordStatus !== 'DELETED' ? {
           id: org.organizationTypeId,
           name: org.organizationTypeName,
         } : null,
