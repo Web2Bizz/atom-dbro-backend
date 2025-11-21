@@ -14,7 +14,6 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  @Public()
   @HttpCode(201)
   @ZodValidation(registerSchema)
   @ApiOperation({ summary: 'Регистрация пользователя' })
@@ -27,7 +26,6 @@ export class AuthController {
   }
 
   @Post('login')
-  @Public()
   @ZodValidation(loginSchema)
   @ApiOperation({ summary: 'Вход пользователя' })
   @ApiBody({ type: LoginDtoClass })
