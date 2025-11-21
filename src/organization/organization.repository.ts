@@ -93,8 +93,14 @@ export class OrganizationRepository {
           organizationTypeRecordStatus: organizationTypes.recordStatus,
         })
         .from(organizations)
-        .leftJoin(cities, eq(organizations.cityId, cities.id))
-        .leftJoin(organizationTypes, eq(organizations.organizationTypeId, organizationTypes.id))
+        .leftJoin(cities, and(
+          eq(organizations.cityId, cities.id),
+          ne(cities.recordStatus, 'DELETED')
+        ))
+        .leftJoin(organizationTypes, and(
+          eq(organizations.organizationTypeId, organizationTypes.id),
+          ne(organizationTypes.recordStatus, 'DELETED')
+        ))
         .where(ne(organizations.recordStatus, 'DELETED'));
     } catch (error: any) {
       this.logger.error('Ошибка в findAll:', error);
@@ -142,8 +148,14 @@ export class OrganizationRepository {
           organizationTypeRecordStatus: organizationTypes.recordStatus,
         })
         .from(organizations)
-        .leftJoin(cities, eq(organizations.cityId, cities.id))
-        .leftJoin(organizationTypes, eq(organizations.organizationTypeId, organizationTypes.id))
+        .leftJoin(cities, and(
+          eq(organizations.cityId, cities.id),
+          ne(cities.recordStatus, 'DELETED')
+        ))
+        .leftJoin(organizationTypes, and(
+          eq(organizations.organizationTypeId, organizationTypes.id),
+          ne(organizationTypes.recordStatus, 'DELETED')
+        ))
         .where(and(
           eq(organizations.id, id),
           ne(organizations.recordStatus, 'DELETED')
