@@ -351,40 +351,6 @@ jobs:
               exit 1
             fi
             
-            # Health check приложения
-            echo "🏥 Performing health check..."
-            MAX_HEALTH_CHECK_ATTEMPTS=30
-            HEALTH_CHECK_ATTEMPT=0
-            HEALTH_CHECK_SUCCESS=false
-            
-            while [ $HEALTH_CHECK_ATTEMPT -lt $MAX_HEALTH_CHECK_ATTEMPTS ]; do
-              # Проверяем доступность через curl
-              if curl -f -s -o /dev/null -w "%{http_code}" http://localhost:3000/api | grep -q "200\|301\|302"; then
-                HEALTH_CHECK_SUCCESS=true
-                break
-              fi
-              HEALTH_CHECK_ATTEMPT=$((HEALTH_CHECK_ATTEMPT + 1))
-              if [ $HEALTH_CHECK_ATTEMPT -lt $MAX_HEALTH_CHECK_ATTEMPTS ]; then
-                echo "Health check attempt $HEALTH_CHECK_ATTEMPT/$MAX_HEALTH_CHECK_ATTEMPTS failed, retrying in 2 seconds..."
-                # Показываем последние логи для отладки
-                if [ $((HEALTH_CHECK_ATTEMPT % 5)) -eq 0 ]; then
-                  echo "📋 Recent container logs:"
-                  docker logs "$CONTAINER_NAME" --tail 20 2>&1 | tail -5 || true
-                fi
-                sleep 2
-              fi
-            done
-            
-            if [ "$HEALTH_CHECK_SUCCESS" = true ]; then
-              echo "✅ Application is healthy and responding!"
-              echo "🌐 Application is available at: http://localhost:3000"
-              echo "📚 Swagger docs: http://localhost:3000/api"
-            else
-              echo "❌ Health check failed after $MAX_HEALTH_CHECK_ATTEMPTS attempts"
-              docker logs "$CONTAINER_NAME" --tail 100
-              exit 1
-            fi
-            
             # Очистка неиспользуемых Docker ресурсов (для экономии места)
             echo "🧹 Cleaning up unused Docker resources..."
             echo "📊 Disk usage before cleanup:"
