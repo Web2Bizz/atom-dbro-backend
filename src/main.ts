@@ -43,25 +43,21 @@ async function bootstrap() {
 
     app.enableCors({
       origin: (origin, callback) => {
-        // Разрешаем запросы без origin (например, Postman, мобильные приложения)
         if (!origin) {
           corsLogger.debug('Request without origin - allowing');
           return callback(null, true);
         }
         
-        // Разрешаем если origin в списке разрешенных
         if (allowedOrigins.includes(origin)) {
           corsLogger.debug(`Origin ${origin} is in allowed list - allowing`);
           return callback(null, true);
         }
         
-        // В development разрешаем все локальные адреса
         if (isDevelopment && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))) {
           corsLogger.debug(`Origin ${origin} is localhost in development - allowing`);
           return callback(null, true);
         }
         
-        // Логируем отклоненный origin для отладки
         corsLogger.warn(`CORS: Origin ${origin} is not allowed. Allowed origins: ${allowedOrigins.join(', ')}`);
         callback(new Error(`Not allowed by CORS: ${origin}`));
       },
@@ -78,7 +74,7 @@ async function bootstrap() {
         'Access-Control-Allow-Methods',
       ],
       exposedHeaders: ['Authorization'],
-      maxAge: 86400, // 24 часа
+      maxAge: 86400,
     });
 
     app.enableVersioning({
