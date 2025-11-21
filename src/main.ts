@@ -85,8 +85,8 @@ async function bootstrap() {
     app.setGlobalPrefix('api');
 
     const config = new DocumentBuilder()
-      .setTitle('Atom DBRO Backend API')
-      .setDescription('API для хакатона Atom DBRO')
+      .setTitle('Atom DBRO Admin Backend API')
+      .setDescription('API для админ панели Atom DBRO')
       .setVersion('1.0')
       .addBearerAuth()
       .build();
