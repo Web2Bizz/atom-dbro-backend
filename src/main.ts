@@ -30,27 +30,40 @@ async function bootstrap() {
     });
 
     // CORS конфигурация
+    const corsLogger = new Logger('CORS');
     const corsOriginsEnv = configService.get<string>('CORS_ORIGINS');
     const allowedOrigins = corsOriginsEnv
       ? corsOriginsEnv.split(',').map((origin) => origin.trim())
       : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000'];
 
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    
+    corsLogger.log(`CORS configuration: NODE_ENV=${process.env.NODE_ENV}, isDevelopment=${isDevelopment}`);
+    corsLogger.log(`Allowed origins: ${allowedOrigins.join(', ')}`);
+
     app.enableCors({
       origin: (origin, callback) => {
         // Разрешаем запросы без origin (например, Postman, мобильные приложения)
         if (!origin) {
+          corsLogger.debug('Request without origin - allowing');
           return callback(null, true);
         }
+        
         // Разрешаем если origin в списке разрешенных
         if (allowedOrigins.includes(origin)) {
+          corsLogger.debug(`Origin ${origin} is in allowed list - allowing`);
           return callback(null, true);
         }
+        
         // В development разрешаем все локальные адреса
-        const isDevelopment = process.env.NODE_ENV !== 'production';
         if (isDevelopment && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))) {
+          corsLogger.debug(`Origin ${origin} is localhost in development - allowing`);
           return callback(null, true);
         }
-        callback(new Error('Not allowed by CORS'));
+        
+        // Логируем отклоненный origin для отладки
+        corsLogger.warn(`CORS: Origin ${origin} is not allowed. Allowed origins: ${allowedOrigins.join(', ')}`);
+        callback(new Error(`Not allowed by CORS: ${origin}`));
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
