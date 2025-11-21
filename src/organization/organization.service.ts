@@ -10,7 +10,7 @@ import {
   cities,
   organizationTypes,
 } from '../database/schema';
-import { eq, and, inArray, ilike, ne } from 'drizzle-orm';
+import { eq, and, inArray, ilike, ne, or, isNull } from 'drizzle-orm';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { CreateOrganizationsBulkDto } from './dto/create-organizations-bulk.dto';
@@ -162,11 +162,17 @@ export class OrganizationService {
       .from(organizations)
       .leftJoin(cities, and(
         eq(organizations.cityId, cities.id),
-        ne(cities.recordStatus, 'DELETED')
+        or(
+          isNull(cities.recordStatus),
+          ne(cities.recordStatus, 'DELETED')
+        )
       ))
       .leftJoin(organizationTypes, and(
         eq(organizations.organizationTypeId, organizationTypes.id),
-        ne(organizationTypes.recordStatus, 'DELETED')
+        or(
+          isNull(organizationTypes.recordStatus),
+          ne(organizationTypes.recordStatus, 'DELETED')
+        )
       ))
       .where(ne(organizations.recordStatus, 'DELETED'));
 
