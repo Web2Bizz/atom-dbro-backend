@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
@@ -18,6 +18,8 @@ import { S3Service } from './s3.service';
 
 @Injectable()
 export class OrganizationService {
+  private readonly logger = new Logger(OrganizationService.name);
+
   constructor(
     @Inject(DATABASE_CONNECTION)
     private db: NodePgDatabase,
@@ -170,9 +172,67 @@ export class OrganizationService {
           ne(organizationTypes.recordStatus, 'DELETED')
         ))
         .where(ne(organizations.recordStatus, 'DELETED'));
+
+      // Получаем helpTypes для всех организаций (исключая удаленные)
+      const orgIds = orgs.map(org => org.id);
+      const allHelpTypes = orgIds.length > 0
+        ? await this.db
+            .select({
+              organizationId: organizationHelpTypes.organizationId,
+              id: helpTypes.id,
+              name: helpTypes.name,
+            })
+            .from(organizationHelpTypes)
+            .innerJoin(helpTypes, eq(organizationHelpTypes.helpTypeId, helpTypes.id))
+            .where(and(
+              inArray(organizationHelpTypes.organizationId, orgIds),
+              ne(helpTypes.recordStatus, 'DELETED')
+            ))
+        : [];
+
+      // Группируем helpTypes по organizationId
+      const helpTypesByOrgId = new Map<number, Array<{ id: number; name: string }>>();
+      for (const helpType of allHelpTypes) {
+        if (!helpTypesByOrgId.has(helpType.organizationId)) {
+          helpTypesByOrgId.set(helpType.organizationId, []);
+        }
+        helpTypesByOrgId.get(helpType.organizationId)!.push({
+          id: helpType.id,
+          name: helpType.name,
+        });
+      }
+
+      return orgs.map(org => ({
+        id: org.id,
+        name: org.name,
+        latitude: this.parseCoordinate(org.latitude),
+        longitude: this.parseCoordinate(org.longitude),
+        summary: org.summary,
+        mission: org.mission,
+        description: org.description,
+        goals: org.goals,
+        needs: org.needs,
+        address: org.address,
+        contacts: org.contacts,
+        gallery: org.gallery ? this.s3Service.getImageUrls(org.gallery) : [],
+        isApproved: org.isApproved,
+        createdAt: org.createdAt,
+        updatedAt: org.updatedAt,
+        city: org.cityName ? {
+          id: org.cityId,
+          name: org.cityName,
+          latitude: this.parseCoordinate(org.cityLatitude),
+          longitude: this.parseCoordinate(org.cityLongitude),
+        } : null,
+        type: org.organizationTypeName ? {
+          id: org.organizationTypeId,
+          name: org.organizationTypeName,
+        } : null,
+        helpTypes: helpTypesByOrgId.get(org.id) || [],
+      }));
     } catch (error: any) {
-      console.error('Ошибка в findAll:', error);
-      console.error('Детали ошибки:', {
+      this.logger.error('Ошибка в findAll:', error);
+      this.logger.error('Детали ошибки:', {
         message: error?.message,
         code: error?.code,
         detail: error?.detail,
@@ -182,64 +242,6 @@ export class OrganizationService {
       });
       throw error;
     }
-
-    // Получаем helpTypes для всех организаций (исключая удаленные)
-    const orgIds = orgs.map(org => org.id);
-    const allHelpTypes = orgIds.length > 0
-      ? await this.db
-          .select({
-            organizationId: organizationHelpTypes.organizationId,
-            id: helpTypes.id,
-            name: helpTypes.name,
-          })
-          .from(organizationHelpTypes)
-          .innerJoin(helpTypes, eq(organizationHelpTypes.helpTypeId, helpTypes.id))
-          .where(and(
-            inArray(organizationHelpTypes.organizationId, orgIds),
-            ne(helpTypes.recordStatus, 'DELETED')
-          ))
-      : [];
-
-    // Группируем helpTypes по organizationId
-    const helpTypesByOrgId = new Map<number, Array<{ id: number; name: string }>>();
-    for (const helpType of allHelpTypes) {
-      if (!helpTypesByOrgId.has(helpType.organizationId)) {
-        helpTypesByOrgId.set(helpType.organizationId, []);
-      }
-      helpTypesByOrgId.get(helpType.organizationId)!.push({
-        id: helpType.id,
-        name: helpType.name,
-      });
-    }
-
-    return orgs.map(org => ({
-      id: org.id,
-      name: org.name,
-      latitude: this.parseCoordinate(org.latitude),
-      longitude: this.parseCoordinate(org.longitude),
-      summary: org.summary,
-      mission: org.mission,
-      description: org.description,
-      goals: org.goals,
-      needs: org.needs,
-      address: org.address,
-      contacts: org.contacts,
-      gallery: org.gallery ? this.s3Service.getImageUrls(org.gallery) : [],
-      isApproved: org.isApproved,
-      createdAt: org.createdAt,
-      updatedAt: org.updatedAt,
-      city: org.cityName ? {
-        id: org.cityId,
-        name: org.cityName,
-        latitude: this.parseCoordinate(org.cityLatitude),
-        longitude: this.parseCoordinate(org.cityLongitude),
-      } : null,
-      type: org.organizationTypeName ? {
-        id: org.organizationTypeId,
-        name: org.organizationTypeName,
-      } : null,
-      helpTypes: helpTypesByOrgId.get(org.id) || [],
-    }));
   }
 
   async findOne(id: number) {
@@ -454,7 +456,7 @@ export class OrganizationService {
           await this.s3Service.deleteFiles(filesToDelete);
         } catch (error) {
           // Логируем ошибку, но не прерываем обновление организации
-          console.error(`Ошибка при удалении файлов из S3: ${error}`);
+          this.logger.error(`Ошибка при удалении файлов из S3: ${error}`);
         }
       }
 
@@ -580,7 +582,7 @@ export class OrganizationService {
         await this.s3Service.deleteFiles(organization.gallery);
       } catch (error) {
         // Логируем ошибку, но не прерываем удаление организации
-        console.error(`Ошибка при удалении файлов из S3: ${error}`);
+        this.logger.error(`Ошибка при удалении файлов из S3: ${error}`);
       }
     }
 
