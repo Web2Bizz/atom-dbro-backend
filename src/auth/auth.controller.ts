@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, UseGuards, UseInterceptors } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto, loginSchema, LoginDtoClass } from './dto/login.dto';
@@ -6,6 +6,7 @@ import { RefreshTokenDto, refreshTokenSchema, RefreshTokenDtoClass } from './dto
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 import { Public } from './decorators/public.decorator';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
+import { LoginLoggingInterceptor } from './interceptors/login-logging.interceptor';
 
 @ApiTags('Авторизация')
 @Controller('auth')
@@ -13,6 +14,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
+  @UseInterceptors(LoginLoggingInterceptor)
   @ZodValidation(loginSchema)
   @ApiOperation({ summary: 'Вход пользователя' })
   @ApiBody({ type: LoginDtoClass })
