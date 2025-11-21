@@ -135,46 +135,53 @@ export class OrganizationService {
   }
 
   async findAll() {
-    const orgs = await this.db
-      .select({
-        id: organizations.id,
-        name: organizations.name,
-        cityId: organizations.cityId,
-        latitude: organizations.latitude,
-        longitude: organizations.longitude,
-        summary: organizations.summary,
-        mission: organizations.mission,
-        description: organizations.description,
-        goals: organizations.goals,
-        needs: organizations.needs,
-        address: organizations.address,
-        contacts: organizations.contacts,
-        gallery: organizations.gallery,
-        isApproved: organizations.isApproved,
-        createdAt: organizations.createdAt,
-        updatedAt: organizations.updatedAt,
-        cityName: cities.name,
-        cityLatitude: cities.latitude,
-        cityLongitude: cities.longitude,
-        organizationTypeId: organizationTypes.id,
-        organizationTypeName: organizationTypes.name,
-      })
-      .from(organizations)
-      .leftJoin(cities, and(
-        eq(organizations.cityId, cities.id),
-        or(
-          isNull(cities.recordStatus),
+    try {
+      const orgs = await this.db
+        .select({
+          id: organizations.id,
+          name: organizations.name,
+          cityId: organizations.cityId,
+          latitude: organizations.latitude,
+          longitude: organizations.longitude,
+          summary: organizations.summary,
+          mission: organizations.mission,
+          description: organizations.description,
+          goals: organizations.goals,
+          needs: organizations.needs,
+          address: organizations.address,
+          contacts: organizations.contacts,
+          gallery: organizations.gallery,
+          isApproved: organizations.isApproved,
+          createdAt: organizations.createdAt,
+          updatedAt: organizations.updatedAt,
+          cityName: cities.name,
+          cityLatitude: cities.latitude,
+          cityLongitude: cities.longitude,
+          organizationTypeId: organizationTypes.id,
+          organizationTypeName: organizationTypes.name,
+        })
+        .from(organizations)
+        .leftJoin(cities, and(
+          eq(organizations.cityId, cities.id),
           ne(cities.recordStatus, 'DELETED')
-        )
-      ))
-      .leftJoin(organizationTypes, and(
-        eq(organizations.organizationTypeId, organizationTypes.id),
-        or(
-          isNull(organizationTypes.recordStatus),
+        ))
+        .leftJoin(organizationTypes, and(
+          eq(organizations.organizationTypeId, organizationTypes.id),
           ne(organizationTypes.recordStatus, 'DELETED')
-        )
-      ))
-      .where(ne(organizations.recordStatus, 'DELETED'));
+        ))
+        .where(ne(organizations.recordStatus, 'DELETED'));
+    } catch (error: any) {
+      console.error('Ошибка в findAll:', error);
+      console.error('Детали ошибки:', {
+        message: error?.message,
+        code: error?.code,
+        detail: error?.detail,
+        hint: error?.hint,
+        where: error?.where,
+        stack: error?.stack,
+      });
+      throw error;
+    }
 
     // Получаем helpTypes для всех организаций (исключая удаленные)
     const orgIds = orgs.map(org => org.id);
