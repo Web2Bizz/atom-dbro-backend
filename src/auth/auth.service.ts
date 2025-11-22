@@ -1,8 +1,10 @@
-import { Injectable, UnauthorizedException, ConflictException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { UserService } from '../user/user.service';
+import { UserRepository } from '../user/user.repository';
+import { AvatarService } from '../avatar/avatar.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -14,6 +16,8 @@ export class AuthService {
 
   constructor(
     private userService: UserService,
+    private userRepository: UserRepository,
+    private avatarService: AvatarService,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -28,8 +32,39 @@ export class AuthService {
     // Исключаем confirmPassword перед созданием пользователя
     const { confirmPassword, ...createUserDto } = registerDto;
 
-    // Создаем пользователя
-    await this.userService.create(createUserDto);
+    // Хешируем пароль
+    const passwordHash = await bcrypt.hash(createUserDto.password, 10);
+
+    // Генерируем аватарку - ожидаем ответ от сервиса, в случае ошибки возвращаем 400
+    let avatarUrls: Record<number, string>;
+    try {
+      avatarUrls = await this.avatarService.generateAvatar();
+      if (!avatarUrls || Object.keys(avatarUrls).length === 0) {
+        throw new BadRequestException('Не удалось сгенерировать аватарку: сервис вернул пустой результат');
+      }
+      console.log(`Avatar generated successfully with ${Object.keys(avatarUrls).length} sizes`);
+    } catch (error) {
+      console.error('Failed to generate avatar:', error);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка при генерации аватарки';
+      throw new BadRequestException(`Не удалось сгенерировать аватарку: ${errorMessage}`);
+    }
+
+    // Создаем пользователя через репозиторий
+    await this.userRepository.create({
+      firstName: createUserDto.firstName,
+      lastName: createUserDto.lastName,
+      middleName: createUserDto.middleName,
+      email: createUserDto.email,
+      passwordHash,
+      avatarUrls,
+      role: createUserDto.role,
+      level: 1,
+      experience: 0,
+      organisationId: createUserDto.organisationId,
+    });
   }
 
   async login(loginDto: LoginDto) {
