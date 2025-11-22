@@ -162,11 +162,12 @@ export class AchievementRepository {
     rarity: string;
   }): Promise<typeof achievements.$inferSelect> {
     try {
-      const [achievement] = await this.db
+      const result = await this.db
         .insert(achievements)
         .values(data)
         .returning();
       
+      const achievement = Array.isArray(result) ? result[0] : result;
       if (!achievement) {
         throw new Error('Не удалось создать достижение');
       }
@@ -344,7 +345,7 @@ export class AchievementRepository {
     achievementId: number
   ): Promise<typeof userAchievements.$inferSelect> {
     try {
-      const [userAchievement] = await this.db
+      const result = await this.db
         .insert(userAchievements)
         .values({
           userId,
@@ -352,6 +353,7 @@ export class AchievementRepository {
         })
         .returning();
       
+      const userAchievement = Array.isArray(result) ? result[0] : result;
       if (!userAchievement) {
         throw new Error('Не удалось присвоить достижение пользователю');
       }
