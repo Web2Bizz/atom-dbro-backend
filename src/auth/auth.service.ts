@@ -6,6 +6,7 @@ import { UserService } from '../user/user.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -99,6 +100,14 @@ export class AuthService {
     } catch (error) {
       throw new UnauthorizedException('Недействительный refresh token');
     }
+  }
+
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+    // Пока что просто возвращаем успешный статус
+    // В будущем здесь будет логика отправки email с инструкциями
+    return {
+      message: 'Инструкция по восстановлению пароля отправлена на email',
+    };
   }
 }
 

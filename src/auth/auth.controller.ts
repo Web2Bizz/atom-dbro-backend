@@ -1,11 +1,11 @@
-import { Controller, Post, Body, HttpCode, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, UseGuards, Version } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto, registerSchema, RegisterDtoClass } from './dto/register.dto';
 import { LoginDto, loginSchema, LoginDtoClass } from './dto/login.dto';
 import { RefreshTokenDto, refreshTokenSchema, RefreshTokenDtoClass } from './dto/refresh-token.dto';
+import { ForgotPasswordDto, forgotPasswordSchema, ForgotPasswordDtoClass } from './dto/forgot-password.dto';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
-import { Public } from './decorators/public.decorator';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
 
 @ApiTags('Авторизация')
@@ -44,6 +44,29 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Недействительный refresh token или refresh token не предоставлен' })
   refresh(@Body() refreshTokenDto: RefreshTokenDto) {
     return this.authService.refresh(refreshTokenDto);
+  }
+
+  @Post('forgot-password')
+  @Version('1')
+  @ZodValidation(forgotPasswordSchema)
+  @ApiOperation({ summary: 'Восстановление пароля' })
+  @ApiBody({ type: ForgotPasswordDtoClass })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Инструкция по восстановлению пароля отправлена на email',
+    schema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          example: 'Инструкция по восстановлению пароля отправлена на email',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Неверные данные' })
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(forgotPasswordDto);
   }
 }
 
