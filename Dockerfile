@@ -30,6 +30,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/drizzle.config.ts ./
 COPY --from=builder /app/tsconfig.json ./
 COPY --from=builder /app/src/database/schema.ts ./src/database/schema.ts
+COPY --from=builder /app/src/scripts ./src/scripts
 COPY --from=builder /app/drizzle ./drizzle
 
 EXPOSE 3000
