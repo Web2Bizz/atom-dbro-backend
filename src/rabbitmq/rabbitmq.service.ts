@@ -55,7 +55,7 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
       this.channelWrapper = this.connection.createChannel({
         setup: async (channel: amqp.Channel) => {
           this.logger.log('RabbitMQ channel created successfully');
-          this.logger.debug(`Channel number: ${channel.channelNumber}`);
+          this.logger.debug('Channel setup completed');
         },
       });
 
