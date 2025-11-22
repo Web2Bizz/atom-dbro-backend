@@ -173,6 +173,7 @@ export class QuestController {
   @ApiOperation({ summary: 'Завершить квест' })
   @ApiResponse({ status: 200, description: 'Квест успешно завершен' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
+  @ApiResponse({ status: 403, description: 'Только автор квеста может завершить квест' })
   @ApiResponse({ status: 404, description: 'Пользователь или квест не найден' })
   @ApiResponse({ status: 409, description: 'Квест уже выполнен' })
   completeQuest(
@@ -188,9 +189,13 @@ export class QuestController {
   @ApiOperation({ summary: 'Архивировать квест (изменить статус на archived)' })
   @ApiResponse({ status: 200, description: 'Квест успешно архивирован' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
+  @ApiResponse({ status: 403, description: 'Только автор квеста может архивировать квест' })
   @ApiResponse({ status: 404, description: 'Квест не найден' })
-  archiveQuest(@Param('id', ParseIntPipe) questId: number) {
-    return this.questService.archiveQuest(questId);
+  archiveQuest(
+    @Param('id', ParseIntPipe) questId: number,
+    @CurrentUser() user: { userId: number; email: string },
+  ) {
+    return this.questService.archiveQuest(user.userId, questId);
   }
 
   @Get('user/:userId')

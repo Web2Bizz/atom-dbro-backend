@@ -454,6 +454,11 @@ export class QuestService {
       throw new NotFoundException(`Квест с ID ${questId} не найден`);
     }
 
+    // Проверяем, что пользователь является автором квеста
+    if (quest.ownerId !== userId) {
+      throw new ForbiddenException('Только автор квеста может завершить квест');
+    }
+
     // Проверяем, что квест еще не завершен
     if (quest.status === 'completed') {
       throw new ConflictException('Квест уже завершен');
@@ -668,12 +673,17 @@ export class QuestService {
     return this.findOne(questId);
   }
 
-  async archiveQuest(questId: number) {
+  async archiveQuest(userId: number, questId: number) {
     // Проверяем существование квеста
     const quest = await this.questRepository.findById(questId);
     
     if (!quest) {
       throw new NotFoundException(`Квест с ID ${questId} не найден`);
+    }
+
+    // Проверяем, что пользователь является автором квеста
+    if (quest.ownerId !== userId) {
+      throw new ForbiddenException('Только автор квеста может архивировать квест');
     }
 
     // Обновляем статус квеста на archived
