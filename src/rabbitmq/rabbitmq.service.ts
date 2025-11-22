@@ -115,8 +115,20 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     const startTime = Date.now();
     this.logger.log(`Sending message to queue: ${queue}`);
     
+    // Валидация входных параметров
+    if (!queue || typeof queue !== 'string' || queue.trim().length === 0) {
+      throw new Error('Queue name is required and must be a non-empty string');
+    }
+    
+    if (message === undefined || message === null) {
+      throw new Error('Message is required and cannot be null or undefined');
+    }
+    
     try {
       const messageString = JSON.stringify(message);
+      if (messageString === undefined) {
+        throw new Error('Failed to serialize message: JSON.stringify returned undefined');
+      }
       const messageBuffer = Buffer.from(messageString);
       const messageSize = messageBuffer.length;
       
@@ -189,8 +201,24 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     const startTime = Date.now();
     this.logger.log(`Publishing message to exchange: ${exchange} (type=${exchangeType}, routingKey=${routingKey})`);
     
+    // Валидация входных параметров
+    if (!exchange || typeof exchange !== 'string' || exchange.trim().length === 0) {
+      throw new Error('Exchange name is required and must be a non-empty string');
+    }
+    
+    if (!routingKey || typeof routingKey !== 'string' || routingKey.trim().length === 0) {
+      throw new Error('Routing key is required and must be a non-empty string');
+    }
+    
+    if (message === undefined || message === null) {
+      throw new Error('Message is required and cannot be null or undefined');
+    }
+    
     try {
       const messageString = JSON.stringify(message);
+      if (messageString === undefined) {
+        throw new Error('Failed to serialize message: JSON.stringify returned undefined');
+      }
       const messageBuffer = Buffer.from(messageString);
       const messageSize = messageBuffer.length;
       
