@@ -42,9 +42,9 @@ export class AuthService {
       if (!avatarUrls || Object.keys(avatarUrls).length === 0) {
         throw new BadRequestException('Не удалось сгенерировать аватарку: сервис вернул пустой результат');
       }
-      console.log(`Avatar generated successfully with ${Object.keys(avatarUrls).length} sizes`);
+      this.logger.log(`Avatar generated successfully with ${Object.keys(avatarUrls).length} sizes`);
     } catch (error) {
-      console.error('Failed to generate avatar:', error);
+      this.logger.error('Failed to generate avatar:', error);
       if (error instanceof BadRequestException) {
         throw error;
       }
@@ -60,10 +60,10 @@ export class AuthService {
       email: createUserDto.email,
       passwordHash,
       avatarUrls,
-      role: createUserDto.role,
+      role: 'USER', // По умолчанию при регистрации пользователь получает роль USER
       level: 1,
       experience: 0,
-      organisationId: createUserDto.organisationId,
+      organisationId: null, // При регистрации организация не указывается
     });
   }
 
