@@ -196,6 +196,13 @@ export class QuestService {
   }
 
   async findOne(id: number) {
+    // Сначала проверяем существование квеста и получаем актуальный статус
+    const basicQuest = await this.questRepository.findById(id);
+    if (!basicQuest) {
+      throw new NotFoundException(`Квест с ID ${id} не найден`);
+    }
+
+    // Затем получаем полную информацию о квесте
     const quest = await this.questRepository.findByIdWithDetails(id);
     if (!quest) {
       throw new NotFoundException(`Квест с ID ${id} не найден`);
@@ -204,8 +211,10 @@ export class QuestService {
     // Получаем категории для квеста
     const questCategoriesData = await this.questRepository.findCategoriesForQuest(id);
 
+    // Убеждаемся, что возвращаем актуальный статус из БД
     return {
       ...quest,
+      status: basicQuest.status, // Явно используем актуальный статус из БД
       categories: questCategoriesData,
     };
   }
