@@ -1,17 +1,13 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { UpdateUserV2Dto } from './dto/update-user-v2.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { AvatarService } from '../avatar/avatar.service';
 import { UserRepository } from './user.repository';
 
 @Injectable()
 export class UserService {
   constructor(
     private userRepository: UserRepository,
-    private avatarService: AvatarService,
   ) {}
 
   /**
@@ -45,44 +41,6 @@ export class UserService {
    */
   private formatUsers(users: any[]): any[] {
     return users.map(user => this.formatUser(user));
-  }
-
-  async create(createUserDto: CreateUserDto) {
-    // Хешируем пароль
-    const passwordHash = await bcrypt.hash(createUserDto.password, 10);
-
-    // Генерируем аватарку - ожидаем ответ от сервиса, в случае ошибки возвращаем 400
-    let avatarUrls: Record<number, string>;
-    try {
-      avatarUrls = await this.avatarService.generateAvatar();
-      if (!avatarUrls || Object.keys(avatarUrls).length === 0) {
-        throw new BadRequestException('Не удалось сгенерировать аватарку: сервис вернул пустой результат');
-      }
-      console.log(`Avatar generated successfully with ${Object.keys(avatarUrls).length} sizes`);
-    } catch (error) {
-      console.error('Failed to generate avatar:', error);
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка при генерации аватарки';
-      throw new BadRequestException(`Не удалось сгенерировать аватарку: ${errorMessage}`);
-    }
-
-    // Создаем пользователя через репозиторий (проверка уникальности email выполняется в репозитории)
-    const user = await this.userRepository.create({
-      firstName: createUserDto.firstName,
-      lastName: createUserDto.lastName,
-      middleName: createUserDto.middleName,
-      email: createUserDto.email,
-      passwordHash,
-      avatarUrls,
-      role: createUserDto.role,
-      level: 1,
-      experience: 0,
-      organisationId: createUserDto.organisationId,
-    });
-    
-    return this.formatUser(user);
   }
 
   async findAll() {
@@ -157,26 +115,6 @@ export class UserService {
     return this.formatUser(user);
   }
 
-  async updateV2(id: number, updateUserV2Dto: UpdateUserV2Dto) {
-    // Исключаем experience и level из обновления (они обновляются только через ExperienceService)
-    const { experience, level, avatarUrl, ...updateData } = updateUserV2Dto as any;
-
-    const updateValues: any = { ...updateData };
-    
-    // Если avatarUrl передан, преобразуем его в объект с ключами 4-9 и одинаковым URL
-    if (avatarUrl !== undefined && avatarUrl !== null) {
-      const normalizedAvatarUrls: Record<number, string> = {};
-      for (let size = 4; size <= 9; size++) {
-        normalizedAvatarUrls[size] = avatarUrl;
-      }
-      updateValues.avatarUrls = normalizedAvatarUrls;
-    }
-
-    // Обновляем через репозиторий (проверка уникальности email выполняется в репозитории)
-    const user = await this.userRepository.update(id, updateValues);
-    return this.formatUser(user);
-  }
-
   /**
    * Приватный метод для обновления опыта и автоматического пересчета уровня.
    * Используется только внутри ExperienceService.
@@ -186,10 +124,6 @@ export class UserService {
    */
   async updateExperienceAndLevel(userId: number, newExperience: number, calculatedLevel: number) {
     return await this.userRepository.updateExperienceAndLevel(userId, newExperience, calculatedLevel);
-  }
-
-  async remove(id: number) {
-    return await this.userRepository.remove(id);
   }
 }
 
