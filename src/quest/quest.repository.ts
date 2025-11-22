@@ -1046,5 +1046,38 @@ export class QuestRepository {
       throw error;
     }
   }
+
+  /**
+   * Найти всех участников квеста
+   * @param questId ID квеста
+   * @returns Массив участников с их userQuest
+   */
+  async findQuestParticipants(questId: number): Promise<Array<{
+    userId: number;
+    userQuestId: number;
+    userQuestStatus: string;
+    user: typeof users.$inferSelect;
+  }>> {
+    try {
+      const participants = await this.db
+        .select({
+          userId: userQuests.userId,
+          userQuestId: userQuests.id,
+          userQuestStatus: userQuests.status,
+          user: users,
+        })
+        .from(userQuests)
+        .innerJoin(users, and(
+          eq(userQuests.userId, users.id),
+          ne(users.recordStatus, 'DELETED')
+        ))
+        .where(eq(userQuests.questId, questId));
+      
+      return participants;
+    } catch (error: any) {
+      this.logger.error(`Ошибка в findQuestParticipants для квеста ID ${questId}:`, error);
+      throw error;
+    }
+  }
 }
 

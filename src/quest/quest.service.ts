@@ -448,55 +448,67 @@ export class QuestService {
   }
 
   async completeQuest(userId: number, questId: number) {
-    // Проверяем существование пользователя
-    const user = await this.questRepository.findUserById(userId);
-    if (!user) {
-      throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
-    }
-
     // Проверяем существование квеста
     const quest = await this.questRepository.findById(questId);
     if (!quest) {
       throw new NotFoundException(`Квест с ID ${questId} не найден`);
     }
 
-    // Проверяем, что квест начат пользователем
-    const userQuest = await this.questRepository.findUserQuest(userId, questId);
-    if (!userQuest) {
-      throw new NotFoundException('Пользователь не начал этот квест');
+    // Проверяем, что квест еще не завершен
+    if (quest.status === 'completed') {
+      throw new ConflictException('Квест уже завершен');
     }
 
-    if (userQuest.status === 'completed') {
-      throw new ConflictException('Квест уже выполнен');
+    // Получаем всех участников квеста
+    const participants = await this.questRepository.findQuestParticipants(questId);
+    
+    if (participants.length === 0) {
+      throw new NotFoundException('У квеста нет участников');
     }
 
-    // Завершаем квест
-    const completedQuest = await this.questRepository.updateUserQuest(userQuest.id, {
+    // Обновляем статус квеста на 'completed'
+    const completedQuest = await this.questRepository.update(questId, {
       status: 'completed',
-      completedAt: new Date(),
     });
+
     if (!completedQuest) {
       throw new Error('Не удалось завершить квест');
     }
 
-    // Начисляем опыт пользователю
-    const newExperience = user.experience + quest.experienceReward;
-    await this.questRepository.updateUserExperience(userId, newExperience);
+    // Обрабатываем каждого участника
+    for (const participant of participants) {
+      // Обновляем статус userQuest на 'completed', если еще не completed
+      if (participant.userQuestStatus !== 'completed') {
+        await this.questRepository.updateUserQuest(participant.userQuestId, {
+          status: 'completed',
+          completedAt: new Date(),
+        });
+      }
 
-    // Присваиваем достижение пользователю, если оно еще не присвоено
-    if (quest.achievementId) {
-      const existingUserAchievement = await this.questRepository.findUserAchievement(userId, quest.achievementId);
-      
-      if (!existingUserAchievement) {
-        await this.questRepository.createUserAchievement(userId, quest.achievementId);
+      // Начисляем опыт пользователю
+      const newExperience = participant.user.experience + quest.experienceReward;
+      await this.questRepository.updateUserExperience(participant.userId, newExperience);
+
+      // Присваиваем достижение пользователю, если оно указано и еще не присвоено
+      if (quest.achievementId) {
+        const existingUserAchievement = await this.questRepository.findUserAchievement(
+          participant.userId,
+          quest.achievementId,
+        );
+
+        if (!existingUserAchievement) {
+          await this.questRepository.createUserAchievement(participant.userId, quest.achievementId);
+        }
       }
     }
 
     // Получаем данные квеста для события
     const questData = await this.questRepository.findQuestDataForEvent(questId);
 
-    // Эмитим событие завершения квеста
-    this.questEventsService.emitQuestCompleted(questId, userId, questData || {});
+    // Эмитим событие завершения квеста для каждого участника
+    for (const participant of participants) {
+      this.questEventsService.emitQuestCompleted(questId, participant.userId, questData || {});
+    }
 
     return completedQuest;
   }
