@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { RabbitMQService } from './rabbitmq.service';
 import { SendMessageDto, sendMessageSchema, SendMessageDtoClass } from './dto/send-message.dto';
 import { PublishMessageDto, publishMessageSchema, PublishMessageDtoClass } from './dto/publish-message.dto';
+import { SendEmailDto, sendEmailSchema, SendEmailDtoClass } from './dto/send-email.dto';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 
 @ApiTags('RabbitMQ')
@@ -26,32 +27,131 @@ export class RabbitMQController {
   }
 
   @Post('send')
-  @ZodValidation(sendMessageSchema)
   @ApiOperation({ summary: 'Отправить сообщение в очередь RabbitMQ' })
-  @ApiBody({ type: SendMessageDtoClass })
+  @ApiBody({ 
+    description: 'Можно отправить либо обычное сообщение с указанием queue, либо email сообщение (to, subject, html) которое автоматически отправится в email_queue',
+    schema: {
+      oneOf: [
+        { $ref: '#/components/schemas/SendMessageDtoClass' },
+        { $ref: '#/components/schemas/SendEmailDtoClass' }
+      ]
+    }
+  })
   @ApiResponse({ status: 200, description: 'Сообщение успешно отправлено' })
   @ApiResponse({ status: 400, description: 'Неверные параметры запроса' })
   @ApiResponse({ status: 500, description: 'Ошибка при отправке сообщения' })
-  async sendToQueue(@Body() sendMessageDto: SendMessageDto) {
-    this.logger.log(`Received request to send message to queue: ${sendMessageDto.queue}`);
-    this.logger.debug(`Request payload: queue=${sendMessageDto.queue}, options=${JSON.stringify(sendMessageDto.options)}`);
+  async sendToQueue(@Body() body: any) {
+    // Проверяем, является ли это email сообщением (имеет поля to, subject, html и нет queue)
+    const isEmailMessage = body.to && body.subject && body.html && !body.queue;
+    
+    if (isEmailMessage) {
+      // Валидируем как email сообщение
+      const sendEmailDto = sendEmailSchema.parse(body);
+      const emailQueue = 'email_queue';
+      
+      this.logger.log(`Received email message request for queue: ${emailQueue}`);
+      this.logger.debug(`Email details: to=${sendEmailDto.to}, subject=${sendEmailDto.subject}`);
+      
+      try {
+        const emailMessage = {
+          to: sendEmailDto.to,
+          subject: sendEmailDto.subject,
+          html: sendEmailDto.html,
+        };
+
+        const result = await this.rabbitMQService.sendToQueue(
+          emailQueue,
+          emailMessage,
+          {
+            durable: true,
+            persistent: true,
+          },
+        );
+
+        this.logger.log(`Email send result for queue ${emailQueue}: ${result ? 'success' : 'failed (buffer full)'}`);
+
+        return {
+          success: result,
+          queue: emailQueue,
+          message: 'Email message sent to queue',
+          email: {
+            to: sendEmailDto.to,
+            subject: sendEmailDto.subject,
+          },
+        };
+      } catch (error) {
+        this.logger.error(`Failed to send email to queue ${emailQueue}:`, error);
+        throw error;
+      }
+    } else {
+      // Валидируем как обычное сообщение
+      const sendMessageDto = sendMessageSchema.parse(body);
+      
+      this.logger.log(`Received request to send message to queue: ${sendMessageDto.queue}`);
+      this.logger.debug(`Request payload: queue=${sendMessageDto.queue}, options=${JSON.stringify(sendMessageDto.options)}`);
+      
+      try {
+        const result = await this.rabbitMQService.sendToQueue(
+          sendMessageDto.queue,
+          sendMessageDto.message,
+          sendMessageDto.options,
+        );
+
+        this.logger.log(`Message send result for queue ${sendMessageDto.queue}: ${result ? 'success' : 'failed (buffer full)'}`);
+
+        return {
+          success: result,
+          queue: sendMessageDto.queue,
+          message: 'Message sent to queue',
+        };
+      } catch (error) {
+        this.logger.error(`Failed to send message to queue ${sendMessageDto.queue}:`, error);
+        throw error;
+      }
+    }
+  }
+
+  @Post('send-email')
+  @ZodValidation(sendEmailSchema)
+  @ApiOperation({ summary: 'Отправить email сообщение в очередь email_queue' })
+  @ApiBody({ type: SendEmailDtoClass })
+  @ApiResponse({ status: 200, description: 'Email сообщение успешно отправлено в очередь' })
+  @ApiResponse({ status: 400, description: 'Неверные параметры запроса' })
+  @ApiResponse({ status: 500, description: 'Ошибка при отправке сообщения' })
+  async sendEmail(@Body() sendEmailDto: SendEmailDto) {
+    const emailQueue = 'email_queue';
+    this.logger.log(`Received request to send email to queue: ${emailQueue}`);
+    this.logger.debug(`Email details: to=${sendEmailDto.to}, subject=${sendEmailDto.subject}`);
     
     try {
+      const emailMessage = {
+        to: sendEmailDto.to,
+        subject: sendEmailDto.subject,
+        html: sendEmailDto.html,
+      };
+
       const result = await this.rabbitMQService.sendToQueue(
-        sendMessageDto.queue,
-        sendMessageDto.message,
-        sendMessageDto.options,
+        emailQueue,
+        emailMessage,
+        {
+          durable: true,
+          persistent: true,
+        },
       );
 
-      this.logger.log(`Message send result for queue ${sendMessageDto.queue}: ${result ? 'success' : 'failed (buffer full)'}`);
+      this.logger.log(`Email send result for queue ${emailQueue}: ${result ? 'success' : 'failed (buffer full)'}`);
 
       return {
         success: result,
-        queue: sendMessageDto.queue,
-        message: 'Message sent to queue',
+        queue: emailQueue,
+        message: 'Email message sent to queue',
+        email: {
+          to: sendEmailDto.to,
+          subject: sendEmailDto.subject,
+        },
       };
     } catch (error) {
-      this.logger.error(`Failed to send message to queue ${sendMessageDto.queue}:`, error);
+      this.logger.error(`Failed to send email to queue ${emailQueue}:`, error);
       throw error;
     }
   }
