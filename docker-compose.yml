@@ -34,8 +34,14 @@ services:
     environment:
       PORT: ${PORT:-3000}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-atom_dbro}
+      RABBITMQ_HOSTNAME: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     volumes:
       - ./src:/app/src
@@ -44,9 +50,28 @@ services:
     networks:
       - atom-external-network
       - atom-internal-network
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: atom-dbro-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - atom-internal-network
 
 volumes:
   postgres_data:
+  rabbitmq_data:
 
 networks:
   atom-external-network:

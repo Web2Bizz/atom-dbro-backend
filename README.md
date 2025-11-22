@@ -49,6 +49,44 @@ CORS_ORIGINS=http://localhost:5173,https://yourdomain.com,https://app.yourdomain
 
 **Примечание:** В development режиме (`NODE_ENV !== 'production'`) автоматически разрешаются все локальные адреса (`localhost:*` и `127.0.0.1:*`).
 
+### RabbitMQ
+
+Сервис поддерживает интеграцию с RabbitMQ для отправки сообщений в очереди и exchange.
+
+**Минимальная конфигурация (значения по умолчанию):**
+```env
+RABBITMQ_HOSTNAME=localhost
+RABBITMQ_PORT=5672
+RABBITMQ_USERNAME=guest
+RABBITMQ_PASSWORD=guest
+```
+
+**Или используйте полный URL:**
+```env
+RABBITMQ_URL=amqp://username:password@hostname:5672
+```
+
+**Тестовые endpoints:**
+- `GET /api/v1/rabbitmq/health` - проверка подключения к RabbitMQ
+- `POST /api/v1/rabbitmq/send` - отправка сообщения в очередь
+- `POST /api/v1/rabbitmq/publish` - публикация сообщения в exchange
+
+Пример отправки сообщения в очередь:
+```json
+POST /api/v1/rabbitmq/send
+{
+  "queue": "test-queue",
+  "message": {
+    "text": "Hello, RabbitMQ!",
+    "timestamp": "2024-01-01T00:00:00Z"
+  },
+  "options": {
+    "durable": true,
+    "persistent": true
+  }
+}
+```
+
 ## Запуск
 
 ```bash

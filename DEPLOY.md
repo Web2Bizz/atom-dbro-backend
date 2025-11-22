@@ -55,6 +55,13 @@ S3_REGION=us-east-1
 # S3_ENDPOINT=https://s3.ru1.storage.beget.cloud
 # S3_PUBLIC_URL_TEMPLATE=https://{bucket}.s3.{region}.amazonaws.com/{key}
 # S3_FORCE_PATH_STYLE=true
+
+# RabbitMQ Configuration (опционально)
+# RABBITMQ_URL=amqp://guest:guest@localhost:5672
+# RABBITMQ_HOSTNAME=localhost
+# RABBITMQ_PORT=5672
+# RABBITMQ_USERNAME=guest
+# RABBITMQ_PASSWORD=guest
 ```
 
 **⚠️ ВАЖНО**: 
