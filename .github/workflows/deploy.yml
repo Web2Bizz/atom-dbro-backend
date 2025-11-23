@@ -109,6 +109,7 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_REF: ${{ github.ref }}
           USE_GIT_SSH: ${{ secrets.BUILD_SERVER_GIT_SSH_KEY != '' && 'true' || 'false' }}
+          GITHUB_TOKEN: ${{ secrets.BUILD_SERVER_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           ssh -o StrictHostKeyChecking=no -p "$BUILD_SERVER_SSH_PORT" "$BUILD_SERVER_USER@$BUILD_SERVER_HOST" \
             GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
