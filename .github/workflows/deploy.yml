@@ -14,6 +14,8 @@ jobs:
   build:
     name: Build and Export Docker Image
     runs-on: ubuntu-latest
+    outputs:
+      use_remote: ${{ steps.build_target.outputs.use_remote }}
     
     steps:
       - name: Checkout code
@@ -345,7 +347,7 @@ jobs:
     name: Transfer Image to Server
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.build.outputs.use_remote != 'true'
     
     steps:
       - name: Download Docker image artifact
@@ -381,7 +383,11 @@ jobs:
     name: Deploy Application
     needs: [build, transfer]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && always() && (needs.build.result == 'success')
+    if: |
+      github.ref == 'refs/heads/main' &&
+      always() &&
+      needs.build.result == 'success' &&
+      (needs.transfer.result == 'success' || needs.transfer.result == 'skipped')
     
     steps:
       - name: Set up SSH
