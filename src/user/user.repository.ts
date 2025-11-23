@@ -296,10 +296,29 @@ export class UserRepository {
         }
       }
 
+      // Фильтруем только определенные поля (исключаем undefined)
       const updateData: any = {
-        ...data,
         updatedAt: new Date(),
       };
+
+      if (data.firstName !== undefined) {
+        updateData.firstName = data.firstName;
+      }
+      if (data.lastName !== undefined) {
+        updateData.lastName = data.lastName;
+      }
+      if (data.middleName !== undefined) {
+        updateData.middleName = data.middleName;
+      }
+      if (data.email !== undefined) {
+        updateData.email = data.email;
+      }
+      if (data.avatarUrls !== undefined) {
+        updateData.avatarUrls = data.avatarUrls;
+      }
+      if (data.organisationId !== undefined) {
+        updateData.organisationId = data.organisationId;
+      }
 
       const [user] = await this.db
         .update(users)
