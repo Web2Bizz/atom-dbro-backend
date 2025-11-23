@@ -24,7 +24,25 @@ export class UserService {
   }
 
   /**
+   * Преобразует avatarUrls из формата БД {4: "url", 5: "url"} 
+   * в формат API {"size_4": "url", "size_5": "url"}
+   */
+  private formatAvatarUrls(avatarUrls: Record<number, string> | null | undefined): Record<string, string> | null {
+    if (!avatarUrls || typeof avatarUrls !== 'object') {
+      return null;
+    }
+
+    const formatted: Record<string, string> = {};
+    for (const [key, value] of Object.entries(avatarUrls)) {
+      formatted[`size_${key}`] = value;
+    }
+
+    return Object.keys(formatted).length > 0 ? formatted : null;
+  }
+
+  /**
    * Преобразует объект пользователя, заменяя роль на читаемый формат
+   * и преобразуя avatarUrls в формат с префиксом "size_"
    */
   private formatUser(user: any): any {
     if (!user) {
@@ -33,6 +51,7 @@ export class UserService {
     return {
       ...user,
       role: this.formatRole(user.role),
+      avatarUrls: this.formatAvatarUrls(user.avatarUrls),
     };
   }
 
