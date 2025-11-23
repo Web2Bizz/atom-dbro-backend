@@ -53,14 +53,20 @@ jobs:
             "echo 'SSH connection to build server successful'; hostname"
 
       - name: Setup Git SSH key on build server (if provided)
-        if: steps.build_target.outputs.use_remote == 'true' && secrets.BUILD_SERVER_GIT_SSH_KEY != ''
+        if: steps.build_target.outputs.use_remote == 'true'
         shell: bash
         env:
           BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
           BUILD_SERVER_USER: ${{ secrets.BUILD_SERVER_USER }}
           BUILD_SERVER_SSH_PORT: ${{ secrets.BUILD_SERVER_SSH_PORT || '22' }}
           BUILD_SERVER_GIT_SSH_KEY: ${{ secrets.BUILD_SERVER_GIT_SSH_KEY }}
+          HAS_GIT_SSH_KEY: ${{ secrets.BUILD_SERVER_GIT_SSH_KEY != '' }}
         run: |
+          if [ "$HAS_GIT_SSH_KEY" != "true" ]; then
+            echo "ℹ️  BUILD_SERVER_GIT_SSH_KEY not provided, skipping Git SSH setup"
+            exit 0
+          fi
+          
           echo "🔑 Setting up Git SSH key on build server..."
           ssh -o StrictHostKeyChecking=no -p "$BUILD_SERVER_SSH_PORT" "$BUILD_SERVER_USER@$BUILD_SERVER_HOST" \
             BUILD_SERVER_GIT_SSH_KEY="$BUILD_SERVER_GIT_SSH_KEY" \
