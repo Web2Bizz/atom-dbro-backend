@@ -1079,5 +1079,38 @@ export class QuestRepository {
       throw error;
     }
   }
+
+  /**
+   * Найти пользователей квеста (только id и ФИО)
+   * @param questId ID квеста
+   * @returns Массив пользователей с id и ФИО
+   */
+  async findQuestUsers(questId: number): Promise<Array<{
+    id: number;
+    firstName: string;
+    lastName: string;
+    middleName: string | null;
+  }>> {
+    try {
+      const questUsers = await this.db
+        .select({
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          middleName: users.middleName,
+        })
+        .from(userQuests)
+        .innerJoin(users, and(
+          eq(userQuests.userId, users.id),
+          ne(users.recordStatus, 'DELETED')
+        ))
+        .where(eq(userQuests.questId, questId));
+      
+      return questUsers;
+    } catch (error: any) {
+      this.logger.error(`Ошибка в findQuestUsers для квеста ID ${questId}:`, error);
+      throw error;
+    }
+  }
 }
 

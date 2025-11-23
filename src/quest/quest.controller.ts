@@ -11,6 +11,7 @@ import {
   BadRequestException,
   UseGuards,
   Sse,
+  Version,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { Observable } from 'rxjs';
@@ -107,6 +108,21 @@ export class QuestController {
   @ApiResponse({ status: 404, description: 'Квест не найден' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.questService.findOne(id);
+  }
+
+  @Get(':id')
+  @Version('2')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Получить квест по ID с информацией об участии пользователя (v2)' })
+  @ApiResponse({ status: 200, description: 'Квест найден с флагом участия' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
+  @ApiResponse({ status: 404, description: 'Квест не найден' })
+  findOneV2(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: { userId: number; email: string },
+  ) {
+    return this.questService.findOneWithUserParticipation(id, user.userId);
   }
 
   @Patch(':id')
@@ -212,6 +228,14 @@ export class QuestController {
   @ApiResponse({ status: 404, description: 'Пользователь не найден' })
   getAvailableQuests(@Param('userId', ParseIntPipe) userId: number) {
     return this.questService.getAvailableQuests(userId);
+  }
+
+  @Get(':id/users')
+  @ApiOperation({ summary: 'Получить всех пользователей квеста' })
+  @ApiResponse({ status: 200, description: 'Список пользователей квеста с id и ФИО' })
+  @ApiResponse({ status: 404, description: 'Квест не найден' })
+  getQuestUsers(@Param('id', ParseIntPipe) questId: number) {
+    return this.questService.getQuestUsers(questId);
   }
 
   @Get('events')

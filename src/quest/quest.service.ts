@@ -219,6 +219,20 @@ export class QuestService {
     };
   }
 
+  async findOneWithUserParticipation(id: number, userId: number) {
+    // Получаем квест с полной информацией
+    const quest = await this.findOne(id);
+
+    // Проверяем, участвует ли пользователь в квесте
+    const userQuest = await this.questRepository.findUserQuest(userId, id);
+    const isParticipating = !!userQuest;
+
+    return {
+      ...quest,
+      isParticipating,
+    };
+  }
+
   async update(id: number, updateQuestDto: UpdateQuestDto) {
     // Проверяем существование квеста
     const existingQuest = await this.questRepository.findById(id);
@@ -697,6 +711,17 @@ export class QuestService {
 
     // Возвращаем обновленный квест с полной информацией
     return this.findOne(questId);
+  }
+
+  async getQuestUsers(questId: number) {
+    // Проверяем существование квеста
+    const quest = await this.questRepository.findById(questId);
+    if (!quest) {
+      throw new NotFoundException(`Квест с ID ${questId} не найден`);
+    }
+
+    // Получаем всех пользователей квеста
+    return await this.questRepository.findQuestUsers(questId);
   }
 }
 
