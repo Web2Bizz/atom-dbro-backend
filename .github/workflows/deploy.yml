@@ -92,12 +92,15 @@ jobs:
           echo "Commit: $GITHUB_SHA"
           echo "Path: $BUILD_SERVER_PROJECT_PATH"
           
+          # Кодируем SSH ключ в base64 для безопасной передачи
+          ENCODED_KEY=$(echo "$BUILD_SERVER_GIT_SSH_KEY" | base64 -w 0)
+          
           # Передаём SSH ключ на build server и настраиваем git для использования SSH
           ssh -o StrictHostKeyChecking=no -p "$BUILD_SERVER_SSH_PORT" "$BUILD_SERVER_USER@$BUILD_SERVER_HOST" \
             BUILD_SERVER_PROJECT_PATH="$BUILD_SERVER_PROJECT_PATH" \
             GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
             GITHUB_SHA="$GITHUB_SHA" \
-            BUILD_SERVER_GIT_SSH_KEY="$BUILD_SERVER_GIT_SSH_KEY" \
+            ENCODED_KEY="$ENCODED_KEY" \
             'bash -s' <<'REMOTE_SCRIPT'
           set -euo pipefail
           
@@ -112,8 +115,8 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           
-          # Сохраняем SSH ключ
-          echo "$BUILD_SERVER_GIT_SSH_KEY" > ~/.ssh/github_key
+          # Декодируем и сохраняем SSH ключ
+          echo "$ENCODED_KEY" | base64 -d > ~/.ssh/github_key
           chmod 600 ~/.ssh/github_key
           
           # Добавляем github.com в known_hosts
