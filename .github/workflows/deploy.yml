@@ -215,19 +215,20 @@ jobs:
           BUILD_SERVER_PROJECT_PATH: ${{ secrets.BUILD_SERVER_PROJECT_PATH || '/tmp/atom-dbro-build' }}
           BUILD_SERVER_SSH_PORT: ${{ secrets.BUILD_SERVER_SSH_PORT || '22' }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          REMOTE_IMAGE_PATH: /tmp/atom-dbro-image.tar.gz
           ENABLE_BUILD_CACHE: ${{ secrets.ENABLE_BUILD_CACHE || 'false' }}
         run: |
           ssh -o StrictHostKeyChecking=no -p "$BUILD_SERVER_SSH_PORT" \
             "$BUILD_SERVER_USER@$BUILD_SERVER_HOST" \
             BUILD_SERVER_PROJECT_PATH="$BUILD_SERVER_PROJECT_PATH" \
             IMAGE_NAME="$IMAGE_NAME" \
-            REMOTE_IMAGE_PATH="$REMOTE_IMAGE_PATH" \
             ENABLE_BUILD_CACHE="$ENABLE_BUILD_CACHE" \
             'bash -s' <<'REMOTE_SCRIPT'
           set -euo pipefail
           cd "$BUILD_SERVER_PROJECT_PATH"
           echo "📦 Building Docker image $IMAGE_NAME:latest on remote server..."
+          
+          # Определяем путь для архива образа на основе имени образа
+          REMOTE_IMAGE_PATH="/tmp/${IMAGE_NAME}.tar.gz"
           
           # Определяем флаги для кеширования
           if [ "$ENABLE_BUILD_CACHE" = "true" ]; then
@@ -256,9 +257,10 @@ jobs:
           BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
           BUILD_SERVER_USER: ${{ secrets.BUILD_SERVER_USER }}
           BUILD_SERVER_SSH_PORT: ${{ secrets.BUILD_SERVER_SSH_PORT || '22' }}
-          REMOTE_IMAGE_PATH: /tmp/atom-dbro-image.tar.gz
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
         run: |
           echo "🔍 Validating Docker image on build server..."
+          REMOTE_IMAGE_PATH="/tmp/${IMAGE_NAME}.tar.gz"
           # Проверяем что образ существует на build server (не скачиваем)
           ssh -o StrictHostKeyChecking=no -p "$BUILD_SERVER_SSH_PORT" \
             "$BUILD_SERVER_USER@$BUILD_SERVER_HOST" \
@@ -300,29 +302,33 @@ jobs:
 
       - name: Export Docker image to tar.gz
         if: steps.build_target.outputs.use_remote != 'true'
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
         run: |
-          echo "📦 Exporting Docker image to tar.gz..."
-          docker save ${{ env.IMAGE_NAME }}:latest | gzip > image.tar.gz
+          IMAGE_FILE="${IMAGE_NAME}.tar.gz"
+          echo "📦 Exporting Docker image to $IMAGE_FILE..."
+          docker save ${IMAGE_NAME}:latest | gzip > "$IMAGE_FILE"
           
           echo "📊 Image file info:"
-          ls -lh image.tar.gz
-          IMAGE_SIZE=$(du -h image.tar.gz | cut -f1)
+          ls -lh "$IMAGE_FILE"
+          IMAGE_SIZE=$(du -h "$IMAGE_FILE" | cut -f1)
           echo "Image size: $IMAGE_SIZE"
           
           # Проверяем, что файл создан и не пустой
-          if [ ! -f image.tar.gz ] || [ ! -s image.tar.gz ]; then
+          if [ ! -f "$IMAGE_FILE" ] || [ ! -s "$IMAGE_FILE" ]; then
             echo "❌ ERROR: Failed to export Docker image"
             exit 1
           fi
           
           echo "✅ Docker image exported successfully"
+          echo "IMAGE_FILE=$IMAGE_FILE" >> "$GITHUB_ENV"
 
       - name: Upload Docker image artifact (local build)
         if: steps.build_target.outputs.use_remote != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: docker-image
-          path: image.tar.gz
+          path: ${{ env.IMAGE_FILE }}
           retention-days: 1
 
   transfer-github:
@@ -368,21 +374,26 @@ jobs:
       - name: Transfer Docker image to server
         if: steps.check_mode.outputs.should_run == 'true'
         env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
         run: |
+          IMAGE_FILE="${IMAGE_NAME}.tar.gz"
+          DEPLOY_IMAGE_PATH="/tmp/${IMAGE_FILE}"
+          
           echo "📦 Transferring Docker image via GitHub Artifacts..."
-          echo "📊 Image file size: $(du -h image.tar.gz | cut -f1)"
+          echo "📊 Image file size: $(du -h "$IMAGE_FILE" | cut -f1)"
           
           # Передаем образ на сервер
-          scp -o StrictHostKeyChecking=no -P "$DEPLOY_SSH_PORT" image.tar.gz "$DEPLOY_USER@$DEPLOY_HOST:/tmp/"
+          scp -o StrictHostKeyChecking=no -P "$DEPLOY_SSH_PORT" "$IMAGE_FILE" "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_IMAGE_PATH"
           
           # Проверяем, что файл успешно передан
           ssh -o StrictHostKeyChecking=no -p "$DEPLOY_SSH_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
-            "if [ -f /tmp/image.tar.gz ]; then echo '✅ Image file transferred successfully'; ls -lh /tmp/image.tar.gz; else echo '❌ ERROR: Image file not found on server'; exit 1; fi"
+            "if [ -f '$DEPLOY_IMAGE_PATH' ]; then echo '✅ Image file transferred successfully'; ls -lh '$DEPLOY_IMAGE_PATH'; else echo '❌ ERROR: Image file not found on server'; exit 1; fi"
           
           echo "✅ Docker image transferred successfully"
+          echo "DEPLOY_IMAGE_PATH=$DEPLOY_IMAGE_PATH" >> "$GITHUB_ENV"
 
   transfer-scp:
     name: Transfer Image via SCP (Remote Build)
@@ -475,27 +486,34 @@ jobs:
       - name: Transfer image from build server to deploy server
         if: steps.check_mode.outputs.should_run == 'true'
         env:
-          REMOTE_IMAGE_PATH: /tmp/atom-dbro-image.tar.gz
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
         run: |
+          IMAGE_FILE="${IMAGE_NAME}.tar.gz"
+          REMOTE_IMAGE_PATH="/tmp/${IMAGE_FILE}"
+          DEPLOY_IMAGE_PATH="/tmp/${IMAGE_FILE}"
+          
           echo "📦 Transferring Docker image from build server to deploy server via SCP..."
           
           # Скачиваем образ с build сервера во временный файл
-          scp build-server:"$REMOTE_IMAGE_PATH" ./image.tar.gz
+          scp build-server:"$REMOTE_IMAGE_PATH" "./$IMAGE_FILE"
           
-          echo "📊 Image file size: $(du -h image.tar.gz | cut -f1)"
+          echo "📊 Image file size: $(du -h "$IMAGE_FILE" | cut -f1)"
           
           # Передаем образ на deploy сервер
-          scp image.tar.gz deploy-server:/tmp/
+          scp "$IMAGE_FILE" deploy-server:"$DEPLOY_IMAGE_PATH"
           
           # Проверяем, что файл успешно передан
           ssh deploy-server \
-            "if [ -f /tmp/image.tar.gz ]; then echo '✅ Image transferred successfully'; ls -lh /tmp/image.tar.gz; else echo '❌ ERROR: Image not found'; exit 1; fi"
+            "if [ -f '$DEPLOY_IMAGE_PATH' ]; then echo '✅ Image transferred successfully'; ls -lh '$DEPLOY_IMAGE_PATH'; else echo '❌ ERROR: Image not found'; exit 1; fi"
           
           echo "✅ Docker image transferred from build server to deploy server successfully"
           
           # Очищаем образ с build сервера после успешной передачи
           echo "🧹 Cleaning up image from build server..."
           ssh build-server "rm -f '$REMOTE_IMAGE_PATH' && echo '✅ Cleanup completed'"
+          
+          # Сохраняем путь для deploy job
+          echo "DEPLOY_IMAGE_PATH=$DEPLOY_IMAGE_PATH" >> "$GITHUB_ENV"
 
   deploy:
     name: Deploy Application
@@ -551,15 +569,19 @@ jobs:
             
             echo "✅ Found docker-compose.yml in $(pwd)"
             
+            # Определяем путь к файлу образа на основе имени образа
+            IMAGE_FILE="${IMAGE_NAME}.tar.gz"
+            DEPLOY_IMAGE_PATH="/tmp/${IMAGE_FILE}"
+            
             # Загружаем образ в Docker
-            echo "📥 Importing Docker image from tar.gz..."
-            if [ ! -f /tmp/image.tar.gz ]; then
-              echo "❌ ERROR: Image file not found: /tmp/image.tar.gz"
+            echo "📥 Importing Docker image from $DEPLOY_IMAGE_PATH..."
+            if [ ! -f "$DEPLOY_IMAGE_PATH" ]; then
+              echo "❌ ERROR: Image file not found: $DEPLOY_IMAGE_PATH"
               exit 1
             fi
             
-            echo "📊 Image file size: $(du -h /tmp/image.tar.gz | cut -f1)"
-            docker load -i /tmp/image.tar.gz
+            echo "📊 Image file size: $(du -h "$DEPLOY_IMAGE_PATH" | cut -f1)"
+            docker load -i "$DEPLOY_IMAGE_PATH"
             
             # Проверяем, что образ загружен
             if ! docker images | grep -q "$IMAGE_NAME.*latest"; then
@@ -570,8 +592,8 @@ jobs:
             echo "✅ Docker image imported successfully"
             
             # Удаляем временный файл
-            rm -f /tmp/image.tar.gz
-            echo "🧹 Cleaned up temporary image file"
+            rm -f "$DEPLOY_IMAGE_PATH"
+            echo "🧹 Cleaned up temporary image file: $DEPLOY_IMAGE_PATH"
             
             # Очищаем старые версии образа перед деплоем
             echo "🧹 Removing old image versions (if any)..."
