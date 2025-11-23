@@ -25,17 +25,31 @@ jobs:
         id: build_target
         shell: bash
         run: |
-          if [ "$HAS_BUILD_HOST" = "true" ] && [ "$HAS_BUILD_USER" = "true" ] && [ "$HAS_BUILD_KEY" = "true" ]; then
+          echo "🔍 Checking build server configuration..."
+          
+          # Проверяем наличие всех необходимых секретов
+          if [ -n "$BUILD_SERVER_HOST" ] && [ -n "$BUILD_SERVER_USER" ] && [ -n "$BUILD_SERVER_SSH_KEY" ]; then
             echo "use_remote=true" >> "$GITHUB_OUTPUT"
             echo "🛰️  Remote build server configuration detected. Using remote builder."
+            echo "✅ Output: use_remote=true"
           else
             echo "use_remote=false" >> "$GITHUB_OUTPUT"
             echo "🏗️  Remote build server not configured. Using GitHub runner for build."
+            echo "✅ Output: use_remote=false"
+            if [ -z "$BUILD_SERVER_HOST" ]; then
+              echo "⚠️  BUILD_SERVER_HOST not set"
+            fi
+            if [ -z "$BUILD_SERVER_USER" ]; then
+              echo "⚠️  BUILD_SERVER_USER not set"
+            fi
+            if [ -z "$BUILD_SERVER_SSH_KEY" ]; then
+              echo "⚠️  BUILD_SERVER_SSH_KEY not set"
+            fi
           fi
         env:
-          HAS_BUILD_HOST: ${{ format('{0}', secrets.BUILD_SERVER_HOST != '') }}
-          HAS_BUILD_USER: ${{ format('{0}', secrets.BUILD_SERVER_USER != '') }}
-          HAS_BUILD_KEY: ${{ format('{0}', secrets.BUILD_SERVER_SSH_KEY != '') }}
+          BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
+          BUILD_SERVER_USER: ${{ secrets.BUILD_SERVER_USER }}
+          BUILD_SERVER_SSH_KEY: ${{ secrets.BUILD_SERVER_SSH_KEY }}
 
       - name: Set up SSH for build server
         if: steps.build_target.outputs.use_remote == 'true'
@@ -314,6 +328,13 @@ jobs:
       needs.build.outputs.use_remote != 'true'
     
     steps:
+      - name: Check build mode
+        run: |
+          echo "🔍 Transfer GitHub Job - Build mode check:"
+          echo "Raw use_remote output: '${{ needs.build.outputs.use_remote }}'"
+          echo "This job should only run when use_remote != 'true'"
+          echo "If you see this message and use_remote='true', there's a bug in the condition!"
+      
       - name: Download Docker image artifact
         uses: actions/download-artifact@v4
         with:
@@ -352,6 +373,13 @@ jobs:
       needs.build.outputs.use_remote == 'true'
     
     steps:
+      - name: Check build mode
+        run: |
+          echo "🔍 Transfer SCP Job - Build mode check:"
+          echo "use_remote output: ${{ needs.build.outputs.use_remote }}"
+          echo "This job should only run when use_remote == 'true'"
+          echo "Current condition result: ${{ needs.build.outputs.use_remote == 'true' }}"
+      
       - name: Set up SSH for build server
         uses: webfactory/ssh-agent@v0.9.0
         with:
