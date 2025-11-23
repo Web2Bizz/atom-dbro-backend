@@ -262,14 +262,6 @@ jobs:
           echo "✅ Remote Docker image artifact ready"
           ls -lh image.tar.gz
 
-      - name: Upload Docker image artifact (from remote build)
-        if: steps.build_target.outputs.use_remote == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image
-          path: image.tar.gz
-          retention-days: 1
-
       - name: Set up Docker Buildx
         if: steps.build_target.outputs.use_remote != 'true'
         uses: docker/setup-buildx-action@v3
@@ -316,7 +308,32 @@ jobs:
           
           echo "✅ Docker image exported successfully"
 
-      - name: Upload Docker image artifact
+      - name: Set up SSH for deploy server (remote build)
+        if: steps.build_target.outputs.use_remote == 'true'
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Transfer Docker image to deploy server (remote build)
+        if: steps.build_target.outputs.use_remote == 'true'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
+        run: |
+          echo "📦 Transferring Docker image to deploy server..."
+          echo "📊 Image file size: $(du -h image.tar.gz | cut -f1)"
+          
+          # Передаем образ на сервер деплоя
+          scp -o StrictHostKeyChecking=no -P "$DEPLOY_SSH_PORT" image.tar.gz "$DEPLOY_USER@$DEPLOY_HOST:/tmp/"
+          
+          # Проверяем, что файл успешно передан
+          ssh -o StrictHostKeyChecking=no -p "$DEPLOY_SSH_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "if [ -f /tmp/image.tar.gz ]; then echo '✅ Image transferred successfully'; ls -lh /tmp/image.tar.gz; else echo '❌ ERROR: Image not found'; exit 1; fi"
+          
+          echo "✅ Docker image transferred to deploy server successfully"
+
+      - name: Upload Docker image artifact (local build)
         if: steps.build_target.outputs.use_remote != 'true'
         uses: actions/upload-artifact@v4
         with:
@@ -342,35 +359,29 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
-      - name: Validate SSH connection
-        run: |
-          SSH_PORT="${DEPLOY_SSH_PORT:-22}"
-          ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "echo 'SSH connection successful' && hostname"
-
       - name: Transfer Docker image to server
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
         run: |
-          SSH_PORT="${DEPLOY_SSH_PORT:-22}"
-          
           echo "📦 Transferring Docker image to server..."
           echo "📊 Image file size: $(du -h image.tar.gz | cut -f1)"
           
           # Передаем образ на сервер
-          scp -o StrictHostKeyChecking=no -P "$SSH_PORT" image.tar.gz ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/
+          scp -o StrictHostKeyChecking=no -P "$DEPLOY_SSH_PORT" image.tar.gz "$DEPLOY_USER@$DEPLOY_HOST:/tmp/"
           
           # Проверяем, что файл успешно передан
-          ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+          ssh -o StrictHostKeyChecking=no -p "$DEPLOY_SSH_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
             "if [ -f /tmp/image.tar.gz ]; then echo '✅ Image file transferred successfully'; ls -lh /tmp/image.tar.gz; else echo '❌ ERROR: Image file not found on server'; exit 1; fi"
           
           echo "✅ Docker image transferred successfully"
-        env:
-          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
 
   deploy:
     name: Deploy Application
-    needs: transfer
+    needs: [build, transfer]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && always() && (needs.build.result == 'success')
     
     steps:
       - name: Set up SSH
