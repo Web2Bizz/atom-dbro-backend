@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import Redis, { RedisOptions } from 'ioredis';
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
@@ -17,7 +17,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
     this.logger.log(`Подключение к Redis: ${host}:${port}, db: ${db}`);
 
-    const redisOptions: Redis.RedisOptions = {
+    const redisOptions: RedisOptions = {
       host,
       port,
       db,
