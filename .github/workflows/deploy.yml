@@ -19,22 +19,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver: docker
-          name: github-actions-builder
-          use: true
-
       - name: Build Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: false
-          load: true
-          tags: ${{ env.IMAGE_NAME }}:latest
-          no-cache: true
+        run: |
+          echo "📦 Building Docker image: ${{ env.IMAGE_NAME }}:latest"
+          docker build --no-cache -t ${{ env.IMAGE_NAME }}:latest -f ./Dockerfile .
+          echo "✅ Docker image built successfully"
 
       - name: Verify image was built
         run: |
