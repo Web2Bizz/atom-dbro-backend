@@ -75,55 +75,6 @@ jobs:
           ssh -o StrictHostKeyChecking=no -p "$BUILD_SERVER_SSH_PORT" "$BUILD_SERVER_USER@$BUILD_SERVER_HOST" \
             "echo 'SSH connection to build server successful'; hostname"
 
-      - name: Setup Git SSH key on build server (if provided)
-        if: steps.build_target.outputs.use_remote == 'true'
-        shell: bash
-        env:
-          BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
-          BUILD_SERVER_USER: ${{ secrets.BUILD_SERVER_USER }}
-          BUILD_SERVER_SSH_PORT: ${{ secrets.BUILD_SERVER_SSH_PORT || '22' }}
-          BUILD_SERVER_GIT_SSH_KEY: ${{ secrets.BUILD_SERVER_GIT_SSH_KEY }}
-          HAS_GIT_SSH_KEY: ${{ secrets.BUILD_SERVER_GIT_SSH_KEY != '' }}
-        run: |
-          if [ "$HAS_GIT_SSH_KEY" != "true" ]; then
-            echo "ℹ️  BUILD_SERVER_GIT_SSH_KEY not provided, skipping Git SSH setup"
-            exit 0
-          fi
-          
-          echo "🔑 Setting up Git SSH key on build server..."
-          
-          # Кодируем ключ в base64 для безопасной передачи
-          ENCODED_KEY=$(echo "$BUILD_SERVER_GIT_SSH_KEY" | base64 -w 0)
-          
-          ssh -o StrictHostKeyChecking=no -p "$BUILD_SERVER_SSH_PORT" "$BUILD_SERVER_USER@$BUILD_SERVER_HOST" \
-            ENCODED_KEY="$ENCODED_KEY" \
-            'bash -s' <<'REMOTE_SCRIPT'
-          set -euo pipefail
-          
-          # Создаём директорию для SSH ключей
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          
-          # Декодируем и сохраняем Git SSH ключ
-          echo "$ENCODED_KEY" | base64 -d > ~/.ssh/github_deploy_key
-          chmod 600 ~/.ssh/github_deploy_key
-          
-          # Добавляем github.com в known_hosts
-          ssh-keyscan -H github.com >> ~/.ssh/known_hosts 2>/dev/null || true
-          
-          # Настраиваем Git для использования этого ключа
-          cat > ~/.ssh/config <<'SSHCONFIG'
-          Host github.com
-              HostName github.com
-              User git
-              IdentityFile ~/.ssh/github_deploy_key
-              StrictHostKeyChecking no
-          SSHCONFIG
-          chmod 600 ~/.ssh/config
-          
-          echo "✅ Git SSH key configured"
-          REMOTE_SCRIPT
-
       - name: Sync source to build server
         if: steps.build_target.outputs.use_remote == 'true'
         shell: bash
@@ -132,78 +83,58 @@ jobs:
           BUILD_SERVER_USER: ${{ secrets.BUILD_SERVER_USER }}
           BUILD_SERVER_PROJECT_PATH: ${{ secrets.BUILD_SERVER_PROJECT_PATH || '/tmp/atom-dbro-build' }}
           BUILD_SERVER_SSH_PORT: ${{ secrets.BUILD_SERVER_SSH_PORT || '22' }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
-          GITHUB_REF: ${{ github.ref }}
-          USE_GIT_SSH: ${{ secrets.BUILD_SERVER_GIT_SSH_KEY != '' && 'true' || 'false' }}
-          GITHUB_TOKEN: ${{ secrets.BUILD_SERVER_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          ssh -o StrictHostKeyChecking=no -p "$BUILD_SERVER_SSH_PORT" "$BUILD_SERVER_USER@$BUILD_SERVER_HOST" \
-            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
-            GITHUB_SHA="$GITHUB_SHA" \
-            GITHUB_REF="$GITHUB_REF" \
-            BUILD_SERVER_PROJECT_PATH="$BUILD_SERVER_PROJECT_PATH" \
-            USE_GIT_SSH="$USE_GIT_SSH" \
-            'bash -s' <<'REMOTE_SCRIPT'
-          set -euo pipefail
-          
-          echo "📦 Syncing repository to build server..."
-          echo "Repository: $GITHUB_REPOSITORY"
+          echo "📦 Syncing repository to build server via rsync..."
+          echo "Repository: ${{ github.repository }}"
           echo "Commit: $GITHUB_SHA"
-          echo "Ref: $GITHUB_REF"
           echo "Path: $BUILD_SERVER_PROJECT_PATH"
-          echo "Use SSH: $USE_GIT_SSH"
           
-          # Проверяем наличие git
-          if ! command -v git &> /dev/null; then
-            echo "❌ ERROR: git is not installed on build server"
-            echo "Please install git: sudo apt-get install git (Ubuntu/Debian) or sudo yum install git (CentOS/RHEL)"
+          # Проверяем наличие rsync на локальной машине
+          if ! command -v rsync &> /dev/null; then
+            echo "❌ ERROR: rsync is not installed on GitHub runner"
             exit 1
           fi
           
-          # Определяем URL репозитория (SSH или HTTPS)
-          if [ "$USE_GIT_SSH" = "true" ]; then
-            REPO_URL="git@github.com:$GITHUB_REPOSITORY.git"
-            echo "🔑 Using SSH for git operations"
-          else
-            REPO_URL="https://github.com/$GITHUB_REPOSITORY.git"
-            echo "🌐 Using HTTPS for git operations"
-          fi
+          # Создаём директорию на build server
+          ssh -o StrictHostKeyChecking=no -p "$BUILD_SERVER_SSH_PORT" "$BUILD_SERVER_USER@$BUILD_SERVER_HOST" \
+            "mkdir -p '$BUILD_SERVER_PROJECT_PATH' && echo '✅ Directory created/verified'"
           
-          # Если директория существует и это git репозиторий
-          if [ -d "$BUILD_SERVER_PROJECT_PATH/.git" ]; then
-            echo "📂 Repository exists, updating..."
-            cd "$BUILD_SERVER_PROJECT_PATH"
-            
-            # Сбрасываем любые локальные изменения
-            git reset --hard
-            git clean -fdx
-            
-            # Обновляем remote URL на случай если репозиторий изменился
-            git remote set-url origin "$REPO_URL"
-            
-            # Fetch последние изменения
-            git fetch origin
-            
-            # Checkout нужного коммита
-            git checkout -f "$GITHUB_SHA"
-          else
-            echo "📥 Cloning repository..."
-            # Удаляем директорию если она существует но не git репозиторий
-            rm -rf "$BUILD_SERVER_PROJECT_PATH"
-            
-            # Клонируем репозиторий
-            git clone "$REPO_URL" "$BUILD_SERVER_PROJECT_PATH"
-            cd "$BUILD_SERVER_PROJECT_PATH"
-            
-            # Checkout нужного коммита
-            git checkout "$GITHUB_SHA"
-          fi
+          # Исключаем ненужные файлы и директории при синхронизации
+          # Используем rsync для эффективной передачи только изменённых файлов
+          rsync -avz \
+            --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='dist' \
+            --exclude='.next' \
+            --exclude='.cache' \
+            --exclude='*.log' \
+            --exclude='.env.local' \
+            --exclude='.env.*.local' \
+            -e "ssh -o StrictHostKeyChecking=no -p $BUILD_SERVER_SSH_PORT" \
+            ./ "$BUILD_SERVER_USER@$BUILD_SERVER_HOST:$BUILD_SERVER_PROJECT_PATH/"
+          
+          echo "✅ Files synced successfully"
+          
+          # Проверяем, что файлы переданы и сохраняем информацию о коммите
+          ssh -o StrictHostKeyChecking=no -p "$BUILD_SERVER_SSH_PORT" "$BUILD_SERVER_USER@$BUILD_SERVER_HOST" \
+            BUILD_SERVER_PROJECT_PATH="$BUILD_SERVER_PROJECT_PATH" \
+            GITHUB_SHA="$GITHUB_SHA" \
+            GITHUB_REPOSITORY="${{ github.repository }}" \
+            'bash -s' <<'REMOTE_SCRIPT'
+          set -euo pipefail
+          
+          cd "$BUILD_SERVER_PROJECT_PATH"
+          
+          # Сохраняем информацию о коммите в файл для отслеживания
+          echo "$GITHUB_SHA" > .github_commit_sha
+          echo "$GITHUB_REPOSITORY" > .github_repository
           
           echo "✅ Repository synced successfully"
-          echo "Current commit: $(git rev-parse HEAD)"
           echo "📁 Project directory contents:"
-          ls -la
+          ls -la | head -20
+          echo "📊 Total files: $(find . -type f | wc -l)"
           REMOTE_SCRIPT
 
       - name: Build Docker image on build server

@@ -1,5 +1,5 @@
-import { Controller, Post, Body, HttpCode, UseGuards, Version, Headers, UnauthorizedException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiBody } from '@nestjs/swagger';
+import { Controller, Post, Body, HttpCode, UseGuards, Version } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto, registerSchema, RegisterDtoClass } from './dto/register.dto';
 import { LoginDto, loginSchema, LoginDtoClass } from './dto/login.dto';
@@ -7,6 +7,7 @@ import { RefreshTokenDto, refreshTokenSchema, RefreshTokenDtoClass } from './dto
 import { ForgotPasswordDto, forgotPasswordSchema, ForgotPasswordDtoClass } from './dto/forgot-password.dto';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @ApiTags('Авторизация')
 @Controller('auth')
@@ -70,24 +71,13 @@ export class AuthController {
   }
 
   @Post('validate')
+  @UseGuards(JwtAuthGuard)
   @HttpCode(200)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Валидация JWT токена' })
-  @ApiHeader({ 
-    name: 'Authorization', 
-    description: 'Bearer token',
-    required: true 
-  })
   @ApiResponse({ status: 200, description: 'Токен валиден' })
   @ApiResponse({ status: 401, description: 'Токен не валиден' })
-  async validateToken(
-    @Headers('authorization') authHeader?: string,
-  ) {
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Токен не предоставлен');
-    }
-
-    const token = authHeader.substring(7);
-    await this.authService.validateToken(token);
+  async validateToken() {
     return { message: 'Токен валиден' };
   }
 }
