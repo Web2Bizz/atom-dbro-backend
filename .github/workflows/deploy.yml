@@ -68,8 +68,12 @@ jobs:
           fi
           
           echo "🔑 Setting up Git SSH key on build server..."
+          
+          # Кодируем ключ в base64 для безопасной передачи
+          ENCODED_KEY=$(echo "$BUILD_SERVER_GIT_SSH_KEY" | base64 -w 0)
+          
           ssh -o StrictHostKeyChecking=no -p "$BUILD_SERVER_SSH_PORT" "$BUILD_SERVER_USER@$BUILD_SERVER_HOST" \
-            BUILD_SERVER_GIT_SSH_KEY="$BUILD_SERVER_GIT_SSH_KEY" \
+            ENCODED_KEY="$ENCODED_KEY" \
             'bash -s' <<'REMOTE_SCRIPT'
           set -euo pipefail
           
@@ -77,8 +81,8 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           
-          # Сохраняем Git SSH ключ
-          echo "$BUILD_SERVER_GIT_SSH_KEY" > ~/.ssh/github_deploy_key
+          # Декодируем и сохраняем Git SSH ключ
+          echo "$ENCODED_KEY" | base64 -d > ~/.ssh/github_deploy_key
           chmod 600 ~/.ssh/github_deploy_key
           
           # Добавляем github.com в known_hosts
