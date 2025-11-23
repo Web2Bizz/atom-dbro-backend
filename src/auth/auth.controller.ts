@@ -1,11 +1,10 @@
 import { Controller, Post, Body, HttpCode, UseGuards, Version, Headers, UnauthorizedException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiHeader } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto, registerSchema, RegisterDtoClass } from './dto/register.dto';
 import { LoginDto, loginSchema, LoginDtoClass } from './dto/login.dto';
 import { RefreshTokenDto, refreshTokenSchema, RefreshTokenDtoClass } from './dto/refresh-token.dto';
 import { ForgotPasswordDto, forgotPasswordSchema, ForgotPasswordDtoClass } from './dto/forgot-password.dto';
-import { ValidateTokenDto, validateTokenSchema, ValidateTokenDtoClass } from './dto/validate-token.dto';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
 
@@ -73,29 +72,21 @@ export class AuthController {
   @Post('validate')
   @HttpCode(200)
   @ApiOperation({ summary: 'Валидация JWT токена' })
-  @ApiBody({ type: ValidateTokenDtoClass, required: false })
   @ApiHeader({ 
     name: 'Authorization', 
-    description: 'Bearer token (опционально, если токен не передан в body)',
-    required: false 
+    description: 'Bearer token',
+    required: true 
   })
   @ApiResponse({ status: 200, description: 'Токен валиден' })
   @ApiResponse({ status: 401, description: 'Токен не валиден' })
   async validateToken(
-    @Body() validateTokenDto?: ValidateTokenDto,
     @Headers('authorization') authHeader?: string,
   ) {
-    let token: string;
-
-    // Приоритет: токен из body, затем из заголовка Authorization
-    if (validateTokenDto?.token) {
-      token = validateTokenDto.token;
-    } else if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.substring(7);
-    } else {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new UnauthorizedException('Токен не предоставлен');
     }
 
+    const token = authHeader.substring(7);
     await this.authService.validateToken(token);
     return { message: 'Токен валиден' };
   }
