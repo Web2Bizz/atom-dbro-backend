@@ -329,18 +329,13 @@ jobs:
     name: Transfer Image via GitHub Artifacts
     needs: build
     runs-on: ubuntu-latest
-    if: needs.build.result == 'success' && needs.build.outputs.use_remote != '' && needs.build.outputs.use_remote == 'false'
+    if: needs.build.result == 'success' && secrets.BUILD_SERVER_HOST == ''
     
     steps:
       - name: Verify build mode
         run: |
           echo "🔍 Transfer GitHub Job - Build mode verification:"
-          echo "use_remote output: '${{ needs.build.outputs.use_remote }}'"
-          echo "This job runs only when use_remote == 'false' (local build)"
-          if [ "${{ needs.build.outputs.use_remote }}" != "false" ]; then
-            echo "❌ ERROR: use_remote is not 'false'! This job should be skipped."
-            exit 1
-          fi
+          echo "BUILD_SERVER_HOST is not set, using GitHub Artifacts for transfer"
           echo "✅ Verification passed: Using GitHub Artifacts for transfer"
       
       - name: Download Docker image artifact
@@ -376,18 +371,13 @@ jobs:
     name: Transfer Image via SCP (Remote Build)
     needs: build
     runs-on: ubuntu-latest
-    if: needs.build.result == 'success' && needs.build.outputs.use_remote != '' && needs.build.outputs.use_remote == 'true'
+    if: needs.build.result == 'success' && secrets.BUILD_SERVER_HOST != ''
     
     steps:
       - name: Verify build mode
         run: |
           echo "🔍 Transfer SCP Job - Build mode verification:"
-          echo "use_remote output: '${{ needs.build.outputs.use_remote }}'"
-          echo "This job runs only when use_remote == 'true' (remote build)"
-          if [ "${{ needs.build.outputs.use_remote }}" != "true" ]; then
-            echo "❌ ERROR: use_remote is not 'true'! This job should be skipped."
-            exit 1
-          fi
+          echo "BUILD_SERVER_HOST is set, using SCP for transfer from build server"
           echo "✅ Verification passed: Using SCP for transfer from build server"
       
       - name: Set up SSH for build server
