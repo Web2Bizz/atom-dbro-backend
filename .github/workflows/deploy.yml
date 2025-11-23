@@ -11,9 +11,10 @@ env:
   IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME || 'atom-dbro-backend' }}
 
 jobs:
-  build:
-    name: Build and Export Docker Image
+  build-and-transfer:
+    name: Build and Transfer Docker Image
     runs-on: self-hosted
+    if: github.ref == 'refs/heads/main'
     
     steps:
       - name: Checkout code
@@ -61,26 +62,6 @@ jobs:
           
           echo "✅ Docker image exported successfully"
 
-      - name: Upload Docker image artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image
-          path: image.tar.gz
-          retention-days: 1
-
-  transfer:
-    name: Transfer Image to Server
-    needs: build
-    runs-on: self-hosted
-    if: github.ref == 'refs/heads/main'
-    
-    steps:
-      - name: Download Docker image artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: docker-image
-          path: ./
-
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -91,6 +72,8 @@ jobs:
           SSH_PORT="${DEPLOY_SSH_PORT:-22}"
           ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
             "echo 'SSH connection successful' && hostname"
+        env:
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
 
       - name: Transfer Docker image to server
         run: |
@@ -110,9 +93,18 @@ jobs:
         env:
           DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
 
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "🧹 Cleaning up temporary files and Docker resources..."
+          rm -f image.tar.gz
+          docker rmi ${{ env.IMAGE_NAME }}:latest 2>/dev/null || true
+          docker builder prune -f || true
+          echo "✅ Cleanup completed"
+
   deploy:
     name: Deploy Application
-    needs: transfer
+    needs: build-and-transfer
     runs-on: self-hosted
     if: github.ref == 'refs/heads/main'
     
