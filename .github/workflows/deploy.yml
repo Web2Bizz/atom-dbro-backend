@@ -83,69 +83,91 @@ jobs:
           BUILD_SERVER_USER: ${{ secrets.BUILD_SERVER_USER }}
           BUILD_SERVER_PROJECT_PATH: ${{ secrets.BUILD_SERVER_PROJECT_PATH || '/tmp/atom-dbro-build' }}
           BUILD_SERVER_SSH_PORT: ${{ secrets.BUILD_SERVER_SSH_PORT || '22' }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
+          BUILD_SERVER_GIT_SSH_KEY: ${{ secrets.BUILD_SERVER_GIT_SSH_KEY }}
         run: |
-          echo "📦 Syncing repository to build server via tar+ssh..."
-          echo "Repository: ${{ github.repository }}"
+          echo "📦 Syncing repository to build server via git SSH..."
+          echo "Repository: $GITHUB_REPOSITORY"
           echo "Commit: $GITHUB_SHA"
           echo "Path: $BUILD_SERVER_PROJECT_PATH"
           
-          # Создаём временный архив с исключением ненужных файлов
-          ARCHIVE_FILE="repo-sync-$(date +%s).tar.gz"
-          echo "📦 Creating archive..."
-          
-          tar --exclude='.git' \
-              --exclude='node_modules' \
-              --exclude='dist' \
-              --exclude='.next' \
-              --exclude='.cache' \
-              --exclude='*.log' \
-              --exclude='.env.local' \
-              --exclude='.env.*.local' \
-              --exclude='*.tar.gz' \
-              -czf "$ARCHIVE_FILE" .
-          
-          ARCHIVE_SIZE=$(du -h "$ARCHIVE_FILE" | cut -f1)
-          echo "✅ Archive created: $ARCHIVE_FILE ($ARCHIVE_SIZE)"
-          
-          # Передаём архив на build server и распаковываем
-          echo "📤 Transferring archive to build server..."
-          scp -o StrictHostKeyChecking=no -P "$BUILD_SERVER_SSH_PORT" \
-              "$ARCHIVE_FILE" "$BUILD_SERVER_USER@$BUILD_SERVER_HOST:/tmp/"
-          
-          echo "📥 Extracting archive on build server..."
+          # Передаём SSH ключ на build server и настраиваем git для использования SSH
           ssh -o StrictHostKeyChecking=no -p "$BUILD_SERVER_SSH_PORT" "$BUILD_SERVER_USER@$BUILD_SERVER_HOST" \
             BUILD_SERVER_PROJECT_PATH="$BUILD_SERVER_PROJECT_PATH" \
-            ARCHIVE_FILE="$ARCHIVE_FILE" \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
             GITHUB_SHA="$GITHUB_SHA" \
-            GITHUB_REPOSITORY="${{ github.repository }}" \
+            BUILD_SERVER_GIT_SSH_KEY="$BUILD_SERVER_GIT_SSH_KEY" \
             'bash -s' <<'REMOTE_SCRIPT'
           set -euo pipefail
           
-          # Создаём директорию проекта
-          mkdir -p "$BUILD_SERVER_PROJECT_PATH"
+          # Проверяем наличие git
+          if ! command -v git &> /dev/null; then
+            echo "❌ ERROR: git is not installed on build server"
+            echo "Please install git: sudo apt-get install git (Ubuntu/Debian) or sudo yum install git (CentOS/RHEL)"
+            exit 1
+          fi
           
-          # Распаковываем архив
-          tar -xzf "/tmp/$ARCHIVE_FILE" -C "$BUILD_SERVER_PROJECT_PATH"
+          # Настраиваем SSH ключ для GitHub
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           
-          # Удаляем архив
-          rm -f "/tmp/$ARCHIVE_FILE"
+          # Сохраняем SSH ключ
+          echo "$BUILD_SERVER_GIT_SSH_KEY" > ~/.ssh/github_key
+          chmod 600 ~/.ssh/github_key
           
-          cd "$BUILD_SERVER_PROJECT_PATH"
+          # Добавляем github.com в known_hosts
+          ssh-keyscan -H github.com >> ~/.ssh/known_hosts 2>/dev/null || true
+          chmod 600 ~/.ssh/known_hosts 2>/dev/null || true
           
-          # Сохраняем информацию о коммите в файл для отслеживания
-          echo "$GITHUB_SHA" > .github_commit_sha
-          echo "$GITHUB_REPOSITORY" > .github_repository
+          # Настраиваем SSH config для использования ключа
+          cat > ~/.ssh/config <<'SSHCONFIG'
+          Host github.com
+              HostName github.com
+              User git
+              IdentityFile ~/.ssh/github_key
+              StrictHostKeyChecking no
+              IdentitiesOnly yes
+          SSHCONFIG
+          chmod 600 ~/.ssh/config
+          
+          REPO_URL="git@github.com:$GITHUB_REPOSITORY.git"
+          
+          # Если директория существует и это git репозиторий
+          if [ -d "$BUILD_SERVER_PROJECT_PATH/.git" ]; then
+            echo "📂 Repository exists, updating..."
+            cd "$BUILD_SERVER_PROJECT_PATH"
+            
+            # Сбрасываем любые локальные изменения
+            git reset --hard
+            git clean -fdx
+            
+            # Обновляем remote URL на случай если репозиторий изменился
+            git remote set-url origin "$REPO_URL"
+            
+            # Fetch последние изменения
+            git fetch origin
+            
+            # Checkout нужного коммита
+            git checkout -f "$GITHUB_SHA"
+          else
+            echo "📥 Cloning repository..."
+            # Удаляем директорию если она существует но не git репозиторий
+            rm -rf "$BUILD_SERVER_PROJECT_PATH"
+            
+            # Клонируем репозиторий
+            git clone "$REPO_URL" "$BUILD_SERVER_PROJECT_PATH"
+            cd "$BUILD_SERVER_PROJECT_PATH"
+            
+            # Checkout нужного коммита
+            git checkout "$GITHUB_SHA"
+          fi
           
           echo "✅ Repository synced successfully"
+          echo "Current commit: $(git rev-parse HEAD)"
           echo "📁 Project directory contents:"
           ls -la | head -20
-          echo "📊 Total files: $(find . -type f | wc -l)"
           REMOTE_SCRIPT
-          
-          # Удаляем локальный архив
-          rm -f "$ARCHIVE_FILE"
-          echo "🧹 Cleaned up local archive"
 
       - name: Build Docker image on build server
         if: steps.build_target.outputs.use_remote == 'true'
