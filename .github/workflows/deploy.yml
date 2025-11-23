@@ -240,19 +240,6 @@ jobs:
           scp -o StrictHostKeyChecking=no -P "$BUILD_SERVER_SSH_PORT" \
             "$BUILD_SERVER_USER@$BUILD_SERVER_HOST:$REMOTE_IMAGE_PATH" ./image.tar.gz
 
-      - name: Clean up remote build artifacts
-        if: steps.build_target.outputs.use_remote == 'true'
-        shell: bash
-        env:
-          BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
-          BUILD_SERVER_USER: ${{ secrets.BUILD_SERVER_USER }}
-          BUILD_SERVER_SSH_PORT: ${{ secrets.BUILD_SERVER_SSH_PORT || '22' }}
-          REMOTE_IMAGE_PATH: /tmp/atom-dbro-image.tar.gz
-        run: |
-          ssh -o StrictHostKeyChecking=no -p "$BUILD_SERVER_SSH_PORT" \
-            "$BUILD_SERVER_USER@$BUILD_SERVER_HOST" \
-            "rm -f '$REMOTE_IMAGE_PATH'"
-
       - name: Validate remote build artifact
         if: steps.build_target.outputs.use_remote == 'true'
         shell: bash
@@ -310,31 +297,6 @@ jobs:
           
           echo "✅ Docker image exported successfully"
 
-      - name: Set up SSH for deploy server (remote build)
-        if: steps.build_target.outputs.use_remote == 'true'
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
-
-      - name: Transfer Docker image to deploy server (remote build)
-        if: steps.build_target.outputs.use_remote == 'true'
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
-        run: |
-          echo "📦 Transferring Docker image to deploy server..."
-          echo "📊 Image file size: $(du -h image.tar.gz | cut -f1)"
-          
-          # Передаем образ на сервер деплоя
-          scp -o StrictHostKeyChecking=no -P "$DEPLOY_SSH_PORT" image.tar.gz "$DEPLOY_USER@$DEPLOY_HOST:/tmp/"
-          
-          # Проверяем, что файл успешно передан
-          ssh -o StrictHostKeyChecking=no -p "$DEPLOY_SSH_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
-            "if [ -f /tmp/image.tar.gz ]; then echo '✅ Image transferred successfully'; ls -lh /tmp/image.tar.gz; else echo '❌ ERROR: Image not found'; exit 1; fi"
-          
-          echo "✅ Docker image transferred to deploy server successfully"
-
       - name: Upload Docker image artifact (local build)
         if: steps.build_target.outputs.use_remote != 'true'
         uses: actions/upload-artifact@v4
@@ -343,11 +305,13 @@ jobs:
           path: image.tar.gz
           retention-days: 1
 
-  transfer:
-    name: Transfer Image to Server
+  transfer-github:
+    name: Transfer Image via GitHub Artifacts
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && needs.build.outputs.use_remote != 'true'
+    if: |
+      github.ref == 'refs/heads/main' &&
+      needs.build.outputs.use_remote != 'true'
     
     steps:
       - name: Download Docker image artifact
@@ -367,7 +331,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
         run: |
-          echo "📦 Transferring Docker image to server..."
+          echo "📦 Transferring Docker image via GitHub Artifacts..."
           echo "📊 Image file size: $(du -h image.tar.gz | cut -f1)"
           
           # Передаем образ на сервер
@@ -379,15 +343,68 @@ jobs:
           
           echo "✅ Docker image transferred successfully"
 
+  transfer-scp:
+    name: Transfer Image via SCP (Remote Build)
+    needs: build
+    runs-on: ubuntu-latest
+    if: |
+      github.ref == 'refs/heads/main' &&
+      needs.build.outputs.use_remote == 'true'
+    
+    steps:
+      - name: Set up SSH for build server
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.BUILD_SERVER_SSH_KEY }}
+
+      - name: Set up SSH for deploy server
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Transfer image from build server to deploy server
+        env:
+          BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
+          BUILD_SERVER_USER: ${{ secrets.BUILD_SERVER_USER }}
+          BUILD_SERVER_SSH_PORT: ${{ secrets.BUILD_SERVER_SSH_PORT || '22' }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
+          REMOTE_IMAGE_PATH: /tmp/atom-dbro-image.tar.gz
+        run: |
+          echo "📦 Transferring Docker image from build server to deploy server via SCP..."
+          
+          # Скачиваем образ с build сервера во временный файл
+          scp -o StrictHostKeyChecking=no -P "$BUILD_SERVER_SSH_PORT" \
+            "$BUILD_SERVER_USER@$BUILD_SERVER_HOST:$REMOTE_IMAGE_PATH" ./image.tar.gz
+          
+          echo "📊 Image file size: $(du -h image.tar.gz | cut -f1)"
+          
+          # Передаем образ на deploy сервер
+          scp -o StrictHostKeyChecking=no -P "$DEPLOY_SSH_PORT" image.tar.gz "$DEPLOY_USER@$DEPLOY_HOST:/tmp/"
+          
+          # Проверяем, что файл успешно передан
+          ssh -o StrictHostKeyChecking=no -p "$DEPLOY_SSH_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "if [ -f /tmp/image.tar.gz ]; then echo '✅ Image transferred successfully'; ls -lh /tmp/image.tar.gz; else echo '❌ ERROR: Image not found'; exit 1; fi"
+          
+          echo "✅ Docker image transferred from build server to deploy server successfully"
+          
+          # Очищаем образ с build сервера после успешной передачи
+          echo "🧹 Cleaning up image from build server..."
+          ssh -o StrictHostKeyChecking=no -p "$BUILD_SERVER_SSH_PORT" \
+            "$BUILD_SERVER_USER@$BUILD_SERVER_HOST" \
+            "rm -f '$REMOTE_IMAGE_PATH' && echo '✅ Cleanup completed'"
+
   deploy:
     name: Deploy Application
-    needs: [build, transfer]
+    needs: [build, transfer-github, transfer-scp]
     runs-on: ubuntu-latest
     if: |
       github.ref == 'refs/heads/main' &&
       always() &&
       needs.build.result == 'success' &&
-      (needs.transfer.result == 'success' || needs.transfer.result == 'skipped')
+      (needs.transfer-github.result == 'success' || needs.transfer-github.result == 'skipped') &&
+      (needs.transfer-scp.result == 'success' || needs.transfer-scp.result == 'skipped')
     
     steps:
       - name: Set up SSH
