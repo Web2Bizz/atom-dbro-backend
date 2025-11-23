@@ -383,6 +383,7 @@ jobs:
     if: |
       github.ref == 'refs/heads/main' &&
       needs.build.result == 'success' &&
+      needs.build.outputs.use_remote != '' &&
       needs.build.outputs.use_remote == 'true'
     
     steps:
