@@ -89,43 +89,31 @@ export class UserService {
 
   async update(id: number, updateUserDto: UpdateUserDto) {
     // Исключаем experience и level из обновления (они обновляются только через ExperienceService)
-    const { experience, level, ...updateData } = updateUserDto as any;
+    const { firstName, lastName, middleName, email, organisationId, avatarUrls } = updateUserDto;
 
     // Фильтруем только те поля, которые реально переданы (не undefined)
     const filteredUpdateData: any = {};
     
-    if (updateData.firstName !== undefined) {
-      filteredUpdateData.firstName = updateData.firstName;
+    if (firstName !== undefined) {
+      filteredUpdateData.firstName = firstName;
     }
-    if (updateData.lastName !== undefined) {
-      filteredUpdateData.lastName = updateData.lastName;
+    if (lastName !== undefined) {
+      filteredUpdateData.lastName = lastName;
     }
-    if (updateData.middleName !== undefined) {
-      filteredUpdateData.middleName = updateData.middleName;
+    if (middleName !== undefined) {
+      filteredUpdateData.middleName = middleName;
     }
-    if (updateData.email !== undefined) {
-      filteredUpdateData.email = updateData.email;
+    if (email !== undefined) {
+      filteredUpdateData.email = email;
     }
-    if (updateData.organisationId !== undefined) {
-      filteredUpdateData.organisationId = updateData.organisationId;
+    if (organisationId !== undefined) {
+      filteredUpdateData.organisationId = organisationId;
     }
 
-    // Если avatarUrls передан в DTO, нормализуем его в формат с ключами 4-9 и одинаковым URL
-    if (updateUserDto.avatarUrls !== undefined) {
-      const avatarUrls = updateUserDto.avatarUrls;
-      // Получаем первый доступный URL из объекта
-      const firstUrl = Object.values(avatarUrls)[0];
-      if (firstUrl && typeof firstUrl === 'string') {
-        // Создаем объект с ключами 4-9 и одинаковым URL
-        const normalizedAvatarUrls: Record<number, string> = {};
-        for (let size = 4; size <= 9; size++) {
-          normalizedAvatarUrls[size] = firstUrl;
-        }
-        filteredUpdateData.avatarUrls = normalizedAvatarUrls;
-      } else {
-        // Если URL не найден, используем переданный объект как есть
-        filteredUpdateData.avatarUrls = avatarUrls;
-      }
+    // Если avatarUrls передан в DTO, сохраняем его как есть
+    // (уже преобразован из формата {"size_4": "url"} в формат {4: "url"} в DTO)
+    if (avatarUrls !== undefined) {
+      filteredUpdateData.avatarUrls = avatarUrls;
     }
 
     // Обновляем через репозиторий (проверка уникальности email выполняется в репозитории)

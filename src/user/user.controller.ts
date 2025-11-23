@@ -55,7 +55,7 @@ export class UserController {
   @Patch(':id')
   @Version('1')
   @ZodValidation(updateUserSchema)
-  @ApiOperation({ summary: 'Обновить пользователя (v1) - принимает объект avatarUrls' })
+  @ApiOperation({ summary: 'Обновить пользователя (v1) - принимает объект avatarUrls с ключами size_4 - size_9, сохраняет как числовые ключи' })
   @ApiBody({ type: UpdateUserDtoClass })
   @ApiResponse({ status: 200, description: 'Пользователь обновлен', type: UpdateUserDtoClass })
   @ApiResponse({ status: 404, description: 'Пользователь не найден' })

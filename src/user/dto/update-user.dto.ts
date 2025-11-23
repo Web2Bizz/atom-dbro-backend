@@ -7,20 +7,19 @@ export const updateUserSchema = z.object({
   middleName: z.string().max(255, 'Отчество не должно превышать 255 символов').optional(),
   email: z.string().email('Некорректный формат email').optional(),
   avatarUrls: z
-    .any()
+    .record(z.string(), z.string())
     .optional()
     .refine(
       (val) => {
         if (val === undefined || val === null) return true;
-        if (typeof val !== 'object' || Array.isArray(val)) return false;
-        // Проверяем, что все ключи имеют формат "size_<число>", а значения - строки
-        for (const [key, value] of Object.entries(val)) {
-          if (typeof key !== 'string' || !key.startsWith('size_')) {
+        // Проверяем, что все ключи имеют формат "size_<число>"
+        for (const key of Object.keys(val)) {
+          if (!key.startsWith('size_')) {
             return false;
           }
           const numPart = key.replace('size_', '');
           const numKey = Number(numPart);
-          if (isNaN(numKey) || typeof value !== 'string') {
+          if (isNaN(numKey)) {
             return false;
           }
         }
@@ -32,14 +31,13 @@ export const updateUserSchema = z.object({
     )
     .transform((val) => {
       if (val === undefined || val === null) return undefined;
-      if (typeof val !== 'object' || Array.isArray(val)) return undefined;
-      // Преобразуем ключи вида "size_4" в числовые ключи
+      // Преобразуем ключи вида "size_4" в числовые ключи для совместимости с БД
       const result: Record<number, string> = {};
       for (const [key, value] of Object.entries(val)) {
-        if (typeof key === 'string' && key.startsWith('size_')) {
+        if (key.startsWith('size_')) {
           const numPart = key.replace('size_', '');
           const numKey = Number(numPart);
-          if (!isNaN(numKey) && typeof value === 'string') {
+          if (!isNaN(numKey)) {
             result[numKey] = value;
           }
         }
@@ -65,7 +63,7 @@ export class UpdateUserDtoClass {
   email?: string;
 
   @ApiProperty({ 
-    description: 'URL аватарок. Ключи должны быть в формате "size_4", "size_5" и т.д. При обновлении будет преобразован в формат с числовыми ключами 4-9', 
+    description: 'URL аватарок. Ключи должны быть в формате "size_4", "size_5" и т.д. При сохранении преобразуются в числовые ключи 4, 5, 6 и т.д.', 
     example: { size_4: 'https://example.com/avatar.png', size_5: 'https://example.com/avatar.png', size_6: 'https://example.com/avatar.png', size_7: 'https://example.com/avatar.png', size_8: 'https://example.com/avatar.png', size_9: 'https://example.com/avatar.png' }, 
     required: false 
   })
