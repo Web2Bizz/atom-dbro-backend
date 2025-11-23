@@ -8,11 +8,13 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
 import { UserModule } from '../user/user.module';
 import { AvatarModule } from '../avatar/avatar.module';
+import { RabbitMQModule } from '../rabbitmq/rabbitmq.module';
 
 @Module({
   imports: [
     UserModule,
     AvatarModule,
+    RabbitMQModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

@@ -62,6 +62,16 @@ S3_REGION=us-east-1
 # RABBITMQ_PORT=5672
 # RABBITMQ_USERNAME=guest
 # RABBITMQ_PASSWORD=guest
+
+# Redis Configuration (опционально)
+# REDIS_HOST=localhost
+# REDIS_PORT=6379
+# REDIS_PASSWORD=
+# REDIS_DB=0
+# FORGOT_PASSWORD_TOKEN_TTL=3600  # TTL токена восстановления пароля в секундах (по умолчанию 3600 = 1 час)
+
+# Frontend URL (опционально)
+# FRONTEND_URL=http://localhost:5173  # Базовый URL фронтенда (используется для формирования ссылок в письмах)
 ```
 
 **⚠️ ВАЖНО**: 
@@ -425,10 +435,22 @@ S3_ACCESS_KEY_ID=your-access-key-id
 S3_SECRET_ACCESS_KEY=your-secret-access-key
 S3_REGION=us-east-1
 
+# Redis Configuration (опционально)
+# REDIS_HOST=redis
+# REDIS_PORT=6379
+# REDIS_PASSWORD=
+# REDIS_DB=0
+# FORGOT_PASSWORD_TOKEN_TTL=3600  # TTL токена восстановления пароля в секундах (по умолчанию 3600 = 1 час)
+
+# Frontend URL (опционально)
+# FRONTEND_URL=https://yourdomain.com  # Базовый URL фронтенда (используется для формирования ссылок в письмах)
+
 # Docker Image (для docker-compose.yml)
 # Переменная DOCKER_IMAGE будет установлена автоматически при деплое
 # Не нужно указывать в .env файле
 ```
+<｜tool▁call▁begin｜>
+read_lints
 
 #### 6. Настройка SSH ключа для GitHub Actions
 

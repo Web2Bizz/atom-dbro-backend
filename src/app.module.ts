@@ -15,6 +15,7 @@ import { UploadModule } from './upload/upload.module';
 import { CategoryModule } from './category/category.module';
 import { QuestUpdateModule } from './quest-update/quest-update.module';
 import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
+import { RedisModule } from './redis/redis.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -25,6 +26,7 @@ import { AppController } from './app.controller';
       expandVariables: true,
     }),
     DatabaseModule,
+    RedisModule,
     RegionModule,
     CityModule,
     UserModule,
