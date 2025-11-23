@@ -27,30 +27,22 @@ jobs:
         run: |
           echo "🔍 Checking build server configuration..."
           
-          # Проверяем наличие всех необходимых секретов
-          if [ -n "$BUILD_SERVER_HOST" ] && [ -n "$BUILD_SERVER_USER" ] && [ -n "$BUILD_SERVER_SSH_KEY" ]; then
+          # Если BUILD_SERVER_HOST указан - используем удалённую сборку
+          # GitHub не используется для сборки и передачи
+          if [ -n "$BUILD_SERVER_HOST" ]; then
             {
               echo "use_remote=true"
             } >> "$GITHUB_OUTPUT"
-            echo "🛰️  Remote build server configuration detected. Using remote builder."
+            echo "🛰️  BUILD_SERVER_HOST is set. Using remote build server."
             echo "✅ Output: use_remote=true"
-            USE_REMOTE_VALUE="true"
+            echo "ℹ️  GitHub will NOT be used for build or transfer"
           else
             {
               echo "use_remote=false"
             } >> "$GITHUB_OUTPUT"
-            echo "🏗️  Remote build server not configured. Using GitHub runner for build."
+            echo "🏗️  BUILD_SERVER_HOST not set. Using GitHub runner for build."
             echo "✅ Output: use_remote=false"
-            USE_REMOTE_VALUE="false"
-            if [ -z "$BUILD_SERVER_HOST" ]; then
-              echo "⚠️  BUILD_SERVER_HOST not set"
-            fi
-            if [ -z "$BUILD_SERVER_USER" ]; then
-              echo "⚠️  BUILD_SERVER_USER not set"
-            fi
-            if [ -z "$BUILD_SERVER_SSH_KEY" ]; then
-              echo "⚠️  BUILD_SERVER_SSH_KEY not set"
-            fi
+            echo "ℹ️  GitHub will be used for build and transfer"
           fi
           
           # Проверяем что output установлен
@@ -61,8 +53,6 @@ jobs:
           fi
         env:
           BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
-          BUILD_SERVER_USER: ${{ secrets.BUILD_SERVER_USER }}
-          BUILD_SERVER_SSH_KEY: ${{ secrets.BUILD_SERVER_SSH_KEY }}
 
       - name: Set up SSH for build server
         if: steps.build_target.outputs.use_remote == 'true'
