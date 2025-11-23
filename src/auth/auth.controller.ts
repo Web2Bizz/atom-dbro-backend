@@ -70,7 +70,7 @@ export class AuthController {
     return this.authService.forgotPassword(forgotPasswordDto);
   }
 
-  @Post('validate 11111')
+  @Post('validate')
   @UseGuards(JwtAuthGuard)
   @HttpCode(200)
   @ApiBearerAuth()
