@@ -1,7 +1,7 @@
-import { Injectable, Inject, Logger, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, Inject, Logger, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { users } from '../database/schema';
+import { users, organizations } from '../database/schema';
 import { eq, ne, and } from 'drizzle-orm';
 
 @Injectable()
@@ -213,10 +213,43 @@ export class UserRepository {
     organisationId?: number | null;
   }): Promise<typeof users.$inferSelect> {
     try {
-      // Проверяем уникальность email
-      const exists = await this.existsByEmail(data.email);
-      if (exists) {
-        throw new ConflictException('Пользователь с таким email уже существует');
+      // Проверяем уникальность email (включая удаленных пользователей)
+      const [userWithEmail] = await this.db
+        .select({
+          id: users.id,
+          email: users.email,
+          recordStatus: users.recordStatus,
+        })
+        .from(users)
+        .where(eq(users.email, data.email));
+
+      if (userWithEmail) {
+        // Если email занят удаленным пользователем
+        if (userWithEmail.recordStatus === 'DELETED') {
+          throw new ConflictException(
+            `Email ${data.email} уже используется удаленным пользователем (ID ${userWithEmail.id}). Обратитесь к администратору для восстановления или удаления учетной записи.`
+          );
+        }
+        
+        // Если email занят активным пользователем
+        throw new ConflictException(
+          `Email ${data.email} уже используется`
+        );
+      }
+
+      // Если указана organisationId, проверяем существование организации
+      if (data.organisationId !== undefined && data.organisationId !== null) {
+        const [organization] = await this.db
+          .select({ id: organizations.id })
+          .from(organizations)
+          .where(and(
+            eq(organizations.id, data.organisationId),
+            ne(organizations.recordStatus, 'DELETED')
+          ));
+        
+        if (!organization) {
+          throw new BadRequestException(`Организация с ID ${data.organisationId} не найдена`);
+        }
       }
 
       const [user] = await this.db
@@ -241,9 +274,33 @@ export class UserRepository {
 
       return user;
     } catch (error: any) {
-      // Если это уже ConflictException, пробрасываем как есть
-      if (error instanceof ConflictException) {
+      // Если это уже NestJS исключение, пробрасываем как есть
+      if (error instanceof ConflictException || error instanceof BadRequestException) {
         throw error;
+      }
+      
+      // Проверяем коды ошибок PostgreSQL
+      if (error?.code) {
+        // 23503 - foreign_key_violation
+        if (error.code === '23503') {
+          this.logger.warn(`Foreign key violation при создании пользователя:`, error.detail);
+          
+          if (error.detail?.includes('organisation_id')) {
+            throw new BadRequestException(
+              `Организация с ID ${data.organisationId} не найдена. Невозможно создать пользователя с несуществующей организацией.`
+            );
+          }
+          
+          throw new BadRequestException('Невозможно создать пользователя: указана несуществующая связанная сущность');
+        }
+        
+        // 23505 - unique_violation
+        if (error.code === '23505') {
+          if (error.detail?.includes('email')) {
+            throw new ConflictException(`Email ${data.email} уже используется`);
+          }
+          throw new ConflictException('Нарушение уникальности данных');
+        }
       }
       
       this.logger.error('Ошибка в create:', error);
@@ -285,14 +342,48 @@ export class UserRepository {
       // Проверяем существование пользователя
       const existingUser = await this.findByIdWithPassword(id);
       if (!existingUser) {
-        throw new NotFoundException(`Пользователь с ID ${id} не найден`);
+        throw new NotFoundException(`Пользователь с ID ${id} не найден или был удален`);
       }
 
       // Если обновляется email, проверяем уникальность
       if (data.email && data.email !== existingUser.email) {
-        const emailExists = await this.existsByEmail(data.email);
-        if (emailExists) {
-          throw new ConflictException('Пользователь с таким email уже существует');
+        // Проверяем email среди всех пользователей (включая удаленных)
+        const [userWithEmail] = await this.db
+          .select({
+            id: users.id,
+            email: users.email,
+            recordStatus: users.recordStatus,
+          })
+          .from(users)
+          .where(eq(users.email, data.email));
+
+        if (userWithEmail) {
+          // Если email занят удаленным пользователем
+          if (userWithEmail.recordStatus === 'DELETED') {
+            throw new ConflictException(
+              `Email ${data.email} уже используется удаленным пользователем (ID ${userWithEmail.id}). Обратитесь к администратору для восстановления или удаления учетной записи.`
+            );
+          }
+          
+          // Если email занят активным пользователем
+          throw new ConflictException(
+            `Email ${data.email} уже используется другим пользователем (ID ${userWithEmail.id})`
+          );
+        }
+      }
+
+      // Если обновляется organisationId, проверяем существование организации
+      if (data.organisationId !== undefined && data.organisationId !== null) {
+        const [organization] = await this.db
+          .select({ id: organizations.id })
+          .from(organizations)
+          .where(and(
+            eq(organizations.id, data.organisationId),
+            ne(organizations.recordStatus, 'DELETED')
+          ));
+        
+        if (!organization) {
+          throw new BadRequestException(`Организация с ID ${data.organisationId} не найдена`);
         }
       }
 
@@ -330,14 +421,46 @@ export class UserRepository {
         .returning();
       
       if (!user) {
-        throw new NotFoundException(`Пользователь с ID ${id} не найден`);
+        // Если UPDATE не вернул результат, значит пользователь был удален между проверкой и обновлением
+        throw new NotFoundException(`Пользователь с ID ${id} не найден или был удален`);
       }
 
       return user;
     } catch (error: any) {
       // Если это уже NestJS исключение, пробрасываем как есть
-      if (error instanceof NotFoundException || error instanceof ConflictException) {
+      if (error instanceof NotFoundException || error instanceof ConflictException || error instanceof BadRequestException) {
         throw error;
+      }
+      
+      // Проверяем коды ошибок PostgreSQL
+      if (error?.code) {
+        // 23503 - foreign_key_violation
+        if (error.code === '23503') {
+          this.logger.warn(`Foreign key violation при обновлении пользователя ID ${id}:`, error.detail);
+          
+          // Проверяем, какое поле вызвало ошибку
+          if (error.detail?.includes('organisation_id')) {
+            throw new BadRequestException(
+              `Организация с ID ${data.organisationId} не найдена. Невозможно установить связь с несуществующей организацией.`
+            );
+          }
+          
+          throw new BadRequestException('Невозможно обновить пользователя: указана несуществующая связанная сущность');
+        }
+        
+        // 23505 - unique_violation
+        if (error.code === '23505') {
+          if (error.detail?.includes('email')) {
+            throw new ConflictException('Пользователь с таким email уже существует');
+          }
+          throw new ConflictException('Нарушение уникальности данных');
+        }
+      }
+      
+      // Проверяем, не является ли ошибка "Failed query" из-за отсутствия записей
+      if (error?.message?.includes('Failed query') && error?.message?.includes('update "users"')) {
+        this.logger.warn(`Попытка обновления несуществующего или удаленного пользователя ID ${id}`);
+        throw new NotFoundException(`Пользователь с ID ${id} не найден или был удален`);
       }
       
       this.logger.error(`Ошибка в update для пользователя ID ${id}:`, error);

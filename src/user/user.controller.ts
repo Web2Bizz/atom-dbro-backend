@@ -58,6 +58,7 @@ export class UserController {
   @ApiOperation({ summary: 'Обновить пользователя (v1) - принимает объект avatarUrls с ключами size_4 - size_9, сохраняет как числовые ключи' })
   @ApiBody({ type: UpdateUserDtoClass })
   @ApiResponse({ status: 200, description: 'Пользователь обновлен', type: UpdateUserDtoClass })
+  @ApiResponse({ status: 400, description: 'Организация не найдена или некорректные данные' })
   @ApiResponse({ status: 404, description: 'Пользователь не найден' })
   @ApiResponse({ status: 409, description: 'Пользователь с таким email уже существует' })
   update(
