@@ -411,51 +411,91 @@ jobs:
           echo "🔍 Transfer SCP Job - Build mode verification:"
           echo "✅ Verification passed: Using SCP for transfer from build server"
       
-      - name: Set up SSH for build server
-        if: steps.check_mode.outputs.should_run == 'true'
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.BUILD_SERVER_SSH_KEY }}
-
-      - name: Set up SSH for deploy server
-        if: steps.check_mode.outputs.should_run == 'true'
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
-
-      - name: Transfer image from build server to deploy server
+      - name: Set up SSH keys and config
         if: steps.check_mode.outputs.should_run == 'true'
         env:
+          BUILD_SERVER_SSH_KEY: ${{ secrets.BUILD_SERVER_SSH_KEY }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
           BUILD_SERVER_USER: ${{ secrets.BUILD_SERVER_USER }}
           BUILD_SERVER_SSH_PORT: ${{ secrets.BUILD_SERVER_SSH_PORT || '22' }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
+        run: |
+          echo "🔑 Setting up SSH keys and config..."
+          
+          # Создаём директорию для SSH
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          
+          # Сохраняем ключи
+          echo "$BUILD_SERVER_SSH_KEY" > ~/.ssh/build_server_key
+          chmod 600 ~/.ssh/build_server_key
+          
+          echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          
+          # Создаём SSH config
+          cat > ~/.ssh/config <<EOF
+          Host build-server
+              HostName $BUILD_SERVER_HOST
+              User $BUILD_SERVER_USER
+              Port $BUILD_SERVER_SSH_PORT
+              IdentityFile ~/.ssh/build_server_key
+              StrictHostKeyChecking no
+              UserKnownHostsFile /dev/null
+          
+          Host deploy-server
+              HostName $DEPLOY_HOST
+              User $DEPLOY_USER
+              Port $DEPLOY_SSH_PORT
+              IdentityFile ~/.ssh/deploy_key
+              StrictHostKeyChecking no
+              UserKnownHostsFile /dev/null
+          EOF
+          chmod 600 ~/.ssh/config
+          
+          echo "✅ SSH keys and config set up successfully"
+          
+          # Тестируем подключение к build server
+          echo "🔍 Testing connection to build server..."
+          ssh build-server "echo 'Build server connection successful'" || {
+            echo "❌ ERROR: Failed to connect to build server"
+            exit 1
+          }
+          
+          # Тестируем подключение к deploy server
+          echo "🔍 Testing connection to deploy server..."
+          ssh deploy-server "echo 'Deploy server connection successful'" || {
+            echo "❌ ERROR: Failed to connect to deploy server"
+            exit 1
+          }
+
+      - name: Transfer image from build server to deploy server
+        if: steps.check_mode.outputs.should_run == 'true'
+        env:
           REMOTE_IMAGE_PATH: /tmp/atom-dbro-image.tar.gz
         run: |
           echo "📦 Transferring Docker image from build server to deploy server via SCP..."
           
           # Скачиваем образ с build сервера во временный файл
-          scp -o StrictHostKeyChecking=no -P "$BUILD_SERVER_SSH_PORT" \
-            "$BUILD_SERVER_USER@$BUILD_SERVER_HOST:$REMOTE_IMAGE_PATH" ./image.tar.gz
+          scp build-server:"$REMOTE_IMAGE_PATH" ./image.tar.gz
           
           echo "📊 Image file size: $(du -h image.tar.gz | cut -f1)"
           
           # Передаем образ на deploy сервер
-          scp -o StrictHostKeyChecking=no -P "$DEPLOY_SSH_PORT" image.tar.gz "$DEPLOY_USER@$DEPLOY_HOST:/tmp/"
+          scp image.tar.gz deploy-server:/tmp/
           
           # Проверяем, что файл успешно передан
-          ssh -o StrictHostKeyChecking=no -p "$DEPLOY_SSH_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+          ssh deploy-server \
             "if [ -f /tmp/image.tar.gz ]; then echo '✅ Image transferred successfully'; ls -lh /tmp/image.tar.gz; else echo '❌ ERROR: Image not found'; exit 1; fi"
           
           echo "✅ Docker image transferred from build server to deploy server successfully"
           
           # Очищаем образ с build сервера после успешной передачи
           echo "🧹 Cleaning up image from build server..."
-          ssh -o StrictHostKeyChecking=no -p "$BUILD_SERVER_SSH_PORT" \
-            "$BUILD_SERVER_USER@$BUILD_SERVER_HOST" \
-            "rm -f '$REMOTE_IMAGE_PATH' && echo '✅ Cleanup completed'"
+          ssh build-server "rm -f '$REMOTE_IMAGE_PATH' && echo '✅ Cleanup completed'"
 
   deploy:
     name: Deploy Application
