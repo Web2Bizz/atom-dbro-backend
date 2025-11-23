@@ -19,41 +19,34 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Debug Docker access
+      - name: Verify Docker access
         run: |
-          echo "=== User Information ==="
-          echo "Current user: $(whoami)"
-          echo "User ID: $(id)"
-          echo "Groups: $(groups)"
-          echo ""
-          echo "=== Docker Socket ==="
-          ls -la /var/run/docker.sock 2>&1 || echo "Docker socket not found"
-          echo ""
-          echo "=== Testing Docker Access ==="
-          docker ps 2>&1 | head -3 || echo "Docker command failed (expected if runner not restarted)"
-          echo ""
-          echo "=== Testing Docker with sudo ==="
-          sudo docker ps 2>&1 | head -3 || echo "Sudo docker also failed"
+          echo "=== Verifying Docker access ==="
+          docker ps 2>&1 | head -3 || {
+            echo "❌ ERROR: Cannot access Docker daemon"
+            exit 1
+          }
+          echo "✅ Docker access verified"
 
       - name: Build Docker image
         run: |
           echo "📦 Building Docker image: ${{ env.IMAGE_NAME }}:latest"
-          sudo docker build --no-cache -t ${{ env.IMAGE_NAME }}:latest -f ./Dockerfile .
+          docker build --no-cache -t ${{ env.IMAGE_NAME }}:latest -f ./Dockerfile .
           echo "✅ Docker image built successfully"
 
       - name: Verify image was built
         run: |
-          if ! sudo docker images | grep -q "${{ env.IMAGE_NAME }}.*latest"; then
+          if ! docker images | grep -q "${{ env.IMAGE_NAME }}.*latest"; then
             echo "❌ ERROR: Docker image was not built successfully"
             exit 1
           fi
           echo "✅ Docker image built successfully: ${{ env.IMAGE_NAME }}:latest"
-          sudo docker images | grep "${{ env.IMAGE_NAME }}"
+          docker images | grep "${{ env.IMAGE_NAME }}"
 
       - name: Export Docker image to tar.gz
         run: |
           echo "📦 Exporting Docker image to tar.gz..."
-          sudo docker save ${{ env.IMAGE_NAME }}:latest | gzip > image.tar.gz
+          docker save ${{ env.IMAGE_NAME }}:latest | gzip > image.tar.gz
           
           echo "📊 Image file info:"
           ls -lh image.tar.gz
