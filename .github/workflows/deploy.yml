@@ -29,13 +29,19 @@ jobs:
           
           # Проверяем наличие всех необходимых секретов
           if [ -n "$BUILD_SERVER_HOST" ] && [ -n "$BUILD_SERVER_USER" ] && [ -n "$BUILD_SERVER_SSH_KEY" ]; then
-            echo "use_remote=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "use_remote=true"
+            } >> "$GITHUB_OUTPUT"
             echo "🛰️  Remote build server configuration detected. Using remote builder."
             echo "✅ Output: use_remote=true"
+            USE_REMOTE_VALUE="true"
           else
-            echo "use_remote=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "use_remote=false"
+            } >> "$GITHUB_OUTPUT"
             echo "🏗️  Remote build server not configured. Using GitHub runner for build."
             echo "✅ Output: use_remote=false"
+            USE_REMOTE_VALUE="false"
             if [ -z "$BUILD_SERVER_HOST" ]; then
               echo "⚠️  BUILD_SERVER_HOST not set"
             fi
@@ -45,6 +51,13 @@ jobs:
             if [ -z "$BUILD_SERVER_SSH_KEY" ]; then
               echo "⚠️  BUILD_SERVER_SSH_KEY not set"
             fi
+          fi
+          
+          # Проверяем что output установлен
+          echo "🔍 Verifying output was set correctly..."
+          if [ -f "$GITHUB_OUTPUT" ]; then
+            echo "GITHUB_OUTPUT file contents:"
+            cat "$GITHUB_OUTPUT" || true
           fi
         env:
           BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
@@ -325,15 +338,32 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       github.ref == 'refs/heads/main' &&
+      needs.build.result == 'success' &&
       needs.build.outputs.use_remote != 'true'
     
     steps:
-      - name: Check build mode
+      - name: Verify build mode
         run: |
-          echo "🔍 Transfer GitHub Job - Build mode check:"
+          echo "🔍 Transfer GitHub Job - Build mode verification:"
           echo "Raw use_remote output: '${{ needs.build.outputs.use_remote }}'"
+          echo "Build job result: ${{ needs.build.result }}"
           echo "This job should only run when use_remote != 'true'"
-          echo "If you see this message and use_remote='true', there's a bug in the condition!"
+          
+          # Если output пустой, это критическая ошибка
+          if [ -z "${{ needs.build.outputs.use_remote }}" ]; then
+            echo "❌ CRITICAL: use_remote output is empty! Build job may have failed to set output."
+            echo "This should not happen if build job completed successfully."
+            exit 1
+          fi
+          
+          # Если output = 'true', это тоже ошибка - job не должен был запуститься
+          if [ "${{ needs.build.outputs.use_remote }}" = "true" ]; then
+            echo "❌ CRITICAL: use_remote is 'true' but this job should be skipped!"
+            echo "This indicates a bug in the job condition."
+            exit 1
+          fi
+          
+          echo "✅ Verification passed: use_remote='${{ needs.build.outputs.use_remote }}'"
       
       - name: Download Docker image artifact
         uses: actions/download-artifact@v4
