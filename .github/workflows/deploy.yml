@@ -30,16 +30,12 @@ jobs:
           # Если BUILD_SERVER_HOST указан - используем удалённую сборку
           # GitHub не используется для сборки и передачи
           if [ -n "$BUILD_SERVER_HOST" ]; then
-            {
-              echo "use_remote=true"
-            } >> "$GITHUB_OUTPUT"
+            echo "use_remote=true" >> "$GITHUB_OUTPUT"
             echo "🛰️  BUILD_SERVER_HOST is set. Using remote build server."
             echo "✅ Output: use_remote=true"
             echo "ℹ️  GitHub will NOT be used for build or transfer"
           else
-            {
-              echo "use_remote=false"
-            } >> "$GITHUB_OUTPUT"
+            echo "use_remote=false" >> "$GITHUB_OUTPUT"
             echo "🏗️  BUILD_SERVER_HOST not set. Using GitHub runner for build."
             echo "✅ Output: use_remote=false"
             echo "ℹ️  GitHub will be used for build and transfer"
@@ -51,6 +47,14 @@ jobs:
             echo "GITHUB_OUTPUT file contents:"
             cat "$GITHUB_OUTPUT" || true
           fi
+          
+          # Дополнительная проверка что output действительно установлен
+          OUTPUT_VALUE=$(grep "^use_remote=" "$GITHUB_OUTPUT" 2>/dev/null | cut -d'=' -f2 || echo "")
+          if [ -z "$OUTPUT_VALUE" ]; then
+            echo "❌ ERROR: Failed to set use_remote output!"
+            exit 1
+          fi
+          echo "✅ Confirmed: use_remote=$OUTPUT_VALUE"
         env:
           BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
 
@@ -329,15 +333,20 @@ jobs:
     if: |
       github.ref == 'refs/heads/main' &&
       needs.build.result == 'success' &&
-      secrets.BUILD_SERVER_HOST == ''
+      needs.build.outputs.use_remote != '' &&
+      needs.build.outputs.use_remote == 'false'
     
     steps:
       - name: Verify build mode
         run: |
           echo "🔍 Transfer GitHub Job - Build mode verification:"
-          echo "BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST != '' && 'SET' || 'NOT SET' }}"
-          echo "This job runs only when BUILD_SERVER_HOST is NOT set (local build)"
-          echo "✅ Verification: Using GitHub Artifacts for transfer"
+          echo "use_remote output: '${{ needs.build.outputs.use_remote }}'"
+          echo "This job runs only when use_remote == 'false' (local build)"
+          if [ "${{ needs.build.outputs.use_remote }}" != "false" ]; then
+            echo "❌ ERROR: use_remote is not 'false'! This job should be skipped."
+            exit 1
+          fi
+          echo "✅ Verification passed: Using GitHub Artifacts for transfer"
       
       - name: Download Docker image artifact
         uses: actions/download-artifact@v4
@@ -375,15 +384,20 @@ jobs:
     if: |
       github.ref == 'refs/heads/main' &&
       needs.build.result == 'success' &&
-      secrets.BUILD_SERVER_HOST != ''
+      needs.build.outputs.use_remote != '' &&
+      needs.build.outputs.use_remote == 'true'
     
     steps:
       - name: Verify build mode
         run: |
           echo "🔍 Transfer SCP Job - Build mode verification:"
-          echo "BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST != '' && 'SET' || 'NOT SET' }}"
-          echo "This job runs only when BUILD_SERVER_HOST is SET (remote build)"
-          echo "✅ Verification: Using SCP for transfer from build server"
+          echo "use_remote output: '${{ needs.build.outputs.use_remote }}'"
+          echo "This job runs only when use_remote == 'true' (remote build)"
+          if [ "${{ needs.build.outputs.use_remote }}" != "true" ]; then
+            echo "❌ ERROR: use_remote is not 'true'! This job should be skipped."
+            exit 1
+          fi
+          echo "✅ Verification passed: Using SCP for transfer from build server"
       
       - name: Set up SSH for build server
         uses: webfactory/ssh-agent@v0.9.0
