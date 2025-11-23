@@ -329,11 +329,7 @@ jobs:
     name: Transfer Image via GitHub Artifacts
     needs: build
     runs-on: ubuntu-latest
-    if: |
-      github.ref == 'refs/heads/main' &&
-      needs.build.result == 'success' &&
-      needs.build.outputs.use_remote != '' &&
-      needs.build.outputs.use_remote == 'false'
+    if: needs.build.result == 'success' && needs.build.outputs.use_remote != '' && needs.build.outputs.use_remote == 'false'
     
     steps:
       - name: Verify build mode
@@ -380,11 +376,7 @@ jobs:
     name: Transfer Image via SCP (Remote Build)
     needs: build
     runs-on: ubuntu-latest
-    if: |
-      github.ref == 'refs/heads/main' &&
-      needs.build.result == 'success' &&
-      needs.build.outputs.use_remote != '' &&
-      needs.build.outputs.use_remote == 'true'
+    if: needs.build.result == 'success' && needs.build.outputs.use_remote != '' && needs.build.outputs.use_remote == 'true'
     
     steps:
       - name: Verify build mode
