@@ -8,6 +8,8 @@ import { QuestRepository } from './quest.repository';
 @Injectable()
 export class QuestService {
   private readonly logger = new Logger(QuestService.name);
+  // ВРЕМЕННО: порог снижен до 0 (обычно требуется уровень 5)
+  private readonly MIN_LEVEL_TO_CREATE_QUEST = 0;
 
   constructor(
     private readonly questRepository: QuestRepository,
@@ -15,13 +17,13 @@ export class QuestService {
   ) {}
 
   async create(createQuestDto: CreateQuestDto, userId: number) {
-    // Проверяем уровень пользователя (требуется минимум 5 уровень)
+    // Проверяем уровень пользователя
     const user = await this.questRepository.findUserById(userId);
     if (!user) {
       throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
     }
-    if (user.level < 5) {
-      throw new ForbiddenException('Для создания квеста требуется уровень 5 или выше');
+    if (user.level < this.MIN_LEVEL_TO_CREATE_QUEST) {
+      throw new ForbiddenException(`Для создания квеста требуется уровень ${this.MIN_LEVEL_TO_CREATE_QUEST} или выше`);
     }
 
     let achievementId: number | undefined = undefined;

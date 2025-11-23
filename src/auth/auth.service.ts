@@ -9,6 +9,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ValidateTokenDto } from './dto/validate-token.dto';
 
 @Injectable()
 export class AuthService {
@@ -143,6 +144,24 @@ export class AuthService {
     return {
       message: 'Инструкция по восстановлению пароля отправлена на email',
     };
+  }
+
+  async validateToken(token: string): Promise<void> {
+    try {
+      const jwtSecret = this.configService.get<string>('JWT_SECRET') || 'your-secret-key';
+      const payload = this.jwtService.verify(token, { secret: jwtSecret });
+      
+      // Проверяем, существует ли пользователь
+      const user = await this.userService.findOne(payload.sub);
+      if (!user) {
+        throw new UnauthorizedException('Пользователь не найден');
+      }
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new UnauthorizedException('Недействительный токен');
+    }
   }
 }
 
