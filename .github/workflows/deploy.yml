@@ -36,13 +36,13 @@ jobs:
           HAS_BUILD_KEY: ${{ format('{0}', secrets.BUILD_SERVER_SSH_KEY != '') }}
 
       - name: Set up SSH for build server
-        if: ${{ steps.build_target.outputs.use_remote == 'true' }}
+        if: steps.build_target.outputs.use_remote == 'true'
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.BUILD_SERVER_SSH_KEY }}
 
       - name: Validate build server connection
-        if: ${{ steps.build_target.outputs.use_remote == 'true' }}
+        if: steps.build_target.outputs.use_remote == 'true'
         shell: bash
         env:
           BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
@@ -53,7 +53,7 @@ jobs:
             "echo 'SSH connection to build server successful'; hostname"
 
       - name: Setup Git SSH key on build server (if provided)
-        if: ${{ steps.build_target.outputs.use_remote == 'true' && secrets.BUILD_SERVER_GIT_SSH_KEY != '' }}
+        if: steps.build_target.outputs.use_remote == 'true' && secrets.BUILD_SERVER_GIT_SSH_KEY != ''
         shell: bash
         env:
           BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
@@ -92,7 +92,7 @@ jobs:
           REMOTE_SCRIPT
 
       - name: Sync source to build server
-        if: ${{ steps.build_target.outputs.use_remote == 'true' }}
+        if: steps.build_target.outputs.use_remote == 'true'
         shell: bash
         env:
           BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
@@ -173,7 +173,7 @@ jobs:
           REMOTE_SCRIPT
 
       - name: Build Docker image on build server
-        if: ${{ steps.build_target.outputs.use_remote == 'true' }}
+        if: steps.build_target.outputs.use_remote == 'true'
         shell: bash
         env:
           BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
@@ -216,7 +216,7 @@ jobs:
           REMOTE_SCRIPT
 
       - name: Download Docker image artifact from build server
-        if: ${{ steps.build_target.outputs.use_remote == 'true' }}
+        if: steps.build_target.outputs.use_remote == 'true'
         shell: bash
         env:
           BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
@@ -228,7 +228,7 @@ jobs:
             "$BUILD_SERVER_USER@$BUILD_SERVER_HOST:$REMOTE_IMAGE_PATH" ./image.tar.gz
 
       - name: Clean up remote build artifacts
-        if: ${{ steps.build_target.outputs.use_remote == 'true' }}
+        if: steps.build_target.outputs.use_remote == 'true'
         shell: bash
         env:
           BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
@@ -241,7 +241,7 @@ jobs:
             "rm -f '$REMOTE_IMAGE_PATH'"
 
       - name: Validate remote build artifact
-        if: ${{ steps.build_target.outputs.use_remote == 'true' }}
+        if: steps.build_target.outputs.use_remote == 'true'
         shell: bash
         run: |
           if [ ! -f image.tar.gz ] || [ ! -s image.tar.gz ]; then
@@ -252,11 +252,11 @@ jobs:
           ls -lh image.tar.gz
 
       - name: Set up Docker Buildx
-        if: ${{ steps.build_target.outputs.use_remote != 'true' }}
+        if: steps.build_target.outputs.use_remote != 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Build Docker image
-        if: ${{ steps.build_target.outputs.use_remote != 'true' }}
+        if: steps.build_target.outputs.use_remote != 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -269,7 +269,7 @@ jobs:
           cache-to: ${{ secrets.ENABLE_BUILD_CACHE == 'true' && 'type=gha,mode=max' || '' }}
 
       - name: Verify image was built
-        if: ${{ steps.build_target.outputs.use_remote != 'true' }}
+        if: steps.build_target.outputs.use_remote != 'true'
         run: |
           if ! docker images | grep -q "${{ env.IMAGE_NAME }}.*latest"; then
             echo "❌ ERROR: Docker image was not built successfully"
@@ -279,7 +279,7 @@ jobs:
           docker images | grep "${{ env.IMAGE_NAME }}"
 
       - name: Export Docker image to tar.gz
-        if: ${{ steps.build_target.outputs.use_remote != 'true' }}
+        if: steps.build_target.outputs.use_remote != 'true'
         run: |
           echo "📦 Exporting Docker image to tar.gz..."
           docker save ${{ env.IMAGE_NAME }}:latest | gzip > image.tar.gz
