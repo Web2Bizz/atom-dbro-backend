@@ -249,7 +249,7 @@ jobs:
           ls -lh "$REMOTE_IMAGE_PATH"
           REMOTE_SCRIPT
 
-      - name: Download Docker image artifact from build server
+      - name: Validate remote build artifact on build server
         if: steps.build_target.outputs.use_remote == 'true'
         shell: bash
         env:
@@ -258,19 +258,18 @@ jobs:
           BUILD_SERVER_SSH_PORT: ${{ secrets.BUILD_SERVER_SSH_PORT || '22' }}
           REMOTE_IMAGE_PATH: /tmp/atom-dbro-image.tar.gz
         run: |
-          scp -o StrictHostKeyChecking=no -P "$BUILD_SERVER_SSH_PORT" \
-            "$BUILD_SERVER_USER@$BUILD_SERVER_HOST:$REMOTE_IMAGE_PATH" ./image.tar.gz
-
-      - name: Validate remote build artifact
-        if: steps.build_target.outputs.use_remote == 'true'
-        shell: bash
-        run: |
-          if [ ! -f image.tar.gz ] || [ ! -s image.tar.gz ]; then
-            echo "❌ ERROR: image.tar.gz was not downloaded from build server or is empty"
-            exit 1
-          fi
-          echo "✅ Remote Docker image artifact ready"
-          ls -lh image.tar.gz
+          echo "🔍 Validating Docker image on build server..."
+          # Проверяем что образ существует на build server (не скачиваем)
+          ssh -o StrictHostKeyChecking=no -p "$BUILD_SERVER_SSH_PORT" \
+            "$BUILD_SERVER_USER@$BUILD_SERVER_HOST" \
+            "if [ -f '$REMOTE_IMAGE_PATH' ] && [ -s '$REMOTE_IMAGE_PATH' ]; then \
+              echo '✅ Docker image exists on build server'; \
+              ls -lh '$REMOTE_IMAGE_PATH'; \
+            else \
+              echo '❌ ERROR: Docker image not found or empty on build server'; \
+              exit 1; \
+            fi"
+          echo "✅ Image validation passed - image will be transferred by transfer-scp job"
 
       - name: Set up Docker Buildx
         if: steps.build_target.outputs.use_remote != 'true'
@@ -384,7 +383,6 @@ jobs:
     if: |
       github.ref == 'refs/heads/main' &&
       needs.build.result == 'success' &&
-      needs.build.outputs.use_remote != '' &&
       needs.build.outputs.use_remote == 'true'
     
     steps:
