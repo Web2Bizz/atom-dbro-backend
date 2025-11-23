@@ -329,27 +329,44 @@ jobs:
     name: Transfer Image via GitHub Artifacts
     needs: build
     runs-on: ubuntu-latest
-    if: needs.build.result == 'success' && secrets.BUILD_SERVER_HOST == ''
+    if: needs.build.result == 'success'
     
     steps:
+      - name: Check if should run (no build server)
+        id: check_mode
+        env:
+          BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
+        run: |
+          if [ -n "$BUILD_SERVER_HOST" ]; then
+            echo "⏭️ BUILD_SERVER_HOST is set, skipping GitHub Artifacts transfer"
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          else
+            echo "✅ BUILD_SERVER_HOST is not set, using GitHub Artifacts for transfer"
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          fi
+      
       - name: Verify build mode
+        if: steps.check_mode.outputs.should_run == 'true'
         run: |
           echo "🔍 Transfer GitHub Job - Build mode verification:"
-          echo "BUILD_SERVER_HOST is not set, using GitHub Artifacts for transfer"
           echo "✅ Verification passed: Using GitHub Artifacts for transfer"
       
       - name: Download Docker image artifact
+        if: steps.check_mode.outputs.should_run == 'true'
         uses: actions/download-artifact@v4
         with:
           name: docker-image
           path: ./
 
       - name: Set up SSH
+        if: steps.check_mode.outputs.should_run == 'true'
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
       - name: Transfer Docker image to server
+        if: steps.check_mode.outputs.should_run == 'true'
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
@@ -371,26 +388,43 @@ jobs:
     name: Transfer Image via SCP (Remote Build)
     needs: build
     runs-on: ubuntu-latest
-    if: needs.build.result == 'success' && secrets.BUILD_SERVER_HOST != ''
+    if: needs.build.result == 'success'
     
     steps:
+      - name: Check if should run (build server configured)
+        id: check_mode
+        env:
+          BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
+        run: |
+          if [ -z "$BUILD_SERVER_HOST" ]; then
+            echo "⏭️ BUILD_SERVER_HOST is not set, skipping SCP transfer"
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          else
+            echo "✅ BUILD_SERVER_HOST is set, using SCP for transfer from build server"
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          fi
+      
       - name: Verify build mode
+        if: steps.check_mode.outputs.should_run == 'true'
         run: |
           echo "🔍 Transfer SCP Job - Build mode verification:"
-          echo "BUILD_SERVER_HOST is set, using SCP for transfer from build server"
           echo "✅ Verification passed: Using SCP for transfer from build server"
       
       - name: Set up SSH for build server
+        if: steps.check_mode.outputs.should_run == 'true'
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.BUILD_SERVER_SSH_KEY }}
 
       - name: Set up SSH for deploy server
+        if: steps.check_mode.outputs.should_run == 'true'
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
       - name: Transfer image from build server to deploy server
+        if: steps.check_mode.outputs.should_run == 'true'
         env:
           BUILD_SERVER_HOST: ${{ secrets.BUILD_SERVER_HOST }}
           BUILD_SERVER_USER: ${{ secrets.BUILD_SERVER_USER }}
