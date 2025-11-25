@@ -139,20 +139,6 @@ export class OrganizationController {
     return this.organizationService.addOwner(organizationId, addOwnerDto.userId);
   }
 
-  @Delete(':id/owners/:userId')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Удалить владельца организации' })
-  @ApiResponse({ status: 200, description: 'Владелец успешно удален' })
-  @ApiResponse({ status: 404, description: 'Связь не найдена' })
-  @ApiResponse({ status: 401, description: 'Не авторизован' })
-  removeOwner(
-    @Param('id', ParseIntPipe) organizationId: number,
-    @Param('userId', ParseIntPipe) userId: number,
-  ) {
-    return this.organizationService.removeOwner(organizationId, userId);
-  }
-
   @Post(':id/help-types')
   @ZodValidation(addHelpTypeSchema)
   @ApiBearerAuth()

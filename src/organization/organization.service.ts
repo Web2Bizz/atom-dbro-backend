@@ -420,14 +420,6 @@ export class OrganizationService {
     return { message: 'Владелец успешно добавлен' };
   }
 
-  async removeOwner(organizationId: number, userId: number) {
-    const deleted = await this.repository.removeOwner(organizationId, userId);
-    if (!deleted) {
-      throw new NotFoundException('Связь не найдена');
-    }
-    return { message: 'Владелец успешно удален' };
-  }
-
   async addHelpType(organizationId: number, helpTypeId: number) {
     // Проверяем существование организации (исключая удаленные)
     const organization = await this.repository.findById(organizationId);
