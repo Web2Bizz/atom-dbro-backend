@@ -86,20 +86,5 @@ export class HelpTypeService {
     }
     return helpType;
   }
-
-  async remove(id: number) {
-    const [helpType] = await this.db
-      .update(helpTypes)
-      .set({ recordStatus: 'DELETED', updatedAt: new Date() })
-      .where(and(
-        eq(helpTypes.id, id),
-        ne(helpTypes.recordStatus, 'DELETED')
-      ))
-      .returning();
-    if (!helpType) {
-      throw new NotFoundException(`Вид помощи с ID ${id} не найден`);
-    }
-    return helpType;
-  }
 }
 

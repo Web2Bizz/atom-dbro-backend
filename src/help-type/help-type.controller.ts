@@ -5,7 +5,6 @@ import {
   Body,
   Patch,
   Param,
-  Delete,
   ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
@@ -60,17 +59,6 @@ export class HelpTypeController {
     @Body() updateHelpTypeDto: UpdateHelpTypeDto,
   ) {
     return this.helpTypeService.update(id, updateHelpTypeDto);
-  }
-
-  @Delete(':id')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Удалить вид помощи' })
-  @ApiResponse({ status: 200, description: 'Вид помощи удален' })
-  @ApiResponse({ status: 404, description: 'Вид помощи не найден' })
-  @ApiResponse({ status: 401, description: 'Не авторизован' })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.helpTypeService.remove(id);
   }
 }
 
