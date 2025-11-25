@@ -72,6 +72,10 @@ S3_REGION=us-east-1
 
 # Frontend URL (опционально)
 # FRONTEND_URL=http://localhost:5173  # Базовый URL фронтенда (используется для формирования ссылок в письмах)
+
+# Avatar API (опционально)
+# AVAGEN_BASE_URL=http://82.202.140.37:12745  # Базовый URL API для запросов (генерация аватарок, получение палитры)
+# AVAGEN_SOURCE_URL=https://it-hackathon-team05.mephi.ru/files  # Базовый URL для формирования URL аватарок при сохранении в БД (опционально, по умолчанию используется AVAGEN_BASE_URL)
 ```
 
 **⚠️ ВАЖНО**: 
@@ -444,6 +448,10 @@ S3_REGION=us-east-1
 
 # Frontend URL (опционально)
 # FRONTEND_URL=https://yourdomain.com  # Базовый URL фронтенда (используется для формирования ссылок в письмах)
+
+# Avatar API (опционально)
+# AVAGEN_BASE_URL=http://82.202.140.37:12745  # Базовый URL API для запросов (генерация аватарок, получение палитры)
+# AVAGEN_SOURCE_URL=https://it-hackathon-team05.mephi.ru/files  # Базовый URL для формирования URL аватарок при сохранении в БД (опционально, по умолчанию используется AVAGEN_BASE_URL)
 
 # Docker Image (для docker-compose.yml)
 # Переменная DOCKER_IMAGE будет установлена автоматически при деплое

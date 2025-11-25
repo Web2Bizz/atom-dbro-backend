@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AVATAR_EMOJIS } from './avatar.constants';
 
 interface PaletteColor {
@@ -27,10 +28,25 @@ interface GenerateAvatarResponse {
 
 @Injectable()
 export class AvatarService {
-  private readonly API_BASE_URL = 'http://82.202.140.37:12745';
+  private readonly logger = new Logger(AvatarService.name);
+  private readonly API_BASE_URL: string; // URL для запросов к API
+  private readonly SOURCE_BASE_URL: string; // URL для формирования URL при сохранении в БД
   private paletteCache: PaletteColor[] | null = null;
   private paletteCacheTime: number = 0;
   private readonly PALETTE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 часа
+
+  constructor(private configService: ConfigService) {
+    // Получаем базовый URL для запросов к API из переменных окружения, с дефолтным значением
+    this.API_BASE_URL = 
+      this.configService.get<string>('AVAGEN_BASE_URL') || 
+      'http://82.202.140.37:12745';
+    
+    // Получаем базовый URL для формирования URL при сохранении в БД
+    // Если не указан, используется тот же что и для API
+    this.SOURCE_BASE_URL = 
+      this.configService.get<string>('AVAGEN_SOURCE_URL') || 
+      this.API_BASE_URL;
+  }
 
   /**
    * Получает палитру цветов с кешированием
@@ -59,7 +75,7 @@ export class AvatarService {
       const data: PaletteResponse = await response.json();
       
       if (!data || !data.items || !Array.isArray(data.items) || data.items.length === 0) {
-        console.warn('Invalid palette response, using default palette');
+        this.logger.warn('Invalid palette response, using default palette');
         return [
           { primaryColor: '#3B82F6', foreignColor: '#EF4444' },
           { primaryColor: '#10B981', foreignColor: '#F59E0B' },
@@ -75,7 +91,7 @@ export class AvatarService {
 
       return this.paletteCache;
     } catch (error) {
-      console.error('Error fetching palette:', error);
+      this.logger.error('Error fetching palette:', error);
       // Возвращаем дефолтную палитру при ошибке
       return [
         { primaryColor: '#3B82F6', foreignColor: '#EF4444' },
@@ -118,18 +134,18 @@ export class AvatarService {
       }
 
       const responseText = await response.text();
-      console.log('Avatar API response text:', responseText);
+      this.logger.debug('Avatar API response text:', responseText);
       
       let data: GenerateAvatarResponse;
       try {
         data = JSON.parse(responseText);
       } catch (parseError) {
-        console.error('Failed to parse avatar API response as JSON:', parseError);
-        console.error('Response text:', responseText);
+        this.logger.error('Failed to parse avatar API response as JSON:', parseError);
+        this.logger.error('Response text:', responseText);
         throw new Error(`Invalid JSON response from avatar API: ${responseText.substring(0, 200)}`);
       }
       
-      console.log('Parsed avatar API response:', JSON.stringify(data, null, 2));
+      this.logger.debug('Parsed avatar API response:', JSON.stringify(data, null, 2));
       
       // Проверяем различные возможные форматы ответа
       let avatarId: string | undefined;
@@ -162,7 +178,7 @@ export class AvatarService {
         // Формат: /api/v1/{id}?size={size}, где size от 4 до 9
         else if ('id' in data && typeof data.id === 'string' && data.id.trim() !== '') {
           avatarId = data.id.trim();
-          console.log(`Avatar ID received: ${avatarId}`);
+          this.logger.log(`Avatar ID received: ${avatarId}`);
         }
       }
       
@@ -171,20 +187,44 @@ export class AvatarService {
       
       if (avatarId) {
         // Если есть ID, формируем URL для каждого размера с параметром size
-        // Формат: /api/v1/{id}?size={size}
+        // Используем SOURCE_BASE_URL для формирования URL при сохранении в БД
+        // Формат: {SOURCE_BASE_URL}/api/v1/{id}?size={size}
         for (let size = 4; size <= 9; size++) {
-          avatarUrls[size] = `${this.API_BASE_URL}/api/v1/${avatarId}?size=${size}`;
+          avatarUrls[size] = `${this.SOURCE_BASE_URL}/api/v1/${avatarId}?size=${size}`;
         }
-        console.log(`Generated avatar URLs for sizes 4-9 using ID: ${avatarId}`);
+        this.logger.log(`Generated avatar URLs for sizes 4-9 using ID: ${avatarId} with SOURCE_BASE_URL: ${this.SOURCE_BASE_URL}`);
       } else if (directUrl) {
-        // Если есть прямой URL, используем его для всех размеров
-        // (на случай, если API вернул прямой URL без параметра size)
-        for (let size = 4; size <= 9; size++) {
-          avatarUrls[size] = directUrl;
+        // Если есть прямой URL, заменяем базовый URL на SOURCE_BASE_URL
+        // Извлекаем путь и параметры из оригинального URL
+        try {
+          const url = new URL(directUrl);
+          const path = url.pathname; // Например: /api/v1/c2eaf2cb-0665-477c-87e0-dd2055041a15
+          
+          // Формируем новый URL для каждого размера с SOURCE_BASE_URL
+          for (let size = 4; size <= 9; size++) {
+            avatarUrls[size] = `${this.SOURCE_BASE_URL}${path}?size=${size}`;
+          }
+          this.logger.log(`Using direct URL with SOURCE_BASE_URL: ${this.SOURCE_BASE_URL}, path: ${path}`);
+        } catch (urlError) {
+          // Если не удалось распарсить URL, пытаемся извлечь путь вручную
+          // Ищем паттерн /api/v1/... в URL
+          const match = directUrl.match(/\/api\/v1\/[^?]+/);
+          if (match) {
+            const path = match[0];
+            for (let size = 4; size <= 9; size++) {
+              avatarUrls[size] = `${this.SOURCE_BASE_URL}${path}?size=${size}`;
+            }
+            this.logger.log(`Extracted path from direct URL: ${path}`);
+          } else {
+            // Если не удалось извлечь путь, используем как есть
+            this.logger.warn('Failed to extract path from direct URL, using as-is:', directUrl);
+            for (let size = 4; size <= 9; size++) {
+              avatarUrls[size] = directUrl;
+            }
+          }
         }
-        console.log(`Using direct URL for all sizes: ${directUrl}`);
       } else {
-        console.error('Avatar API response structure:', data);
+        this.logger.error('Avatar API response structure:', data);
         throw new Error(`Invalid response from avatar API: missing ID or URL. Response structure: ${JSON.stringify(data)}`);
       }
 
@@ -194,9 +234,9 @@ export class AvatarService {
 
       return avatarUrls;
     } catch (error) {
-      console.error('Error generating avatar:', error);
+      this.logger.error('Error generating avatar:', error);
       if (error instanceof Error) {
-        console.error('Error details:', {
+        this.logger.error('Error details:', {
           message: error.message,
           stack: error.stack,
         });

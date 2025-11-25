@@ -119,6 +119,30 @@ Redis используется для:
 
 **Примечание:** При восстановлении пароля письмо отправляется через RabbitMQ в очередь `email_queue`. Убедитесь, что у вас настроен consumer для этой очереди, который будет отправлять письма. Ссылка формируется как `${FRONTEND_URL}/reset-password?token={token}`.
 
+### Avatar API
+
+Сервис использует внешний API для генерации аватарок пользователей при регистрации.
+
+**Конфигурация:**
+```env
+AVAGEN_BASE_URL=http://82.202.140.37:12745  # Базовый URL API для запросов (генерация аватарок, получение палитры)
+AVAGEN_SOURCE_URL=https://it-hackathon-team05.mephi.ru/files  # Базовый URL для формирования URL аватарок при сохранении в БД (опционально, по умолчанию используется AVAGEN_BASE_URL)
+```
+
+**Примечание:** 
+- `AVAGEN_BASE_URL` используется для выполнения запросов к API генерации аватарок
+- `AVAGEN_SOURCE_URL` используется для формирования URL, которые сохраняются в базе данных
+- Если переменная `AVAGEN_SOURCE_URL` не указана, используется значение `AVAGEN_BASE_URL`
+- Если переменная `AVAGEN_BASE_URL` не указана, используется значение по умолчанию `http://82.202.140.37:12745`
+- URL аватарок формируются как `${AVAGEN_SOURCE_URL}/api/v1/{avatarId}?size={size}`, где `size` может быть от 4 до 9
+
+**Пример:**
+- API возвращает ID: `c2eaf2cb-0665-477c-87e0-dd2055041a15`
+- При `AVAGEN_SOURCE_URL=https://it-hackathon-team05.mephi.ru/files` в БД сохранится:
+  - `https://it-hackathon-team05.mephi.ru/files/api/v1/c2eaf2cb-0665-477c-87e0-dd2055041a15?size=4`
+  - `https://it-hackathon-team05.mephi.ru/files/api/v1/c2eaf2cb-0665-477c-87e0-dd2055041a15?size=5`
+  - ... и так далее до size=9
+
 ## Запуск
 
 ```bash
