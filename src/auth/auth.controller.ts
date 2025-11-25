@@ -5,6 +5,7 @@ import { RegisterDto, registerSchema, RegisterDtoClass } from './dto/register.dt
 import { LoginDto, loginSchema, LoginDtoClass } from './dto/login.dto';
 import { RefreshTokenDto, refreshTokenSchema, RefreshTokenDtoClass } from './dto/refresh-token.dto';
 import { ForgotPasswordDto, forgotPasswordSchema, ForgotPasswordDtoClass } from './dto/forgot-password.dto';
+import { ResetPasswordDto, resetPasswordSchema, ResetPasswordDtoClass } from './dto/reset-password.dto';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -68,6 +69,30 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Неверные данные' })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
     return this.authService.forgotPassword(forgotPasswordDto);
+  }
+
+  @Post('reset-password')
+  @Version('1')
+  @ZodValidation(resetPasswordSchema)
+  @ApiOperation({ summary: 'Сброс пароля по токену' })
+  @ApiBody({ type: ResetPasswordDtoClass })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Пароль успешно изменен',
+    schema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          example: 'Пароль успешно изменен',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Неверные данные' })
+  @ApiResponse({ status: 401, description: 'Токен недействителен или истек' })
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.authService.resetPassword(resetPasswordDto);
   }
 
   @Post('validate')

@@ -12,6 +12,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -258,6 +259,60 @@ export class AuthService {
 
     return {
       message: 'Инструкция по восстановлению пароля отправлена на email',
+    };
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto) {
+    this.logger.log(`Запрос на сброс пароля с токеном: ${resetPasswordDto.token.substring(0, 10)}...`);
+
+    // Проверяем наличие токена в Redis
+    const redisKey = `forgot-password:${resetPasswordDto.token}`;
+    const tokenExists = await this.redisService.exists(redisKey);
+    
+    if (!tokenExists) {
+      this.logger.warn(`Попытка сброса пароля с недействительным токеном: ${resetPasswordDto.token.substring(0, 10)}...`);
+      throw new UnauthorizedException('Токен восстановления пароля недействителен или истек');
+    }
+
+    // Получаем данные токена из Redis
+    const tokenData = await this.redisService.getHash(redisKey);
+    if (!tokenData || !tokenData.email) {
+      this.logger.error(`Не удалось получить данные токена из Redis для ключа: ${redisKey}`);
+      throw new UnauthorizedException('Токен восстановления пароля недействителен');
+    }
+
+    // Находим пользователя по email из токена
+    const user = await this.userService.findByEmail(tokenData.email);
+    if (!user) {
+      this.logger.warn(`Пользователь с email ${tokenData.email} не найден при попытке сброса пароля`);
+      // Удаляем токен, так как пользователь не найден
+      await this.redisService.del(redisKey);
+      throw new UnauthorizedException('Пользователь не найден');
+    }
+
+    // Хешируем новый пароль
+    const passwordHash = await bcrypt.hash(resetPasswordDto.password, 10);
+
+    // Обновляем пароль пользователя
+    try {
+      await this.userRepository.updatePassword(user.id, passwordHash);
+      this.logger.log(`Пароль успешно обновлен для пользователя с email: ${tokenData.email}`);
+    } catch (error) {
+      this.logger.error(`Ошибка при обновлении пароля для пользователя с email: ${tokenData.email}`, error);
+      throw new BadRequestException('Не удалось обновить пароль');
+    }
+
+    // Удаляем токен из Redis после успешного обновления пароля
+    try {
+      await this.redisService.del(redisKey);
+      this.logger.log(`Токен восстановления пароля удален из Redis: ${redisKey}`);
+    } catch (error) {
+      this.logger.warn(`Не удалось удалить токен из Redis: ${redisKey}`, error);
+      // Не прерываем выполнение, так как пароль уже обновлен
+    }
+
+    return {
+      message: 'Пароль успешно изменен',
     };
   }
 
