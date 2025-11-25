@@ -82,21 +82,6 @@ export class CategoryService {
     return category;
   }
 
-  async remove(id: number) {
-    const [category] = await this.db
-      .update(categories)
-      .set({ recordStatus: 'DELETED', updatedAt: new Date() })
-      .where(and(
-        eq(categories.id, id),
-        ne(categories.recordStatus, 'DELETED')
-      ))
-      .returning();
-    if (!category) {
-      throw new NotFoundException(`Категория с ID ${id} не найдена`);
-    }
-    return category;
-  }
-
   async createMany(createCategoriesDto: CreateCategoriesBulkDto) {
     if (createCategoriesDto.length === 0) {
       throw new BadRequestException('Массив категорий не может быть пустым');

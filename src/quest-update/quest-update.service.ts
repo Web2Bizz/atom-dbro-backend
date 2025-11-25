@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { questUpdates, quests } from '../database/schema';
@@ -102,8 +102,38 @@ export class QuestUpdateService {
     return questUpdate;
   }
 
-  async remove(id: number) {
+  async remove(id: number, userId: number) {
+    // Получаем обновление квеста для проверки questId
     const [questUpdate] = await this.db
+      .select()
+      .from(questUpdates)
+      .where(and(
+        eq(questUpdates.id, id),
+        ne(questUpdates.recordStatus, 'DELETED')
+      ));
+    if (!questUpdate) {
+      throw new NotFoundException(`Обновление квеста с ID ${id} не найдено`);
+    }
+
+    // Получаем квест для проверки владельца
+    const [quest] = await this.db
+      .select()
+      .from(quests)
+      .where(and(
+        eq(quests.id, questUpdate.questId),
+        ne(quests.recordStatus, 'DELETED')
+      ));
+    if (!quest) {
+      throw new NotFoundException(`Квест с ID ${questUpdate.questId} не найден`);
+    }
+
+    // Проверяем, является ли пользователь владельцем квеста
+    if (quest.ownerId !== userId) {
+      throw new ForbiddenException('Только владелец квеста может удалять обновления');
+    }
+
+    // Выполняем мягкое удаление
+    const [deletedUpdate] = await this.db
       .update(questUpdates)
       .set({ recordStatus: 'DELETED', updatedAt: new Date() })
       .where(and(
@@ -111,10 +141,10 @@ export class QuestUpdateService {
         ne(questUpdates.recordStatus, 'DELETED')
       ))
       .returning();
-    if (!questUpdate) {
+    if (!deletedUpdate) {
       throw new NotFoundException(`Обновление квеста с ID ${id} не найдено`);
     }
-    return questUpdate;
+    return deletedUpdate;
   }
 }
 

@@ -5,7 +5,6 @@ import {
   Body,
   Patch,
   Param,
-  Delete,
   ParseIntPipe,
   Version,
   HttpCode,
@@ -96,17 +95,6 @@ export class CategoryController {
     @Body() updateCategoryDto: UpdateCategoryDto
   ) {
     return this.categoryService.update(id, updateCategoryDto);
-  }
-
-  @Delete(":id")
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: "Удалить категорию" })
-  @ApiResponse({ status: 200, description: "Категория удалена" })
-  @ApiResponse({ status: 404, description: "Категория не найдена" })
-  @ApiResponse({ status: 401, description: "Не авторизован" })
-  remove(@Param("id", ParseIntPipe) id: number) {
-    return this.categoryService.remove(id);
   }
 
   @Post()
