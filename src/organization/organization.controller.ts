@@ -122,17 +122,6 @@ export class OrganizationController {
     return this.organizationService.disapproveOrganization(id);
   }
 
-  @Delete(':id')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Удалить организацию' })
-  @ApiResponse({ status: 200, description: 'Организация удалена' })
-  @ApiResponse({ status: 404, description: 'Организация не найдена' })
-  @ApiResponse({ status: 401, description: 'Не авторизован' })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.organizationService.remove(id);
-  }
-
   @Post(':id/owners')
   @ZodValidation(addOwnerSchema)
   @ApiBearerAuth()

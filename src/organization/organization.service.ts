@@ -390,38 +390,6 @@ export class OrganizationService {
     return organization;
   }
 
-  async remove(id: number) {
-    // Проверяем существование организации и получаем данные для удаления файлов (исключая удаленные)
-    const organization = await this.repository.findById(id);
-    if (!organization) {
-      throw new NotFoundException(`Организация с ID ${id} не найдена`);
-    }
-
-    // Удаляем связанные записи в organizationHelpTypes
-    await this.repository.removeAllHelpTypes(id);
-
-    // Удаляем связанные записи в organizationOwners
-    await this.repository.removeAllOwners(id);
-
-    // Удаляем файлы из S3, если они есть в галерее
-    if (organization.gallery && organization.gallery.length > 0) {
-      try {
-        await this.s3Service.deleteFiles(organization.gallery);
-      } catch (error) {
-        // Логируем ошибку, но не прерываем удаление организации
-        this.logger.error(`Ошибка при удалении файлов из S3: ${error}`);
-      }
-    }
-
-    // Устанавливаем статус DELETED вместо физического удаления
-    const deletedOrganization = await this.repository.softDelete(id);
-    if (!deletedOrganization) {
-      throw new NotFoundException(`Организация с ID ${id} не найдена`);
-    }
-
-    return deletedOrganization;
-  }
-
   async addOwner(organizationId: number, userId: number) {
     // Проверяем существование организации (исключая удаленные)
     const organization = await this.repository.findById(organizationId);
