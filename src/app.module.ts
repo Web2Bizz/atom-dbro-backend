@@ -14,6 +14,7 @@ import { QuestModule } from './quest/quest.module';
 import { UploadModule } from './upload/upload.module';
 import { CategoryModule } from './category/category.module';
 import { QuestUpdateModule } from './quest-update/quest-update.module';
+import { OrganizationUpdateModule } from './organization-update/organization-update.module';
 import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
 import { RedisModule } from './redis/redis.module';
 import { AppController } from './app.controller';
@@ -40,6 +41,7 @@ import { AppController } from './app.controller';
     UploadModule,
     CategoryModule,
     QuestUpdateModule,
+    OrganizationUpdateModule,
     RabbitMQModule,
   ],
   controllers: [AppController],
