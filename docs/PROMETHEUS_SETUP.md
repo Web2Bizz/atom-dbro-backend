@@ -14,7 +14,7 @@
 После запуска:
 
 - бизнес-API доступно по `http://<host>:<port>/api/...`;
-- метрики Prometheus доступны по `http://<host>:<port>/metrics`.
+- метрики Prometheus доступны по `http://<host>:<port>/api/v1/metrics`.
 
 ### 2. Сетевой доступ к `/metrics`
 
@@ -30,7 +30,7 @@
 
 Если используется reverse-proxy (Nginx/Ingress):
 
-- прокинуть маршрут `/metrics` напрямую до backend’а;
+- прокинуть маршрут `/api/v1/metrics` напрямую до backend’а;
 - при необходимости повесить на него отдельные правила доступа.
 
 ### 3. Настройка облачного Prometheus
@@ -43,7 +43,7 @@
 scrape_configs:
   - job_name: 'atom-dbro-backend'
     scrape_interval: 15s        # или нужное вам значение
-    metrics_path: /metrics
+    metrics_path: /api/v1/metrics
     static_configs:
       - targets:
           - 'your-backend-host:3000'  # реальный host:port удалённого сервера
@@ -56,7 +56,7 @@ scrape_configs:
     - job_name: 'atom-dbro-backend'
       scrape_interval: 15s
       scheme: https
-      metrics_path: /metrics
+      metrics_path: /api/v1/metrics
       static_configs:
         - targets:
             - 'your-domain.com:443'
@@ -132,7 +132,7 @@ process_resident_memory_bytes
 2. **Проверка доступности снаружи (откуда будет ходить Prometheus):**
 
    ```bash
-   curl http://your-backend-host:3000/metrics
+   curl http://your-backend-host:3000/api/v1/metrics
    ```
 
    Убедиться, что соединение устанавливается и выдаёт метрики.
@@ -156,8 +156,8 @@ process_resident_memory_bytes
 
 ### 6. Краткое резюме
 
-- На сервере: запустить приложение и убедиться, что `/metrics` отдаёт метрики и порт/маршрут доступны Prometheus.
-- В Prometheus (облако): добавить job с `metrics_path: /metrics` и target `your-backend-host:port`, проверить, что target `UP`.
+- На сервере: запустить приложение и убедиться, что `/api/v1/metrics` отдаёт метрики и порт/маршрут доступны Prometheus.
+- В Prometheus (облако): добавить job с `metrics_path: /api/v1/metrics` и target `your-backend-host:port`, проверить, что target `UP`.
 - В Grafana (облако): подключить Prometheus как источник данных и создать дашборд с запросами к `http_request_duration_seconds_*` и стандартным метрикам процесса.
 
 
