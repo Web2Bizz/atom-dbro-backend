@@ -3,16 +3,45 @@ import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { regions, cities } from '../database/schema';
 import { eq, ne, and } from 'drizzle-orm';
+import { RedisService } from '../redis/redis.service';
+import { ConfigService } from '@nestjs/config';
+
+const REGIONS_CACHE_KEY = 'regions:all';
 
 @Injectable()
 export class RegionService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private db: NodePgDatabase,
+    private readonly configService: ConfigService,
+    private readonly redisService: RedisService,
   ) {}
 
   async findAll() {
-    return this.db.select().from(regions).where(ne(regions.recordStatus, 'DELETED'));
+    const ttlEnv = this.configService.get<string>('DEFAULT_CACHE_TTL_SECONDS');
+    const ttlSeconds =
+      ttlEnv && !Number.isNaN(Number(ttlEnv)) && Number(ttlEnv) > 0
+        ? Number(ttlEnv)
+        : 5;
+    // Пытаемся взять из кеша
+    const cached = await this.redisService.get(REGIONS_CACHE_KEY);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    const regionsList = await this.db
+      .select()
+      .from(regions)
+      .where(ne(regions.recordStatus, 'DELETED'));
+
+    // Кладём в кеш на ttlSeconds
+    await this.redisService.set(
+      REGIONS_CACHE_KEY,
+      JSON.stringify(regionsList),
+      ttlSeconds,
+    );
+
+    return regionsList;
   }
 
   async findOne(id: number) {

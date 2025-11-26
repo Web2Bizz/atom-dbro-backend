@@ -69,6 +69,7 @@ S3_REGION=us-east-1
 # REDIS_PASSWORD=
 # REDIS_DB=0
 # FORGOT_PASSWORD_TOKEN_TTL=3600  # TTL токена восстановления пароля в секундах (по умолчанию 3600 = 1 час)
+# DEFAULT_CACHE_TTL_SECONDS=5  # Базовый TTL кеша в Redis (в секундах) для справочников (города, регионы и др.)
 
 # Frontend URL (опционально)
 # FRONTEND_URL=http://localhost:5173  # Базовый URL фронтенда (используется для формирования ссылок в письмах)
@@ -445,6 +446,7 @@ S3_REGION=us-east-1
 # REDIS_PASSWORD=
 # REDIS_DB=0
 # FORGOT_PASSWORD_TOKEN_TTL=3600  # TTL токена восстановления пароля в секундах (по умолчанию 3600 = 1 час)
+# DEFAULT_CACHE_TTL_SECONDS=5  # Базовый TTL кеша в Redis (в секундах) для справочников (города, регионы и др.)
 
 # Frontend URL (опционально)
 # FRONTEND_URL=https://yourdomain.com  # Базовый URL фронтенда (используется для формирования ссылок в письмах)
