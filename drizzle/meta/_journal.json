@@ -174,7 +174,7 @@
       "idx": 24,
       "version": "7",
       "when": 1764176510756,
-      "tag": "0024_wooden_shocker",
+      "tag": "0024_add_step_type_to_quests_steps",
       "breakpoints": true
     }
   ]
