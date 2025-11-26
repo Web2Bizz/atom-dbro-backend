@@ -157,6 +157,7 @@ export const quests = pgTable('quests', {
     description?: string;
     status: string;
     progress: number;
+    type: 'no_required' | 'finance' | 'contributers' | 'material';
     requirement?: {
       currentValue: number;
       targetValue: number;
