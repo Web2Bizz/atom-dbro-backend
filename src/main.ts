@@ -30,19 +30,38 @@ async function bootstrap() {
 
     const organizationsLogger = new Logger('OrganizationsRequestLogger');
 
+    // Логгер запросов к организациям.
+    // В Fastify нет свойства `path`, как в Express, поэтому безопасно получаем URL
+    // из нескольких возможных полей и выходим, если ничего не нашли.
     app.use((req: any, res: any, next: any) => {
-      if (req.method === 'POST' && req.path.includes('/organizations')) {
-        const endpoint = req.originalUrl ?? req.path;
+      try {
         const method = req.method;
-        const bodyContent =
-          req.body && typeof req.body === 'object' ? JSON.stringify(req.body) : String(req.body ?? '');
-        const bodyBits = Buffer.byteLength(bodyContent, 'utf8') * 8;
+        const rawUrl: string | undefined =
+          req?.raw?.url ?? req?.url ?? req?.originalUrl;
 
-        organizationsLogger.debug(
-          `Organizations request -> endpoint: ${endpoint}, method: ${method}, body size: ${bodyBits} bits`,
+        if (!rawUrl) {
+          return next();
+        }
+
+        if (method === 'POST' && rawUrl.includes('/organizations')) {
+          const endpoint = rawUrl;
+          const bodyContent =
+            req.body && typeof req.body === 'object'
+              ? JSON.stringify(req.body)
+              : String(req.body ?? '');
+          const bodyBits = Buffer.byteLength(bodyContent, 'utf8') * 8;
+
+          organizationsLogger.debug(
+            `Organizations request -> endpoint: ${endpoint}, method: ${method}, body size: ${bodyBits} bits`,
+          );
+        }
+      } catch (e) {
+        organizationsLogger.error(
+          `Error while logging organizations request: ${e instanceof Error ? e.message : e}`,
         );
+      } finally {
+        next();
       }
-      next();
     });
 
     // CORS конфигурация
