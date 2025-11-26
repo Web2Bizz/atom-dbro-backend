@@ -9,5 +9,6 @@ CREATE TABLE "quest_step_volunteers" (
 	CONSTRAINT "quest_step_volunteers_quest_id_step_index_user_id_unique" UNIQUE("quest_id","step_index","user_id")
 );
 --> statement-breakpoint
-ALTER TABLE "quest_step_volunteers" ADD CONSTRAINT "quest_step_volunteers_quest_id_quests_id_fk" FOREIGN KEY ("quest_id") REFERENCES "public"."quests"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "quest_step_volunteers" ADD CONSTRAINT "quest_step_volunteers_quest_id_quests_id_fk" FOREIGN KEY ("quest_id") REFERENCES "public"."quests"("id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
 ALTER TABLE "quest_step_volunteers" ADD CONSTRAINT "quest_step_volunteers_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
