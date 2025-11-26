@@ -72,6 +72,12 @@ export class StepVolunteerService {
       throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
     }
 
+    // Проверяем, участвует ли пользователь в квесте
+    const isUserInQuest = await this.repository.isUserInQuest(questId, userId);
+    if (!isUserInQuest) {
+      throw new BadRequestException('Пользователь не участвует в этом квесте');
+    }
+
     // Проверяем, не участвует ли уже пользователь в этапе
     const existingVolunteer = await this.repository.findVolunteer(questId, stepIndex, userId);
     if (existingVolunteer) {

@@ -5,6 +5,7 @@ import {
   questStepVolunteers,
   quests,
   users,
+  userQuests,
 } from '../database/schema';
 import { eq, and, ne } from 'drizzle-orm';
 
@@ -53,6 +54,30 @@ export class StepVolunteerRepository {
       return user;
     } catch (error: any) {
       this.logger.error(`Ошибка в findUserById для пользователя ID ${userId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Проверить, участвует ли пользователь в квесте
+   */
+  async isUserInQuest(questId: number, userId: number): Promise<boolean> {
+    try {
+      const [userQuest] = await this.db
+        .select()
+        .from(userQuests)
+        .where(and(
+          eq(userQuests.questId, questId),
+          eq(userQuests.userId, userId)
+        ))
+        .limit(1);
+      
+      return !!userQuest;
+    } catch (error: any) {
+      this.logger.error(
+        `Ошибка в isUserInQuest для квеста ${questId}, пользователь ${userId}:`,
+        error
+      );
       throw error;
     }
   }
