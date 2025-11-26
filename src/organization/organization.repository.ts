@@ -63,9 +63,17 @@ export class OrganizationRepository {
 
   /**
    * Получить все организации с связанными данными (города, типы организаций)
+   * @param includeAll - если true, возвращает все организации, иначе только подтверждённые
    */
-  async findAll(): Promise<OrganizationWithRelations[]> {
+  async findAll(includeAll: boolean = false): Promise<OrganizationWithRelations[]> {
     try {
+      const whereConditions = [ne(organizations.recordStatus, 'DELETED')];
+      
+      // Если includeAll = false, показываем только подтверждённые организации
+      if (!includeAll) {
+        whereConditions.push(eq(organizations.isApproved, true));
+      }
+      
       return await this.db
         .select({
           id: organizations.id,
@@ -101,7 +109,7 @@ export class OrganizationRepository {
           eq(organizations.organizationTypeId, organizationTypes.id),
           ne(organizationTypes.recordStatus, 'DELETED')
         ))
-        .where(ne(organizations.recordStatus, 'DELETED'));
+        .where(and(...whereConditions));
     } catch (error: any) {
       this.logger.error('Ошибка в findAll:', error);
       this.logger.error('Детали ошибки:', {

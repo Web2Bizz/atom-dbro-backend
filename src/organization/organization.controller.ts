@@ -15,8 +15,9 @@ import {
   StreamableFile,
   Header,
   Req,
+  Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { OrganizationService } from './organization.service';
 import { S3Service } from './s3.service';
@@ -62,10 +63,17 @@ export class OrganizationController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Получить все организации1' })
+  @ApiOperation({ summary: 'Получить все организации' })
+  @ApiQuery({ 
+    name: 'all', 
+    required: false, 
+    type: String,
+    description: 'Если установлено в "true" или "1", возвращает все организации (подтверждённые и неподтверждённые). По умолчанию возвращает только подтверждённые организации.' 
+  })
   @ApiResponse({ status: 200, description: 'Список организаций' })
-  findAll() {
-    return this.organizationService.findAll();
+  findAll(@Query('all') all?: string) {
+    const includeAll = all === 'true' || all === '1';
+    return this.organizationService.findAll(includeAll);
   }
 
   @Get(':id')

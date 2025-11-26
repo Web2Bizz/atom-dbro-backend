@@ -124,9 +124,9 @@ export class OrganizationService {
     return organization;
   }
 
-  async findAll() {
+  async findAll(includeAll: boolean = false) {
     try {
-      const orgs = await this.repository.findAll();
+      const orgs = await this.repository.findAll(includeAll);
 
       // Получаем helpTypes для всех организаций
       const orgIds = orgs.map(org => org.id);
