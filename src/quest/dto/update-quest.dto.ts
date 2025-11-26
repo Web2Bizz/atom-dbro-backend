@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { z } from 'zod/v4';
 
-import { stepSchema } from './step.dto';
+import { stepSchema, StepDtoClass } from './step.dto';
 import { contactSchema, ContactDtoClass } from '../../organization/dto/create-organization.dto';
 
 export const updateQuestSchema = z.object({
@@ -77,10 +77,21 @@ export class UpdateQuestDtoClass {
 
   @ApiProperty({ 
     description: 'Этапы квеста', 
-    type: Array,
-    required: false 
+    type: [StepDtoClass],
+    required: false,
+    example: [
+      {
+        title: 'Собрать одежду',
+        description: 'Собрать тёплые вещи для бездомных',
+        status: 'pending',
+        progress: 0,
+        type: 'no_required',
+        requirement: { currentValue: 0, targetValue: 10 },
+        deadline: '2024-12-31T23:59:59Z',
+      },
+    ],
   })
-  steps?: any[];
+  steps?: StepDtoClass[];
 
   @ApiProperty({ 
     description: 'ID категорий, связанных с квестом', 
