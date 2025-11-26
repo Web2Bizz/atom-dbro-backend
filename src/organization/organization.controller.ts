@@ -65,14 +65,14 @@ export class OrganizationController {
   @Get()
   @ApiOperation({ summary: 'Получить все организации' })
   @ApiQuery({ 
-    name: 'all', 
+    name: 'onlyApproved', 
     required: false, 
     type: String,
-    description: 'Если установлено в "true" или "1", возвращает все организации (подтверждённые и неподтверждённые). По умолчанию возвращает только подтверждённые организации.' 
+    description: 'Если установлено в "true" или "1", возвращает только подтверждённые организации. По умолчанию возвращает все организации (подтверждённые и неподтверждённые).' 
   })
   @ApiResponse({ status: 200, description: 'Список организаций' })
-  findAll(@Query('all') all?: string) {
-    const includeAll = all === 'true' || all === '1';
+  findAll(@Query('onlyApproved') onlyApproved?: string) {
+    const includeAll = !(onlyApproved === 'true' || onlyApproved === '1');
     return this.organizationService.findAll(includeAll);
   }
 
