@@ -8,17 +8,16 @@ import {
   Delete,
   ParseIntPipe,
   UseGuards,
-  UseInterceptors,
-  UploadedFiles,
   BadRequestException,
-  Res,
   NotFoundException,
   Version,
   HttpCode,
+  StreamableFile,
+  Header,
+  Req,
 } from '@nestjs/common';
-import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
-import { Response } from 'express';
+import { FastifyRequest } from 'fastify';
 import { OrganizationService } from './organization.service';
 import { S3Service } from './s3.service';
 import { CreateOrganizationDto, createOrganizationSchema, CreateOrganizationDtoClass } from './dto/create-organization.dto';
@@ -31,16 +30,11 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 
-interface MulterFile {
-  fieldname: string;
+interface UploadedImageFile {
+  buffer: Buffer;
   originalname: string;
-  encoding: string;
   mimetype: string;
   size: number;
-  destination: string;
-  filename: string;
-  path: string;
-  buffer: Buffer;
 }
 
 @ApiTags('Организации')
@@ -173,9 +167,6 @@ export class OrganizationController {
   @Post(':id/gallery')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(
-    FilesInterceptor('images', 20), // Максимум 20 файлов
-  )
   @ApiOperation({ summary: 'Загрузить изображения в галерею организации' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -197,8 +188,25 @@ export class OrganizationController {
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   async uploadImages(
     @Param('id', ParseIntPipe) organizationId: number,
-    @UploadedFiles() files: Array<MulterFile>,
+    @Req() req: FastifyRequest,
   ) {
+    const fastifyRequest: any = req as any;
+    const files: UploadedImageFile[] = [];
+
+    if (typeof fastifyRequest.files !== 'function') {
+      throw new BadRequestException('Загрузка файлов не поддерживается на этом сервере');
+    }
+
+    for await (const file of fastifyRequest.files()) {
+      const buffer: Buffer = await file.toBuffer();
+      files.push({
+        buffer,
+        originalname: file.filename,
+        mimetype: file.mimetype,
+        size: buffer.length,
+      });
+    }
+
     if (!files || files.length === 0) {
       throw new BadRequestException('Необходимо загрузить хотя бы одно изображение');
     }
@@ -240,16 +248,15 @@ export class OrganizationController {
   @ApiOperation({ summary: 'Получить изображение из галереи организации (шлюз)' })
   @ApiResponse({ status: 200, description: 'Изображение найдено', content: { 'image/*': {} } })
   @ApiResponse({ status: 404, description: 'Изображение не найдено' })
+  @Header('Cache-Control', 'public, max-age=31536000') // Кеш на 1 год
   async getImage(
     @Param('id', ParseIntPipe) organizationId: number,
     @Param('fileName') fileName: string,
-    @Res() res: Response,
-  ) {
+  ): Promise<StreamableFile> {
     // Проверяем, что организация существует и файл принадлежит ей
-    // Используем метод сервиса для проверки файла в галерее
     const fullFileName = `organizations/${organizationId}/${decodeURIComponent(fileName)}`;
     const isValid = await this.organizationService.checkImageInGallery(organizationId, fullFileName);
-    
+
     if (!isValid) {
       throw new NotFoundException('Изображение не найдено в галерее организации');
     }
@@ -257,14 +264,12 @@ export class OrganizationController {
     try {
       // Получаем файл из S3
       const file = await this.s3Service.getFile(fullFileName);
-      
-      // Устанавливаем заголовки
-      res.setHeader('Content-Type', file.contentType);
-      res.setHeader('Content-Length', file.body.length);
-      res.setHeader('Cache-Control', 'public, max-age=31536000'); // Кеш на 1 год
-      
-      // Отправляем файл
-      res.send(file.body);
+
+      // Возвращаем потоковый файл, Nest сам выставит content-type / content-length
+      return new StreamableFile(file.body, {
+        type: file.contentType,
+        length: file.body.length,
+      });
     } catch (error) {
       throw new NotFoundException('Изображение не найдено в хранилище');
     }

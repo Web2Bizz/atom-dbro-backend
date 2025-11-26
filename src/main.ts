@@ -7,6 +7,7 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
+import multipart from '@fastify/multipart';
 
 async function bootstrap() {
   try {
@@ -18,6 +19,14 @@ async function bootstrap() {
       }),
     );
     const configService = app.get(ConfigService);
+
+    const fastify = app.getHttpAdapter().getInstance();
+    await fastify.register(multipart, {
+      limits: {
+        fileSize: 10 * 1024 * 1024,
+        files: 20,
+      },
+    });
 
     const organizationsLogger = new Logger('OrganizationsRequestLogger');
 

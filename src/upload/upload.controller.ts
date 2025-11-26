@@ -1,13 +1,12 @@
 import {
   Controller,
   Post,
-  UseInterceptors,
-  UploadedFiles,
   BadRequestException,
   UseGuards,
+  Req,
 } from '@nestjs/common';
-import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { FastifyRequest } from 'fastify';
 import { S3Service } from '../organization/s3.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -19,9 +18,6 @@ export class UploadController {
   constructor(private readonly s3Service: S3Service) {}
 
   @Post('images')
-  @UseInterceptors(
-    FilesInterceptor('images', 20), // Максимум 20 файлов
-  )
   @ApiOperation({ summary: 'Загрузить множество изображений на S3 хранилище' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -63,8 +59,25 @@ export class UploadController {
   @ApiResponse({ status: 400, description: 'Неверные данные или файлы не загружены' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   async uploadImages(
-    @UploadedFiles() files: Array<Express.Multer.File>,
+    @Req() req: FastifyRequest,
   ): Promise<Array<{ fileName: string; url: string }>> {
+    const fastifyRequest: any = req as any;
+    const files: Array<{ buffer: Buffer; originalname: string; mimetype: string; size: number }> = [];
+
+    if (typeof fastifyRequest.files !== 'function') {
+      throw new BadRequestException('Загрузка файлов не поддерживается на этом сервере');
+    }
+
+    for await (const file of fastifyRequest.files()) {
+      const buffer: Buffer = await file.toBuffer();
+      files.push({
+        buffer,
+        originalname: file.filename,
+        mimetype: file.mimetype,
+        size: buffer.length,
+      });
+    }
+
     if (!files || files.length === 0) {
       throw new BadRequestException('Необходимо загрузить хотя бы одно изображение');
     }

@@ -31,7 +31,11 @@ export class FileValidationInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest();
-    const files = request.files as Express.Multer.File[];
+    const files = request.files as Array<{
+      originalname: string;
+      mimetype: string;
+      size: number;
+    }>;
 
     if (files && files.length > 0) {
       files.forEach((file, index) => {
