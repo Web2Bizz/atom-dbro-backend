@@ -33,7 +33,6 @@ export class AuthController {
   @ApiBody({ type: LoginDtoClass })
   @ApiResponse({ status: 200, description: 'Успешный вход', type: LoginDtoClass })
   @ApiResponse({ status: 404, description: 'Пользователь не найден' })
-  @ApiResponse({ status: 401, description: 'Неверный email или пароль' })
   login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
   }

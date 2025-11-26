@@ -74,40 +74,36 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
-    try {
-      const user = await this.userService.findByEmail(loginDto.email);
-      if (!user) {
-        throw new NotFoundException('Пользователь не найден');
-      }
-
-      // Проверяем пароль
-      const isPasswordValid = await bcrypt.compare(loginDto.password, user.passwordHash);
-      if (!isPasswordValid) {
-        throw new UnauthorizedException('Неверный email или пароль');
-      }
-
-      const payload = { email: user.email, sub: user.id };
-      const accessTokenExpiresIn = this.configService.get<string>('JWT_EXPIRES_IN') || '24h';
-      const refreshTokenExpiresIn = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d';
-      const refreshTokenSecret = this.configService.get<string>('JWT_REFRESH_SECRET') || this.configService.get<string>('JWT_SECRET') || 'your-secret-key';
-
-      return {
-        access_token: this.jwtService.sign(payload, { expiresIn: accessTokenExpiresIn }),
-        refresh_token: this.jwtService.sign(payload, { 
-          expiresIn: refreshTokenExpiresIn,
-          secret: refreshTokenSecret,
-        }),
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          middleName: user.middleName,
-        },
-      };
-    } catch (error) {
-      this.logger.error(error);
+    const user = await this.userService.findByEmail(loginDto.email);
+    if (!user) {
+      throw new NotFoundException('Пользователь не найден');
     }
+
+    // Проверяем пароль
+    const isPasswordValid = await bcrypt.compare(loginDto.password, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new NotFoundException('Пользователь не найден');
+    }
+
+    const payload = { email: user.email, sub: user.id };
+    const accessTokenExpiresIn = this.configService.get<string>('JWT_EXPIRES_IN') || '24h';
+    const refreshTokenExpiresIn = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d';
+    const refreshTokenSecret = this.configService.get<string>('JWT_REFRESH_SECRET') || this.configService.get<string>('JWT_SECRET') || 'your-secret-key';
+
+    return {
+      access_token: this.jwtService.sign(payload, { expiresIn: accessTokenExpiresIn }),
+      refresh_token: this.jwtService.sign(payload, { 
+        expiresIn: refreshTokenExpiresIn,
+        secret: refreshTokenSecret,
+      }),
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        middleName: user.middleName,
+      },
+    };
   }
 
   async refresh(refreshTokenDto: RefreshTokenDto) {
