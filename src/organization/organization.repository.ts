@@ -501,6 +501,77 @@ export class OrganizationRepository {
   }
 
   /**
+   * Получить все организации пользователя (где он является владельцем)
+   * @param userId - ID пользователя
+   * @param includeAll - если true, возвращает все организации, иначе только подтверждённые
+   */
+  async findByUserId(userId: number, includeAll: boolean = true): Promise<OrganizationWithRelations[]> {
+    try {
+      const whereConditions = [
+        eq(organizationOwners.userId, userId),
+        ne(organizations.recordStatus, 'DELETED'),
+      ];
+      
+      // Если includeAll = false, показываем только подтверждённые организации
+      if (!includeAll) {
+        whereConditions.push(eq(organizations.isApproved, true));
+      }
+      
+      return await this.db
+        .select({
+          id: organizations.id,
+          name: organizations.name,
+          cityId: organizations.cityId,
+          latitude: organizations.latitude,
+          longitude: organizations.longitude,
+          summary: organizations.summary,
+          mission: organizations.mission,
+          description: organizations.description,
+          goals: organizations.goals,
+          needs: organizations.needs,
+          address: organizations.address,
+          contacts: organizations.contacts,
+          gallery: organizations.gallery,
+          isApproved: organizations.isApproved,
+          createdAt: organizations.createdAt,
+          updatedAt: organizations.updatedAt,
+          cityName: cities.name,
+          cityLatitude: cities.latitude,
+          cityLongitude: cities.longitude,
+          cityRecordStatus: cities.recordStatus,
+          organizationTypeId: organizationTypes.id,
+          organizationTypeName: organizationTypes.name,
+          organizationTypeRecordStatus: organizationTypes.recordStatus,
+        })
+        .from(organizationOwners)
+        .innerJoin(organizations, eq(organizationOwners.organizationId, organizations.id))
+        .leftJoin(cities, and(
+          eq(organizations.cityId, cities.id),
+          ne(cities.recordStatus, 'DELETED')
+        ))
+        .leftJoin(organizationTypes, and(
+          eq(organizations.organizationTypeId, organizationTypes.id),
+          ne(organizationTypes.recordStatus, 'DELETED')
+        ))
+        .where(and(...whereConditions));
+    } catch (error: any) {
+      this.logger.error(`Ошибка в findByUserId для пользователя ID ${userId}:`, error);
+      this.logger.error('Детали ошибки:', {
+        method: 'findByUserId',
+        userId,
+        includeAll,
+        message: error?.message,
+        code: error?.code,
+        detail: error?.detail,
+        hint: error?.hint,
+        where: error?.where,
+        stack: error?.stack,
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Добавить владельца организации
    */
   async addOwner(organizationId: number, userId: number): Promise<void> {

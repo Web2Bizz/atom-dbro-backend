@@ -186,6 +186,68 @@ export class OrganizationService {
     }
   }
 
+  async findByUserId(userId: number, includeAll: boolean = true) {
+    try {
+      const orgs = await this.repository.findByUserId(userId, includeAll);
+
+      // Получаем helpTypes для всех организаций
+      const orgIds = orgs.map(org => org.id);
+      const allHelpTypes = await this.repository.findHelpTypesByOrganizationIds(orgIds);
+
+      // Группируем helpTypes по organizationId
+      const helpTypesByOrgId = new Map<number, Array<{ id: number; name: string }>>();
+      for (const helpType of allHelpTypes) {
+        if (!helpTypesByOrgId.has(helpType.organizationId)) {
+          helpTypesByOrgId.set(helpType.organizationId, []);
+        }
+        helpTypesByOrgId.get(helpType.organizationId)!.push({
+          id: helpType.id,
+          name: helpType.name,
+        });
+      }
+
+      return orgs.map(org => ({
+        id: org.id,
+        name: org.name,
+        latitude: this.parseCoordinate(org.latitude),
+        longitude: this.parseCoordinate(org.longitude),
+        summary: org.summary,
+        mission: org.mission,
+        description: org.description,
+        goals: org.goals,
+        needs: org.needs,
+        address: org.address,
+        contacts: org.contacts,
+        gallery: org.gallery ? this.s3Service.getImageUrls(org.gallery) : [],
+        isApproved: org.isApproved,
+        createdAt: org.createdAt,
+        updatedAt: org.updatedAt,
+        city: org.cityName && org.cityRecordStatus && org.cityRecordStatus !== 'DELETED' ? {
+          id: org.cityId,
+          name: org.cityName,
+          latitude: this.parseCoordinate(org.cityLatitude),
+          longitude: this.parseCoordinate(org.cityLongitude),
+        } : null,
+        type: org.organizationTypeName && org.organizationTypeRecordStatus && org.organizationTypeRecordStatus !== 'DELETED' ? {
+          id: org.organizationTypeId,
+          name: org.organizationTypeName,
+        } : null,
+        helpTypes: helpTypesByOrgId.get(org.id) || [],
+      }));
+    } catch (error: any) {
+      this.logger.error(`Ошибка в findByUserId для пользователя ID ${userId}:`, error);
+      this.logger.error('Детали ошибки:', {
+        message: error?.message,
+        code: error?.code,
+        detail: error?.detail,
+        hint: error?.hint,
+        where: error?.where,
+        stack: error?.stack,
+      });
+      throw error;
+    }
+  }
+
   async findOne(id: number) {
     const orgData = await this.repository.findOne(id);
     if (!orgData) {

@@ -76,6 +76,26 @@ export class OrganizationController {
     return this.organizationService.findAll(includeAll);
   }
 
+  @Get('my')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Получить организации текущего пользователя' })
+  @ApiQuery({ 
+    name: 'onlyApproved', 
+    required: false, 
+    type: String,
+    description: 'Если установлено в "true" или "1", возвращает только подтверждённые организации. По умолчанию возвращает все организации (подтверждённые и неподтверждённые).' 
+  })
+  @ApiResponse({ status: 200, description: 'Список организаций пользователя' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
+  findMyOrganizations(
+    @CurrentUser() user: { userId: number; email: string },
+    @Query('onlyApproved') onlyApproved?: string,
+  ) {
+    const includeAll = !(onlyApproved === 'true' || onlyApproved === '1');
+    return this.organizationService.findByUserId(user.userId, includeAll);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Получить организацию по ID' })
   @ApiResponse({ status: 200, description: 'Организация найдена' })
