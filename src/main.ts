@@ -7,7 +7,7 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
-import multipart from '@fastify/multipart';
+import fastifyMultipart from '@fastify/multipart';
 
 async function bootstrap() {
   try {
@@ -21,7 +21,7 @@ async function bootstrap() {
     const configService = app.get(ConfigService);
 
     const fastify = app.getHttpAdapter().getInstance();
-    await fastify.register(multipart, {
+    await fastify.register(fastifyMultipart as any, {
       limits: {
         fileSize: 10 * 1024 * 1024,
         files: 20,
