@@ -98,7 +98,11 @@ async function bootstrap() {
       defaultVersion: '1',
     });
 
-    app.setGlobalPrefix('api');
+    app.setGlobalPrefix('api', {
+      // эндпоинт /metrics оставляем без префикса,
+      // чтобы его мог скрейпить Prometheus
+      exclude: ['metrics'],
+    });
 
     const config = new DocumentBuilder()
       .setTitle('Atom DBRO Backend API')
