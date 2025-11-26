@@ -62,7 +62,9 @@
     "ts-node": "^10.9.1",
     "typescript": "^5.0.0",
     "uuid": "^13.0.0",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "@willsoto/nestjs-prometheus": "^6.0.2",
+    "prom-client": "^15.0.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
