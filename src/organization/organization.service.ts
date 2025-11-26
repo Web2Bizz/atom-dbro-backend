@@ -11,7 +11,7 @@ import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { CreateOrganizationsBulkDto } from './dto/create-organizations-bulk.dto';
 import { S3Service } from './s3.service';
-import { OrganizationRepository } from './organization.repository';
+import { OrganizationRepository, OwnerRelation } from './organization.repository';
 import { DATABASE_CONNECTION } from '../database/database.module';
 
 @Injectable()
@@ -131,6 +131,7 @@ export class OrganizationService {
       // Получаем helpTypes для всех организаций
       const orgIds = orgs.map(org => org.id);
       const allHelpTypes = await this.repository.findHelpTypesByOrganizationIds(orgIds);
+      const allOwners = await this.repository.findOwnersByOrganizationIds(orgIds);
 
       // Группируем helpTypes по organizationId
       const helpTypesByOrgId = new Map<number, Array<{ id: number; name: string }>>();
@@ -141,6 +142,21 @@ export class OrganizationService {
         helpTypesByOrgId.get(helpType.organizationId)!.push({
           id: helpType.id,
           name: helpType.name,
+        });
+      }
+
+      // Группируем владельцев по organizationId
+      const ownersByOrgId = new Map<number, OwnerRelation[]>();
+      for (const owner of allOwners) {
+        if (!ownersByOrgId.has(owner.organizationId)) {
+          ownersByOrgId.set(owner.organizationId, []);
+        }
+        ownersByOrgId.get(owner.organizationId)!.push({
+          id: owner.id,
+          firstName: owner.firstName,
+          lastName: owner.lastName,
+          middleName: owner.middleName,
+          email: owner.email,
         });
       }
 
@@ -171,6 +187,7 @@ export class OrganizationService {
           name: org.organizationTypeName,
         } : null,
         helpTypes: helpTypesByOrgId.get(org.id) || [],
+        owners: ownersByOrgId.get(org.id) || [],
       }));
     } catch (error: any) {
       this.logger.error('Ошибка в findAll:', error);
@@ -193,6 +210,7 @@ export class OrganizationService {
       // Получаем helpTypes для всех организаций
       const orgIds = orgs.map(org => org.id);
       const allHelpTypes = await this.repository.findHelpTypesByOrganizationIds(orgIds);
+      const allOwners = await this.repository.findOwnersByOrganizationIds(orgIds);
 
       // Группируем helpTypes по organizationId
       const helpTypesByOrgId = new Map<number, Array<{ id: number; name: string }>>();
@@ -203,6 +221,21 @@ export class OrganizationService {
         helpTypesByOrgId.get(helpType.organizationId)!.push({
           id: helpType.id,
           name: helpType.name,
+        });
+      }
+
+      // Группируем владельцев по organizationId
+      const ownersByOrgId = new Map<number, OwnerRelation[]>();
+      for (const owner of allOwners) {
+        if (!ownersByOrgId.has(owner.organizationId)) {
+          ownersByOrgId.set(owner.organizationId, []);
+        }
+        ownersByOrgId.get(owner.organizationId)!.push({
+          id: owner.id,
+          firstName: owner.firstName,
+          lastName: owner.lastName,
+          middleName: owner.middleName,
+          email: owner.email,
         });
       }
 
@@ -233,6 +266,7 @@ export class OrganizationService {
           name: org.organizationTypeName,
         } : null,
         helpTypes: helpTypesByOrgId.get(org.id) || [],
+        owners: ownersByOrgId.get(org.id) || [],
       }));
     } catch (error: any) {
       this.logger.error(`Ошибка в findByUserId для пользователя ID ${userId}:`, error);

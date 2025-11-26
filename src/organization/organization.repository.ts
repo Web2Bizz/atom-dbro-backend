@@ -501,6 +501,45 @@ export class OrganizationRepository {
   }
 
   /**
+   * Получить владельцев для нескольких организаций
+   */
+  async findOwnersByOrganizationIds(orgIds: number[]): Promise<Array<OwnerRelation & { organizationId: number }>> {
+    if (orgIds.length === 0) return [];
+    
+    try {
+      return await this.db
+        .select({
+          organizationId: organizationOwners.organizationId,
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          middleName: users.middleName,
+          email: users.email,
+        })
+        .from(organizationOwners)
+        .innerJoin(users, eq(organizationOwners.userId, users.id))
+        .where(and(
+          inArray(organizationOwners.organizationId, orgIds),
+          ne(users.recordStatus, 'DELETED')
+        ));
+    } catch (error: any) {
+      this.logger.error('Ошибка в findOwnersByOrganizationIds:', error);
+      this.logger.error('Детали ошибки:', {
+        method: 'findOwnersByOrganizationIds',
+        organizationIds: orgIds,
+        count: orgIds.length,
+        message: error?.message,
+        code: error?.code,
+        detail: error?.detail,
+        hint: error?.hint,
+        where: error?.where,
+        stack: error?.stack,
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Получить все организации пользователя (где он является владельцем)
    * @param userId - ID пользователя
    * @param includeAll - если true, возвращает все организации, иначе только подтверждённые
