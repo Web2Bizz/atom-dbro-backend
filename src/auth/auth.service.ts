@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -77,7 +77,7 @@ export class AuthService {
     try {
       const user = await this.userService.findByEmail(loginDto.email);
       if (!user) {
-        throw new UnauthorizedException('Неверный email или пароль');
+        throw new NotFoundException('Пользователь не найден');
       }
 
       // Проверяем пароль
