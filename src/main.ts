@@ -2,15 +2,22 @@ import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { VersioningType, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
-import { json } from 'express';
 import { ConfigService } from '@nestjs/config';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
 
 async function bootstrap() {
   try {
-    const app = await NestFactory.create(AppModule);
+    const app = await NestFactory.create<NestFastifyApplication>(
+      AppModule,
+      new FastifyAdapter({
+        logger: true,
+        bodyLimit: 10 * 1024 * 1024, // 10mb
+      }),
+    );
     const configService = app.get(ConfigService);
-
-    app.use(json({ limit: '10mb' }));
 
     const organizationsLogger = new Logger('OrganizationsRequestLogger');
 
@@ -95,7 +102,7 @@ async function bootstrap() {
     SwaggerModule.setup('api', app, document);
     console.log('Swagger configured');
 
-    const port = process.env.PORT || 3000;
+    const port = Number(process.env.PORT) || 3000;
     await app.listen(port, '0.0.0.0');
     console.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
     console.log(`📚 Swagger API docs: http://0.0.0.0:${port}/api`);
