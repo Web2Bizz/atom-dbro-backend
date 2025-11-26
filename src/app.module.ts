@@ -37,8 +37,8 @@ import { HttpMetricsInterceptor } from './common/interceptors/http-metrics.inter
       defaultMetrics: {
         enabled: true,
       },
-      // эндпоинт для метрик Prometheus (с учётом префикса api будет /api/v1/metrics)
-      path: '/v1/metrics',
+      // эндпоинт для метрик Prometheus (versioning добавит /v1, итого /api/v1/metrics)
+      path: '/metrics',
     }),
     DatabaseModule,
     RedisModule,
