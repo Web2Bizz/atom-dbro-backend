@@ -19,6 +19,7 @@ import { UploadModule } from './upload/upload.module';
 import { CategoryModule } from './category/category.module';
 import { QuestUpdateModule } from './quest-update/quest-update.module';
 import { OrganizationUpdateModule } from './organization-update/organization-update.module';
+import { StepVolunteerModule } from './step-volunteer/step-volunteer.module';
 import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
 import { RedisModule } from './redis/redis.module';
 import { AppController } from './app.controller';
@@ -55,6 +56,7 @@ import { HttpMetricsInterceptor } from './common/interceptors/http-metrics.inter
     CategoryModule,
     QuestUpdateModule,
     OrganizationUpdateModule,
+    StepVolunteerModule,
     RabbitMQModule,
   ],
   controllers: [AppController],

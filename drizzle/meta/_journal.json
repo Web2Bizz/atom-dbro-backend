@@ -169,6 +169,13 @@
       "when": 1764098867950,
       "tag": "0023_low_eddie_brock",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1764176510756,
+      "tag": "0024_wooden_shocker",
+      "breakpoints": true
     }
   ]
 }

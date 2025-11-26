@@ -223,6 +223,23 @@ export const userQuests = pgTable('user_quests', {
   uniqueUserQuest: unique().on(table.userId, table.questId),
 }));
 
+// Связующая таблица: волонтёры этапов квестов
+export const questStepVolunteers = pgTable('quest_step_volunteers', {
+  id: serial('id').primaryKey(),
+  questId: integer('quest_id')
+    .references(() => quests.id)
+    .notNull(),
+  stepIndex: integer('step_index').notNull(),
+  userId: integer('user_id')
+    .references(() => users.id)
+    .notNull(),
+  recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  uniqueQuestStepUser: unique().on(table.questId, table.stepIndex, table.userId),
+}));
+
 // Relations
 export const regionsRelations = relations(regions, ({ many }) => ({
   cities: many(cities),
@@ -242,6 +259,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   achievements: many(userAchievements),
   quests: many(userQuests),
   ownedQuests: many(quests),
+  stepVolunteers: many(questStepVolunteers),
   organisation: one(organizations, {
     fields: [users.organisationId],
     references: [organizations.id],
@@ -336,6 +354,7 @@ export const questsRelations = relations(quests, ({ one, many }) => ({
   userQuests: many(userQuests),
   categories: many(questCategories),
   updates: many(questUpdates),
+  stepVolunteers: many(questStepVolunteers),
 }));
 
 export const questCategoriesRelations = relations(questCategories, ({ one }) => ({
@@ -370,6 +389,17 @@ export const userQuestsRelations = relations(userQuests, ({ one }) => ({
   }),
   quest: one(quests, {
     fields: [userQuests.questId],
+    references: [quests.id],
+  }),
+}));
+
+export const questStepVolunteersRelations = relations(questStepVolunteers, ({ one }) => ({
+  user: one(users, {
+    fields: [questStepVolunteers.userId],
+    references: [users.id],
+  }),
+  quest: one(quests, {
+    fields: [questStepVolunteers.questId],
     references: [quests.id],
   }),
 }));
