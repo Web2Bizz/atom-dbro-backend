@@ -6,10 +6,12 @@ import {
   Param,
   ParseIntPipe,
   Body,
+  UseGuards,
   Version,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { StepVolunteerService } from './step-volunteer.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Волонтёры этапов')
 @Controller('quests')
@@ -19,11 +21,14 @@ export class StepVolunteerController {
   ) {}
 
   @Get(':questId/steps/:stepIndex/volunteers')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Version('1')
   @ApiOperation({ summary: 'Получить список волонтёров этапа' })
   @ApiParam({ name: 'questId', description: 'ID квеста', type: Number })
   @ApiParam({ name: 'stepIndex', description: 'Индекс этапа (начиная с 0)', type: Number })
   @ApiResponse({ status: 200, description: 'Список волонтёров этапа' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 404, description: 'Квест не найден' })
   @ApiResponse({ status: 400, description: 'Некорректный индекс этапа' })
   getVolunteers(
@@ -34,6 +39,8 @@ export class StepVolunteerController {
   }
 
   @Post(':questId/steps/:stepIndex/volunteers')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Version('1')
   @ApiOperation({ summary: 'Добавить волонтёра в этап' })
   @ApiParam({ name: 'questId', description: 'ID квеста', type: Number })
@@ -48,6 +55,7 @@ export class StepVolunteerController {
     },
   })
   @ApiResponse({ status: 201, description: 'Волонтёр успешно добавлен в этап' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 404, description: 'Квест, этап или пользователь не найден' })
   @ApiResponse({ status: 400, description: 'Некорректный индекс этапа' })
   @ApiResponse({ status: 409, description: 'Пользователь уже участвует в этом этапе' })
@@ -60,12 +68,15 @@ export class StepVolunteerController {
   }
 
   @Delete(':questId/steps/:stepIndex/volunteers/:userId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Version('1')
   @ApiOperation({ summary: 'Удалить волонтёра из этапа' })
   @ApiParam({ name: 'questId', description: 'ID квеста', type: Number })
   @ApiParam({ name: 'stepIndex', description: 'Индекс этапа (начиная с 0)', type: Number })
   @ApiParam({ name: 'userId', description: 'ID пользователя', type: Number })
   @ApiResponse({ status: 200, description: 'Волонтёр успешно удалён из этапа' })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 404, description: 'Квест, этап или пользователь не найден' })
   @ApiResponse({ status: 400, description: 'Некорректный индекс этапа' })
   @ApiResponse({ status: 409, description: 'Пользователь уже удалён из этапа' })
