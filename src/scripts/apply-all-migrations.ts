@@ -163,11 +163,23 @@ async function applyAllMigrations() {
             const statement = statements[i];
             if (statement && statement.trim()) {
               try {
+                console.log(`   [${i + 1}/${statements.length}] Выполнение команды...`);
                 await client.query(statement);
+                console.log(`   [${i + 1}/${statements.length}] ✅ Команда выполнена успешно`);
               } catch (error: any) {
                 // Игнорируем некоторые ошибки (например, если объект уже существует)
                 const errorMsg = error.message || '';
                 const errorCode = error.code || '';
+                const errorDetail = error.detail || '';
+                const errorHint = error.hint || '';
+                
+                // Логируем полную информацию об ошибке
+                console.error(`   ❌ Ошибка в команде ${i + 1}/${statements.length}:`);
+                console.error(`      Сообщение: ${errorMsg}`);
+                console.error(`      Код ошибки: ${errorCode}`);
+                if (errorDetail) console.error(`      Детали: ${errorDetail}`);
+                if (errorHint) console.error(`      Подсказка: ${errorHint}`);
+                console.error(`      SQL команда (первые 200 символов): ${statement.substring(0, 200)}...`);
                 
                 // Проверяем различные типы ошибок "уже существует"
                 const isAlreadyExistsError = 
@@ -182,8 +194,6 @@ async function applyAllMigrations() {
                   console.log(`   ⚠️  Предупреждение (игнорируем): ${errorMsg.substring(0, 150)}`);
                   continue; // Пропускаем эту команду и продолжаем
                 } else {
-                  console.error(`   ❌ Ошибка в команде ${i + 1}:`, errorMsg);
-                  console.error(`   Код ошибки: ${errorCode}`);
                   throw error;
                 }
               }
