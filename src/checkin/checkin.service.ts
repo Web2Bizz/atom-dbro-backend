@@ -97,11 +97,6 @@ export class CheckinService {
       throw new BadRequestException('Тип этапа в токене не соответствует запрошенному');
     }
 
-    // Проверяем, что пользователь из токена совпадает с текущим пользователем
-    if (payload.sub !== userId) {
-      throw new UnauthorizedException('Токен не принадлежит текущему пользователю');
-    }
-
     // Проверяем существование квеста
     const quest = await this.questRepository.findById(questId);
     if (!quest) {
