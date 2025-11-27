@@ -55,27 +55,44 @@ END $$;
 --> statement-breakpoint
 
 -- Добавление уникального констрейнта
-DO $$ BEGIN
+DO $$ 
+DECLARE
+  has_duplicates BOOLEAN := FALSE;
+BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.table_constraints 
     WHERE constraint_name = 'quest_step_volunteers_quest_id_type_user_id_unique'
   ) THEN
     -- Проверяем, нет ли дубликатов перед созданием констрейнта
-    IF NOT EXISTS (
-      SELECT quest_id, type, user_id, COUNT(*) as cnt
-      FROM quest_step_volunteers
-      GROUP BY quest_id, type, user_id
-      HAVING COUNT(*) > 1
-    ) THEN
-      ALTER TABLE "quest_step_volunteers"
-      ADD CONSTRAINT "quest_step_volunteers_quest_id_type_user_id_unique"
-        UNIQUE ("quest_id", "type", "user_id");
+    -- Используем подзапрос для безопасной проверки
+    SELECT EXISTS (
+      SELECT 1
+      FROM (
+        SELECT quest_id, type, user_id, COUNT(*) as cnt
+        FROM quest_step_volunteers
+        WHERE type IS NOT NULL
+        GROUP BY quest_id, type, user_id
+        HAVING COUNT(*) > 1
+      ) duplicates
+    ) INTO has_duplicates;
+    
+    IF NOT has_duplicates THEN
+      BEGIN
+        ALTER TABLE "quest_step_volunteers"
+        ADD CONSTRAINT "quest_step_volunteers_quest_id_type_user_id_unique"
+          UNIQUE ("quest_id", "type", "user_id");
+      EXCEPTION
+        WHEN duplicate_table THEN NULL;
+        WHEN unique_violation THEN NULL;
+        WHEN OTHERS THEN
+          RAISE NOTICE 'Не удалось добавить уникальный констрейнт: %', SQLERRM;
+      END;
     ELSE
       RAISE NOTICE 'Не удалось добавить уникальный констрейнт: найдены дубликаты в quest_step_volunteers';
     END IF;
   END IF;
 EXCEPTION
-  WHEN duplicate_table THEN NULL;
-  WHEN unique_violation THEN
-    RAISE NOTICE 'Не удалось добавить уникальный констрейнт из-за дубликатов';
+  WHEN OTHERS THEN
+    -- Игнорируем все ошибки в этом блоке
+    RAISE NOTICE 'Ошибка при добавлении уникального констрейнта: %', SQLERRM;
 END $$;

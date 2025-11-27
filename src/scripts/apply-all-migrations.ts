@@ -211,18 +211,58 @@ async function applyAllMigrations() {
             }
           }
           
-          await client.query(
-            'INSERT INTO drizzle_migrations (hash, created_at) VALUES ($1, $2) ON CONFLICT (hash) DO NOTHING',
-            [hash, Date.now()]
-          );
+          let migrationSaved = false;
+          try {
+            await client.query(
+              'INSERT INTO drizzle_migrations (hash, created_at) VALUES ($1, $2) ON CONFLICT (hash) DO NOTHING',
+              [hash, Date.now()]
+            );
+            migrationSaved = true;
+          } catch (insertError: any) {
+            if (insertError.code === '25P02') {
+              // Транзакция была отменена, но команды выполнились успешно
+              // Делаем ROLLBACK и сохраняем запись в отдельной транзакции
+              console.log('   ⚠️  Транзакция была отменена, но команды выполнены. Сохраняем запись в отдельной транзакции...');
+              try {
+                await client.query('ROLLBACK');
+                await client.query('BEGIN');
+                await client.query(
+                  'INSERT INTO drizzle_migrations (hash, created_at) VALUES ($1, $2) ON CONFLICT (hash) DO NOTHING',
+                  [hash, Date.now()]
+                );
+                await client.query('COMMIT');
+                migrationSaved = true;
+                console.log('   ✅ Запись о миграции сохранена в отдельной транзакции');
+              } catch (saveError: any) {
+                await client.query('ROLLBACK');
+                console.error('   ❌ Не удалось сохранить запись о миграции:', saveError.message);
+                throw saveError;
+              }
+            } else {
+              throw insertError;
+            }
+          }
 
-          // Добавляем в журнал примененных миграций (в памяти)
-          appliedTags.add(tag);
-          appliedHashes.add(hash);
-
-          await client.query('COMMIT');
-          console.log(`✅ Миграция ${file} успешно применена!`);
-          appliedCount++;
+          // Если запись сохранена успешно, коммитим транзакцию (если она ещё активна)
+          if (migrationSaved) {
+            try {
+              await client.query('COMMIT');
+            } catch (commitError: any) {
+              // Если транзакция уже была закоммичена или отменена, это нормально
+              if (commitError.code !== '25P02' && !commitError.message?.includes('no transaction')) {
+                console.warn('   ⚠️  Предупреждение при коммите:', commitError.message);
+              }
+            }
+            
+            // Добавляем в журнал примененных миграций (в памяти)
+            appliedTags.add(tag);
+            appliedHashes.add(hash);
+            
+            console.log(`✅ Миграция ${file} успешно применена!`);
+            appliedCount++;
+          } else {
+            throw new Error('Не удалось сохранить запись о миграции');
+          }
         } catch (error: any) {
           await client.query('ROLLBACK');
           const errorMsg = error.message || '';
