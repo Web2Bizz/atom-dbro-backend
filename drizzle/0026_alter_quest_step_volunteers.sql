@@ -51,9 +51,15 @@ BEGIN
     WHERE table_name = 'quest_step_volunteers'
       AND constraint_name = 'quest_step_volunteers_quest_id_type_user_id_unique'
   ) THEN
-    ALTER TABLE "quest_step_volunteers"
-      ADD CONSTRAINT "quest_step_volunteers_quest_id_type_user_id_unique"
-        UNIQUE ("quest_id", "type", "user_id");
+    BEGIN
+      ALTER TABLE "quest_step_volunteers"
+        ADD CONSTRAINT "quest_step_volunteers_quest_id_type_user_id_unique"
+          UNIQUE ("quest_id", "type", "user_id");
+    EXCEPTION
+      WHEN unique_violation THEN
+        -- Если есть дублирующиеся строки, не добавляем констрейнт, но и миграцию не заваливаем
+        RAISE NOTICE 'Не удалось добавить уникальный констрейнт quest_step_volunteers_quest_id_type_user_id_unique из-за дубликатов.';
+    END;
   END IF;
 END;
 $$;
