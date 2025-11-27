@@ -608,15 +608,11 @@ export class QuestService {
 
   async updateRequirementCurrentValue(
     questId: number,
-    stepIndex: number,
+    stepType: 'no_required' | 'finance' | 'contributers' | 'material',
     updateRequirementDto: UpdateRequirementDto,
   ) {
     // Проверяем существование квеста
     const quest = await this.questRepository.findById(questId);
-    
-    if (!quest) {
-      throw new NotFoundException(`Квест с ID ${questId} не найден`);
-    }
 
     // Проверяем статус квеста
     if (quest.status !== 'active') {
@@ -628,19 +624,36 @@ export class QuestService {
       throw new BadRequestException('У квеста нет этапов');
     }
 
-    // Проверяем, что индекс этапа валиден
-    if (stepIndex < 0 || stepIndex >= quest.steps.length) {
-      throw new BadRequestException(`Индекс этапа ${stepIndex} выходит за границы массива этапов (длина: ${quest.steps.length})`);
+    // Валидация типа этапа
+    const allowedTypes: Array<'no_required' | 'finance' | 'contributers' | 'material'> = [
+      'no_required',
+      'finance',
+      'contributers',
+      'material',
+    ];
+
+    if (!allowedTypes.includes(stepType)) {
+      throw new BadRequestException(
+        `Некорректный тип этапа '${stepType}'. Допустимые значения: ${allowedTypes.join(', ')}`,
+      );
+    }
+
+    // Ищем этап по типу
+    const stepIndex = quest.steps.findIndex(step => step?.type === stepType);
+    if (stepIndex === -1) {
+      throw new BadRequestException(
+        `Этап с типом '${stepType}' не найден в квесте (количество этапов: ${quest.steps.length})`,
+      );
     }
 
     const step = quest.steps[stepIndex];
     if (!step) {
-      throw new BadRequestException(`Этап с индексом ${stepIndex} не найден`);
+      throw new BadRequestException(`Этап с типом '${stepType}' не найден`);
     }
 
     // Проверяем наличие requirement
     if (!step.requirement) {
-      throw new BadRequestException(`У этапа с индексом ${stepIndex} нет требования`);
+      throw new BadRequestException(`У этапа с типом '${stepType}' нет требования`);
     }
 
     const requirement = step.requirement as { currentValue?: number; targetValue?: number };
@@ -652,17 +665,7 @@ export class QuestService {
 
     const newCurrentValue = updateRequirementDto.currentValue;
 
-    // Валидация: currentValue должен быть положительным
-    if (newCurrentValue < 0) {
-      throw new BadRequestException('currentValue должен быть неотрицательным числом');
-    }
-
-    // Валидация: currentValue не может превышать targetValue, может быть только равным
-    if (newCurrentValue > requirement.targetValue) {
-      throw new BadRequestException(`currentValue (${newCurrentValue}) не может превышать targetValue (${requirement.targetValue})`);
-    }
-
-    // Обновляем currentValue
+    // Обновляем только currentValue требования (прогресс считается в репозитории в runtime)
     const updatedSteps = [...quest.steps];
     updatedSteps[stepIndex] = {
       ...step,
@@ -682,7 +685,9 @@ export class QuestService {
     }
 
     // Эмитим событие обновления requirement
-    this.logger.log(`Requirement currentValue updated for quest ${questId}, step ${stepIndex}: ${newCurrentValue}`);
+    this.logger.debug(
+      `Requirement currentValue updated for quest ${questId}, step type '${stepType}', index ${stepIndex}: ${newCurrentValue}`,
+    );
     this.questEventsService.emitRequirementUpdated(questId, updatedQuest.steps);
 
     // Возвращаем обновленный квест с полной информацией

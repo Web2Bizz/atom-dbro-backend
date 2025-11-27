@@ -254,7 +254,7 @@ export class QuestController {
     return this.questEventsService.getQuestEventsByQuestId(questId);
   }
 
-  @Patch(':id/steps/:stepIndex/requirement')
+  @Patch(':id/steps/:type/requirement')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ZodValidation(updateRequirementSchema)
@@ -266,10 +266,10 @@ export class QuestController {
   @ApiResponse({ status: 400, description: 'Некорректные данные или статус квеста' })
   updateRequirementCurrentValue(
     @Param('id', ParseIntPipe) questId: number,
-    @Param('stepIndex', ParseIntPipe) stepIndex: number,
+    @Param('type') type: 'no_required' | 'finance' | 'contributers' | 'material',
     @Body() updateRequirementDto: UpdateRequirementDto,
   ) {
-    return this.questService.updateRequirementCurrentValue(questId, stepIndex, updateRequirementDto);
+    return this.questService.updateRequirementCurrentValue(questId, type, updateRequirementDto);
   }
 }
 

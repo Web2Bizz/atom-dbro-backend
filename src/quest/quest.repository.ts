@@ -1,4 +1,4 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Injectable, Inject, Logger, NotFoundException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
@@ -67,6 +67,43 @@ export class QuestRepository {
   ) {}
 
   /**
+   * Подсчитывает прогресс шага в процентах (целое число) на основе requirement.currentValue / requirement.targetValue
+   * Значение считается в runtime и не хранится в базе.
+   */
+  private calculateProgressForSteps(steps: any): any {
+    if (!Array.isArray(steps)) {
+      return steps;
+    }
+
+    return steps.map(step => {
+      if (!step) {
+        return step;
+      }
+
+      const requirement = (step as any).requirement as { currentValue?: number; targetValue?: number } | undefined;
+      if (!requirement || requirement.targetValue === undefined || requirement.targetValue === null) {
+        // Если нет требования или targetValue, считаем прогресс 0
+        return {
+          ...step,
+          progress: 0,
+        };
+      }
+
+      const currentValue = requirement.currentValue ?? 0;
+      const rawProgress = (currentValue / requirement.targetValue) * 100;
+      const progress =
+        Number.isFinite(rawProgress) && !Number.isNaN(rawProgress)
+          ? Math.max(0, Math.min(100, Math.round(rawProgress)))
+          : 0;
+
+      return {
+        ...step,
+        progress,
+      };
+    });
+  }
+
+  /**
    * Найти квест по ID (исключая удаленные)
    * @param id ID квеста
    * @returns Квест или undefined
@@ -80,8 +117,15 @@ export class QuestRepository {
           eq(quests.id, id),
           ne(quests.recordStatus, 'DELETED')
         ));
-      
-      return quest;
+
+      if (!quest) {
+        throw new NotFoundException(`Квест с ID ${id} не найден`);
+      }
+
+      return {
+        ...quest,
+        steps: this.calculateProgressForSteps((quest as any).steps),
+      } as typeof quests.$inferSelect;
     } catch (error: any) {
       this.logger.error(`Ошибка в findById для квеста ID ${id}:`, error);
       throw error;
@@ -159,8 +203,15 @@ export class QuestRepository {
           eq(quests.id, id),
           ne(quests.recordStatus, 'DELETED')
         ));
-      
-      return quest as QuestWithDetails | undefined;
+
+      if (!quest) {
+        return undefined;
+      }
+
+      return {
+        ...(quest as QuestWithDetails),
+        steps: this.calculateProgressForSteps((quest as any).steps),
+      };
     } catch (error: any) {
       this.logger.error(`Ошибка в findByIdWithDetails для квеста ID ${id}:`, error);
       throw error;
@@ -246,7 +297,12 @@ export class QuestRepository {
       }
       query = query.where(conditions.length === 1 ? conditions[0] : and(...conditions)) as any;
 
-      return await query as QuestWithDetails[];
+      const result = await query as QuestWithDetails[];
+
+      return result.map(quest => ({
+        ...quest,
+        steps: this.calculateProgressForSteps((quest as any).steps),
+      }));
     } catch (error: any) {
       this.logger.error('Ошибка в findAll:', error);
       throw error;
@@ -852,7 +908,7 @@ export class QuestRepository {
    */
   async findUserQuests(userId: number) {
     try {
-      return await this.db
+      const result = await this.db
         .select({
           id: userQuests.id,
           userId: userQuests.userId,
@@ -902,6 +958,14 @@ export class QuestRepository {
           ne(cities.recordStatus, 'DELETED')
         ))
         .where(eq(userQuests.userId, userId));
+
+      return result.map(item => ({
+        ...item,
+        quest: {
+          ...item.quest,
+          steps: this.calculateProgressForSteps((item.quest as any)?.steps),
+        },
+      }));
     } catch (error: any) {
       this.logger.error(`Ошибка в findUserQuests для пользователя ID ${userId}:`, error);
       throw error;
@@ -967,7 +1031,10 @@ export class QuestRepository {
           ne(quests.recordStatus, 'DELETED')
         ));
 
-      return activeQuests;
+      return activeQuests.map(quest => ({
+        ...quest,
+        steps: this.calculateProgressForSteps((quest as any).steps),
+      }));
     } catch (error: any) {
       this.logger.error(`Ошибка в findAvailableQuests для пользователя ID ${userId}:`, error);
       throw error;
