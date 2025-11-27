@@ -122,7 +122,7 @@ export class StepVolunteerRepository {
       return volunteers;
     } catch (error: any) {
       this.logger.error(
-        `Ошибка в findVolunteersByQuestAndStep для квеста ${questId}, этап ${stepIndex}:`,
+        `Ошибка в findVolunteersByQuestAndStep для квеста ${questId}, type ${type}:`,
         error
       );
       throw error;
@@ -150,7 +150,7 @@ export class StepVolunteerRepository {
       return volunteer;
     } catch (error: any) {
       this.logger.error(
-        `Ошибка в findVolunteer для квеста ${questId}, этап ${stepIndex}, пользователь ${userId}:`,
+        `Ошибка в findVolunteer для квеста ${questId}, type ${type}, пользователь ${userId}:`,
         error
       );
       throw error;
@@ -179,7 +179,7 @@ export class StepVolunteerRepository {
       return volunteer;
     } catch (error: any) {
       this.logger.error(
-        `Ошибка в create для квеста ${questId}, этап ${stepIndex}, пользователь ${userId}:`,
+        `Ошибка в create для квеста ${questId}, type ${type}, пользователь ${userId}:`,
         error
       );
       throw error;
@@ -212,7 +212,7 @@ export class StepVolunteerRepository {
       return volunteer;
     } catch (error: any) {
       this.logger.error(
-        `Ошибка в restore для квеста ${questId}, этап ${stepIndex}, пользователь ${userId}:`,
+        `Ошибка в restore для квеста ${questId}, type ${type}, пользователь ${userId}:`,
         error
       );
       throw error;
@@ -245,7 +245,7 @@ export class StepVolunteerRepository {
       return volunteer;
     } catch (error: any) {
       this.logger.error(
-        `Ошибка в softDelete для квеста ${questId}, этап ${stepIndex}, пользователь ${userId}:`,
+        `Ошибка в softDelete для квеста ${questId}, type ${type}, пользователь ${userId}:`,
         error
       );
       throw error;
