@@ -13,6 +13,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody, ApiBearerAuth } 
 import { StepVolunteerService } from './step-volunteer.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AddStepVolunteerDto, addStepVolunteerSchema, AddStepVolunteerDtoClass } from '../quest/dto/add-step-volunteer.dto';
+import { AddVolunteersDto, addVolunteersSchema, AddVolunteersDtoClass } from './dto/add-volunteers.dto';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 
 @ApiTags('Волонтёры этапов')
@@ -45,38 +46,24 @@ export class StepVolunteerController {
     return this.stepVolunteerService.getVolunteers(questId, type);
   }
 
-  @Post(':questId/steps/:type/volunteers')
+  @Post(':questId/steps/contributers/volunteers')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Version('1')
-  @ApiOperation({ summary: 'Добавить волонтёра в этап' })
+  @ZodValidation(addVolunteersSchema)
+  @ApiOperation({ summary: 'Добавить волонтёров в этап contributers' })
   @ApiParam({ name: 'questId', description: 'ID квеста', type: Number })
-  @ApiParam({ 
-    name: 'type', 
-    description: 'Тип этапа квеста', 
-    enum: ['no_required', 'finance', 'contributers', 'material'],
-    example: 'finance'
-  })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        userId: { type: 'number', description: 'ID пользователя' },
-      },
-      required: ['userId'],
-    },
-  })
-  @ApiResponse({ status: 201, description: 'Волонтёр успешно добавлен в этап' })
+  @ApiBody({ type: AddVolunteersDtoClass })
+  @ApiResponse({ status: 201, description: 'Волонтёры успешно добавлены в этап' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
-  @ApiResponse({ status: 404, description: 'Квест, этап или пользователь не найден' })
-  @ApiResponse({ status: 400, description: 'Некорректный тип этапа' })
-  @ApiResponse({ status: 409, description: 'Пользователь уже участвует в этом этапе' })
-  addVolunteer(
+  @ApiResponse({ status: 404, description: 'Квест, этап или один из пользователей не найден' })
+  @ApiResponse({ status: 400, description: 'Некорректные данные или этап contributers не найден' })
+  @ApiResponse({ status: 409, description: 'Один или несколько пользователей уже участвуют в этом этапе' })
+  addVolunteers(
     @Param('questId', ParseIntPipe) questId: number,
-    @Param('type') type: 'no_required' | 'finance' | 'contributers' | 'material',
-    @Body('userId', ParseIntPipe) userId: number,
+    @Body() addVolunteersDto: AddVolunteersDto,
   ) {
-    return this.stepVolunteerService.addVolunteer(questId, type, userId);
+    return this.stepVolunteerService.addVolunteers(questId, addVolunteersDto.userIds);
   }
 
   @Delete(':questId/steps/:type/volunteers/:userId')

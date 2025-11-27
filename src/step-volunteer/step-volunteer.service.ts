@@ -132,6 +132,149 @@ export class StepVolunteerService {
   }
 
   /**
+   * Добавить несколько волонтёров в этап contributers
+   */
+  async addVolunteers(questId: number, userIds: number[]) {
+    const stepType: 'contributers' = 'contributers';
+
+    // Проверяем существование квеста
+    const quest = await this.repository.findQuestById(questId);
+    if (!quest) {
+      throw new NotFoundException(`Квест с ID ${questId} не найден`);
+    }
+
+    // Проверяем наличие steps
+    if (!quest.steps || !Array.isArray(quest.steps)) {
+      throw new BadRequestException('У квеста нет этапов');
+    }
+
+    // Проверяем, что этап с типом contributers существует
+    const stepExists = quest.steps.some(step => step?.type === stepType);
+    if (!stepExists) {
+      throw new BadRequestException(`Этап с типом '${stepType}' не найден в квесте`);
+    }
+
+    // Проверяем существование всех пользователей
+    const users = await Promise.all(
+      userIds.map(userId => this.repository.findUserById(userId))
+    );
+
+    const notFoundUserIds: number[] = [];
+    users.forEach((user, index) => {
+      if (!user) {
+        notFoundUserIds.push(userIds[index]);
+      }
+    });
+
+    if (notFoundUserIds.length > 0) {
+      throw new NotFoundException(
+        `Пользователи с ID не найдены: ${notFoundUserIds.join(', ')}`
+      );
+    }
+
+    // Проверяем, участвуют ли все пользователи в квесте
+    const userQuestChecks = await Promise.all(
+      userIds.map(userId => this.repository.isUserInQuest(questId, userId))
+    );
+
+    const notInQuestUserIds: number[] = [];
+    userQuestChecks.forEach((isInQuest, index) => {
+      if (!isInQuest) {
+        notInQuestUserIds.push(userIds[index]);
+      }
+    });
+
+    if (notInQuestUserIds.length > 0) {
+      throw new BadRequestException(
+        `Пользователи с ID не участвуют в квесте: ${notInQuestUserIds.join(', ')}`
+      );
+    }
+
+    // Проверяем существующие записи волонтёров
+    const existingVolunteers = await Promise.all(
+      userIds.map(userId => this.repository.findVolunteer(questId, stepType, userId))
+    );
+
+    const alreadyParticipatingUserIds: number[] = [];
+    const deletedUserIds: number[] = [];
+    const newUserIds: number[] = [];
+
+    existingVolunteers.forEach((volunteer, index) => {
+      const userId = userIds[index];
+      if (volunteer) {
+        if (volunteer.recordStatus === 'DELETED') {
+          deletedUserIds.push(userId);
+        } else {
+          alreadyParticipatingUserIds.push(userId);
+        }
+      } else {
+        newUserIds.push(userId);
+      }
+    });
+
+    if (alreadyParticipatingUserIds.length > 0) {
+      throw new ConflictException(
+        `Пользователи с ID уже участвуют в этом этапе: ${alreadyParticipatingUserIds.join(', ')}`
+      );
+    }
+
+    // Восстанавливаем удалённые записи
+    let restoredCount = 0;
+    if (deletedUserIds.length > 0) {
+      const restoredResults = await Promise.all(
+        deletedUserIds.map(userId => this.repository.restore(questId, stepType, userId))
+      );
+
+      const failedRestores: number[] = [];
+      restoredResults.forEach((restored, index) => {
+        if (!restored) {
+          failedRestores.push(deletedUserIds[index]);
+        } else {
+          restoredCount++;
+        }
+      });
+
+      if (failedRestores.length > 0) {
+        throw new Error(
+          `Не удалось восстановить волонтёров с ID: ${failedRestores.join(', ')}`
+        );
+      }
+    }
+
+    // Добавляем новых волонтёров
+    let addedCount = 0;
+    if (newUserIds.length > 0) {
+      const createResults = await Promise.all(
+        newUserIds.map(userId => this.repository.create(questId, stepType, userId))
+      );
+
+      const failedCreates: number[] = [];
+      createResults.forEach((created, index) => {
+        if (!created) {
+          failedCreates.push(newUserIds[index]);
+        } else {
+          addedCount++;
+        }
+      });
+
+      if (failedCreates.length > 0) {
+        throw new Error(
+          `Не удалось добавить волонтёров с ID: ${failedCreates.join(', ')}`
+        );
+      }
+    }
+
+    const totalCount = addedCount + restoredCount;
+
+    return {
+      message: `Волонтёры успешно добавлены в этап`,
+      added: addedCount,
+      restored: restoredCount,
+      total: totalCount,
+    };
+  }
+
+  /**
    * Удалить волонтёра из этапа
    */
   async removeVolunteer(questId: number, stepType: 'no_required' | 'finance' | 'contributers' | 'material', userId: number) {
