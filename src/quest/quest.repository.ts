@@ -112,13 +112,18 @@ export class QuestRepository {
           };
         }
 
-        // Для этапов типа 'contributers' синхронизируем currentValue с количеством подтверждённых волонтёров
+        // Для этапов типа 'contributers' синхронизируем currentValue с количеством уникальных волонтёров
         let currentValue = requirement.currentValue ?? 0;
         if (step.type === 'contributers' && questId) {
           try {
-            currentValue = await this.stepVolunteerRepository.getConfirmedVolunteersCount(questId, step.type);
+            // Получаем список волонтёров этапа и считаем количество уникальных пользователей
+            const volunteers = await this.stepVolunteerRepository.findVolunteersByQuestAndStep(questId, step.type);
+            // Считаем уникальных пользователей (на случай, если у одного пользователя несколько записей)
+            const uniqueUserIds = new Set(volunteers.map(v => v.userId));
+            currentValue = uniqueUserIds.size;
+            this.logger.debug(`calculateProgressForSteps: questId=${questId}, stepType=${step.type}, volunteersCount=${currentValue}, totalRecords=${volunteers.length}`);
           } catch (error: any) {
-            this.logger.error(`Ошибка при подсчёте подтверждённых волонтёров для квеста ${questId}, этап типа ${step.type}:`, error);
+            this.logger.error(`Ошибка при подсчёте волонтёров для квеста ${questId}, этап типа ${step.type}:`, error);
             currentValue = requirement.currentValue ?? 0;
           }
         }
