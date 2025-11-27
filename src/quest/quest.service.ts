@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { CreateQuestDto } from './dto/create-quest.dto';
 import { UpdateQuestDto } from './dto/update-quest.dto';
 import { UpdateRequirementDto } from './dto/update-requirement.dto';
 import { QuestEventsService } from './quest.events';
 import { QuestRepository } from './quest.repository';
+import { StepVolunteerRepository } from '../step-volunteer/step-volunteer.repository';
 
 @Injectable()
 export class QuestService {
@@ -14,6 +15,8 @@ export class QuestService {
   constructor(
     private readonly questRepository: QuestRepository,
     private readonly questEventsService: QuestEventsService,
+    @Inject(forwardRef(() => StepVolunteerRepository))
+    private readonly stepVolunteerRepository: StepVolunteerRepository,
   ) {}
 
   async create(createQuestDto: CreateQuestDto, userId: number) {
@@ -669,7 +672,7 @@ export class QuestService {
     if (updateRequirementDto.currentValue === undefined) {
       // Если currentValue не передан, вычисляем сумму всех contribute_value из quest_step_volunteers
       // и используем её как новое значение
-      newCurrentValue = await this.questRepository.getSumContributeValue(questId, stepType);
+      newCurrentValue = await this.stepVolunteerRepository.getSumContributeValue(questId, stepType);
     } else {
       // Если currentValue передан, используем его напрямую
       newCurrentValue = updateRequirementDto.currentValue;
@@ -717,7 +720,7 @@ export class QuestService {
     stepType: 'no_required' | 'finance' | 'contributers' | 'material',
   ): Promise<number> {
     // Получаем сумму всех contribute_value из quest_step_volunteers
-    const sumContributeValue = await this.questRepository.getSumContributeValue(questId, stepType);
+    const sumContributeValue = await this.stepVolunteerRepository.getSumContributeValue(questId, stepType);
     
     // Получаем квест
     const quest = await this.questRepository.findById(questId);
@@ -817,5 +820,6 @@ export class QuestService {
     // Получаем всех пользователей квеста
     return await this.questRepository.findQuestUsers(questId);
   }
+
 }
 

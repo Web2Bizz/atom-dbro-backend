@@ -7,7 +7,7 @@ import {
   users,
   userQuests,
 } from '../database/schema';
-import { eq, and, ne } from 'drizzle-orm';
+import { eq, and, ne, sql } from 'drizzle-orm';
 
 @Injectable()
 export class StepVolunteerRepository {
@@ -164,17 +164,24 @@ export class StepVolunteerRepository {
     questId: number,
     type: string,
     userId: number,
+    contributeValue: number = 0,
   ): Promise<typeof questStepVolunteers.$inferSelect> {
     try {
-      const [volunteer] = await this.db
+      const result = await this.db
         .insert(questStepVolunteers)
         .values({
           questId,
           type,
           userId,
+          contributeValue,
           recordStatus: 'CREATED',
         })
         .returning();
+      
+      const volunteer = Array.isArray(result) ? result[0] : result;
+      if (!volunteer) {
+        throw new Error('Не удалось создать запись волонтёра');
+      }
       
       return volunteer;
     } catch (error: any) {
@@ -182,6 +189,72 @@ export class StepVolunteerRepository {
         `Ошибка в create для квеста ${questId}, type ${type}, пользователь ${userId}:`,
         error
       );
+      throw error;
+    }
+  }
+
+  /**
+   * Создать новую запись волонтёра этапа квеста с вкладом
+   * Всегда создаёт новую запись, даже если пользователь уже вносил вклад ранее
+   * @param questId ID квеста
+   * @param type Тип этапа
+   * @param userId ID пользователя
+   * @param contributeValue Значение вклада
+   * @returns Созданная запись
+   */
+  async createStepVolunteer(
+    questId: number,
+    type: string,
+    userId: number,
+    contributeValue: number,
+  ): Promise<typeof questStepVolunteers.$inferSelect> {
+    try {
+      // Всегда создаём новую запись
+      const result = await this.db
+        .insert(questStepVolunteers)
+        .values({
+          questId,
+          type,
+          userId,
+          contributeValue,
+        })
+        .returning();
+      
+      const created = Array.isArray(result) ? result[0] : result;
+      if (!created) {
+        throw new Error('Не удалось создать запись волонтёра этапа');
+      }
+
+      return created;
+    } catch (error: any) {
+      this.logger.error(`Ошибка в createStepVolunteer для квеста ${questId}, type ${type}, userId ${userId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Получить сумму всех contribute_value для квеста и типа шага
+   * Используется для синхронизации currentValue в этапе квеста
+   * @param questId ID квеста
+   * @param type Тип шага
+   * @returns Сумма contribute_value или 0
+   */
+  async getSumContributeValue(questId: number, type: string): Promise<number> {
+    try {
+      const [result] = await this.db
+        .select({
+          sum: sql<number>`COALESCE(SUM(${questStepVolunteers.contributeValue}::integer), 0)`.as('sum'),
+        })
+        .from(questStepVolunteers)
+        .where(and(
+          eq(questStepVolunteers.questId, questId),
+          eq(questStepVolunteers.type, type),
+          ne(questStepVolunteers.recordStatus, 'DELETED')
+        ));
+
+      return Number(result?.sum ?? 0);
+    } catch (error: any) {
+      this.logger.error(`Ошибка в getSumContributeValue для квеста ${questId}, type ${type}:`, error);
       throw error;
     }
   }
