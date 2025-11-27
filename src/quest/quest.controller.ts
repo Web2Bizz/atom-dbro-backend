@@ -13,7 +13,7 @@ import {
   Sse,
   Version,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiBody, ApiParam } from '@nestjs/swagger';
 import { Observable } from 'rxjs';
 import { QuestService } from './quest.service';
 import { QuestEventsService } from './quest.events';
@@ -258,12 +258,50 @@ export class QuestController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ZodValidation(updateRequirementSchema)
-  @ApiOperation({ summary: 'Обновить currentValue требования в этапе квеста. Если currentValue не указан, будет синхронизирован с суммой всех contribute_value из quest_step_volunteers и сохранен в этапе (быстрее чем вычислять сумму каждый раз)' })
+  @ApiOperation({ 
+    summary: 'Обновить текущее значение требования (currentValue) в этапе квеста',
+    description: `
+**Параметры пути:**
+- \`id\` (number) - ID квеста, в котором нужно обновить требование этапа
+- \`type\` (string) - Тип этапа, для которого обновляется требование. Допустимые значения:
+  - \`finance\` - финансовый этап
+  - \`contributers\` - этап с волонтёрами
+  - \`material\` - материальный этап
+  - \`no_required\` - этап без требований
+
+**Тело запроса:**
+- \`currentValue\` (number, опционально) - Новое значение текущего прогресса требования. 
+  Если не указано, будет автоматически вычислено как сумма всех \`contribute_value\` из таблицы \`quest_step_volunteers\` 
+  для данного квеста и типа этапа, и сохранено в этапе квеста.
+
+**Что делает endpoint:**
+Обновляет поле \`currentValue\` в объекте \`requirement\` указанного этапа квеста. 
+Это значение показывает текущий прогресс выполнения требования этапа (например, сколько денег собрано, 
+сколько волонтёров присоединилось, сколько материалов собрано).
+
+**Важно:**
+- Квест должен иметь статус \`active\`, иначе обновление будет отклонено
+- Если \`currentValue\` не указан, значение будет синхронизировано с суммой вкладов волонтёров из базы данных
+- Обновлённое значение сохраняется в этапе квеста, что позволяет быстро получать актуальный прогресс без пересчёта
+    `.trim()
+  })
+  @ApiParam({ 
+    name: 'id', 
+    description: 'ID квеста', 
+    type: Number,
+    example: 1
+  })
+  @ApiParam({ 
+    name: 'type', 
+    description: 'Тип этапа квеста', 
+    enum: ['no_required', 'finance', 'contributers', 'material'],
+    example: 'finance'
+  })
   @ApiBody({ type: UpdateRequirementDtoClass })
-  @ApiResponse({ status: 200, description: 'Требование успешно обновлено' })
+  @ApiResponse({ status: 200, description: 'Требование успешно обновлено. Возвращает обновленный квест с актуальными данными' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
-  @ApiResponse({ status: 404, description: 'Квест или этап не найден' })
-  @ApiResponse({ status: 400, description: 'Некорректные данные или статус квеста' })
+  @ApiResponse({ status: 404, description: 'Квест или этап с указанным типом не найден' })
+  @ApiResponse({ status: 400, description: 'Некорректные данные, неверный статус квеста (не active), или отсутствует requirement у этапа' })
   updateRequirementCurrentValue(
     @Param('id', ParseIntPipe) questId: number,
     @Param('type') type: 'no_required' | 'finance' | 'contributers' | 'material',
