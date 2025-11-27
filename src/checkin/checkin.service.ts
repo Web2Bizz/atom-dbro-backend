@@ -118,9 +118,9 @@ export class CheckinService {
       throw new NotFoundException(`Этап с типом '${type}' не найден в квесте`);
     }
 
-    // Проверяем, участвует ли пользователь в квесте
-    const isUserInQuest = await this.stepVolunteerRepository.isUserInQuest(questId, userId);
-    if (!isUserInQuest) {
+    // Проверяем, участвует ли пользователь в квесте (должна быть запись в user_quests)
+    const existingUserQuest = await this.questRepository.findUserQuest(userId, questId);
+    if (!existingUserQuest) {
       throw new BadRequestException('Пользователь не участвует в этом квесте');
     }
 
@@ -130,19 +130,20 @@ export class CheckinService {
       if (existingVolunteer.recordStatus === 'DELETED') {
         // Восстанавливаем запись
         await this.stepVolunteerRepository.restore(questId, type, userId);
-        return {
-          message: 'Участие успешно подтверждено',
-          questId,
-          type,
-          userId,
-        };
       } else {
         throw new ConflictException('Пользователь уже участвует в этом этапе');
       }
+    } else {
+      // Создаем запись волонтёра этапа
+      await this.stepVolunteerRepository.create(questId, type, userId, 0);
     }
 
-    // Создаем запись волонтёра этапа
-    await this.stepVolunteerRepository.create(questId, type, userId, 0);
+    // Обновляем запись в user_quests: меняем статус на completed и устанавливаем completedAt
+    const completedAt = new Date();
+    await this.questRepository.updateUserQuest(existingUserQuest.id, {
+      status: 'completed',
+      completedAt,
+    });
 
     this.logger.log(`Участие подтверждено: пользователь ${userId}, квест ${questId}, тип ${type}`);
 

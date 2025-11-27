@@ -513,8 +513,9 @@ export class QuestService {
       const newExperience = participant.user.experience + quest.experienceReward;
       await this.questRepository.updateUserExperience(participant.userId, newExperience);
 
-      // Присваиваем достижение пользователю, если оно указано и еще не присвоено
-      if (quest.achievementId) {
+      // Присваиваем достижение только тем пользователям, у которых статус 'completed'
+      // (т.е. тем, кто уже завершил квест до его общего завершения)
+      if (participant.userQuestStatus === 'completed' && quest.achievementId) {
         const existingUserAchievement = await this.questRepository.findUserAchievement(
           participant.userId,
           quest.achievementId,
