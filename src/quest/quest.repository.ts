@@ -1,4 +1,4 @@
-import { Injectable, Inject, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, Logger, NotFoundException, forwardRef } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
@@ -13,6 +13,7 @@ import {
   questCategories,
 } from '../database/schema';
 import { eq, and, ne, inArray } from 'drizzle-orm';
+import { StepVolunteerRepository } from '../step-volunteer/step-volunteer.repository';
 
 export interface QuestWithDetails {
   id: number;
@@ -64,43 +65,67 @@ export class QuestRepository {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private db: NodePgDatabase,
+    @Inject(forwardRef(() => StepVolunteerRepository))
+    private readonly stepVolunteerRepository: StepVolunteerRepository,
   ) {}
 
   /**
    * Подсчитывает прогресс шага в процентах (целое число) на основе requirement.currentValue / requirement.targetValue
+   * Для этапов типа 'contributers' возвращает количество волонтёров вместо процента
    * Значение считается в runtime и не хранится в базе.
    */
-  private calculateProgressForSteps(steps: any): any {
+  private async calculateProgressForSteps(steps: any, questId?: number): Promise<any> {
     if (!Array.isArray(steps)) {
       return steps;
     }
 
-    return steps.map(step => {
-      if (!step) {
-        return step;
-      }
+    const stepsWithProgress = await Promise.all(
+      steps.map(async (step) => {
+        if (!step) {
+          return step;
+        }
 
-      const requirement = (step as any).requirement as { currentValue?: number; targetValue?: number } | undefined;
-      if (!requirement || requirement.targetValue === undefined || requirement.targetValue === null) {
-        // Если нет требования или targetValue, считаем прогресс 0
+        // Для этапов типа 'contributers' используем количество волонтёров
+        if (step.type === 'contributers' && questId) {
+          try {
+            const volunteersCount = await this.stepVolunteerRepository.getVolunteersCount(questId, step.type);
+            return {
+              ...step,
+              progress: volunteersCount,
+            };
+          } catch (error: any) {
+            this.logger.error(`Ошибка при подсчёте волонтёров для квеста ${questId}, этап типа ${step.type}:`, error);
+            return {
+              ...step,
+              progress: 0,
+            };
+          }
+        }
+
+        const requirement = (step as any).requirement as { currentValue?: number; targetValue?: number } | undefined;
+        if (!requirement || requirement.targetValue === undefined || requirement.targetValue === null) {
+          // Если нет требования или targetValue, считаем прогресс 0
+          return {
+            ...step,
+            progress: 0,
+          };
+        }
+
+        const currentValue = requirement.currentValue ?? 0;
+        const rawProgress = (currentValue / requirement.targetValue) * 100;
+        const progress =
+          Number.isFinite(rawProgress) && !Number.isNaN(rawProgress)
+            ? Math.max(0, Math.min(100, Math.round(rawProgress)))
+            : 0;
+
         return {
           ...step,
-          progress: 0,
+          progress,
         };
-      }
+      })
+    );
 
-      const currentValue = requirement.currentValue ?? 0;
-      const rawProgress = (currentValue / requirement.targetValue) * 100;
-      const progress =
-        Number.isFinite(rawProgress) && !Number.isNaN(rawProgress)
-          ? Math.max(0, Math.min(100, Math.round(rawProgress)))
-          : 0;
-
-      return {
-        ...step,
-        progress,
-      };
-    });
+    return stepsWithProgress;
   }
 
   /**
@@ -122,9 +147,10 @@ export class QuestRepository {
         throw new NotFoundException(`Квест с ID ${id} не найден`);
       }
 
+      const stepsWithProgress = await this.calculateProgressForSteps((quest as any).steps, id);
       return {
         ...quest,
-        steps: this.calculateProgressForSteps((quest as any).steps),
+        steps: stepsWithProgress,
       } as typeof quests.$inferSelect;
     } catch (error: any) {
       this.logger.error(`Ошибка в findById для квеста ID ${id}:`, error);
@@ -208,9 +234,10 @@ export class QuestRepository {
         return undefined;
       }
 
+      const stepsWithProgress = await this.calculateProgressForSteps((quest as any).steps, id);
       return {
         ...(quest as QuestWithDetails),
-        steps: this.calculateProgressForSteps((quest as any).steps),
+        steps: stepsWithProgress,
       };
     } catch (error: any) {
       this.logger.error(`Ошибка в findByIdWithDetails для квеста ID ${id}:`, error);
@@ -299,10 +326,13 @@ export class QuestRepository {
 
       const result = await query as QuestWithDetails[];
 
-      return result.map(quest => ({
-        ...quest,
-        steps: this.calculateProgressForSteps((quest as any).steps),
-      }));
+      const questsWithProgress = await Promise.all(
+        result.map(async (quest) => ({
+          ...quest,
+          steps: await this.calculateProgressForSteps((quest as any).steps, quest.id),
+        }))
+      );
+      return questsWithProgress;
     } catch (error: any) {
       this.logger.error('Ошибка в findAll:', error);
       throw error;
@@ -959,13 +989,16 @@ export class QuestRepository {
         ))
         .where(eq(userQuests.userId, userId));
 
-      return result.map(item => ({
-        ...item,
-        quest: {
-          ...item.quest,
-          steps: this.calculateProgressForSteps((item.quest as any)?.steps),
-        },
-      }));
+      const itemsWithProgress = await Promise.all(
+        result.map(async (item) => ({
+          ...item,
+          quest: {
+            ...item.quest,
+            steps: await this.calculateProgressForSteps((item.quest as any)?.steps, item.questId),
+          },
+        }))
+      );
+      return itemsWithProgress;
     } catch (error: any) {
       this.logger.error(`Ошибка в findUserQuests для пользователя ID ${userId}:`, error);
       throw error;
@@ -1031,10 +1064,13 @@ export class QuestRepository {
           ne(quests.recordStatus, 'DELETED')
         ));
 
-      return activeQuests.map(quest => ({
-        ...quest,
-        steps: this.calculateProgressForSteps((quest as any).steps),
-      }));
+      const questsWithProgress = await Promise.all(
+        activeQuests.map(async (quest) => ({
+          ...quest,
+          steps: await this.calculateProgressForSteps((quest as any).steps, quest.id),
+        }))
+      );
+      return questsWithProgress;
     } catch (error: any) {
       this.logger.error(`Ошибка в findAvailableQuests для пользователя ID ${userId}:`, error);
       throw error;
