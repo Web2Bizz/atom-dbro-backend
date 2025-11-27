@@ -15,11 +15,25 @@ export class StepVolunteerService {
   /**
    * Получить список волонтёров этапа
    */
-  async getVolunteers(questId: number, stepIndex: number) {
+  async getVolunteers(questId: number, stepType: 'no_required' | 'finance' | 'contributers' | 'material') {
     // Проверяем существование квеста
     const quest = await this.repository.findQuestById(questId);
     if (!quest) {
       throw new NotFoundException(`Квест с ID ${questId} не найден`);
+    }
+
+    // Валидация типа этапа
+    const allowedTypes: Array<'no_required' | 'finance' | 'contributers' | 'material'> = [
+      'no_required',
+      'finance',
+      'contributers',
+      'material',
+    ];
+
+    if (!allowedTypes.includes(stepType)) {
+      throw new BadRequestException(
+        `Некорректный тип этапа '${stepType}'. Допустимые значения: ${allowedTypes.join(', ')}`,
+      );
     }
 
     // Проверяем наличие steps
@@ -27,17 +41,10 @@ export class StepVolunteerService {
       throw new BadRequestException('У квеста нет этапов');
     }
 
-    // Проверяем, что индекс этапа валиден
-    if (stepIndex < 0 || stepIndex >= quest.steps.length) {
-      throw new BadRequestException(
-        `Индекс этапа ${stepIndex} выходит за границы массива этапов (длина: ${quest.steps.length})`
-      );
-    }
-
-    const step = quest.steps[stepIndex];
-    const stepType = step?.type;
-    if (!stepType) {
-      throw new BadRequestException(`У этапа с индексом ${stepIndex} не указан type`);
+    // Проверяем, что этап с таким типом существует
+    const stepExists = quest.steps.some(step => step?.type === stepType);
+    if (!stepExists) {
+      throw new BadRequestException(`Этап с типом '${stepType}' не найден в квесте`);
     }
 
     // Получаем волонтёров этапа
@@ -56,11 +63,25 @@ export class StepVolunteerService {
   /**
    * Добавить волонтёра в этап
    */
-  async addVolunteer(questId: number, stepIndex: number, userId: number) {
+  async addVolunteer(questId: number, stepType: 'no_required' | 'finance' | 'contributers' | 'material', userId: number) {
     // Проверяем существование квеста
     const quest = await this.repository.findQuestById(questId);
     if (!quest) {
       throw new NotFoundException(`Квест с ID ${questId} не найден`);
+    }
+
+    // Валидация типа этапа
+    const allowedTypes: Array<'no_required' | 'finance' | 'contributers' | 'material'> = [
+      'no_required',
+      'finance',
+      'contributers',
+      'material',
+    ];
+
+    if (!allowedTypes.includes(stepType)) {
+      throw new BadRequestException(
+        `Некорректный тип этапа '${stepType}'. Допустимые значения: ${allowedTypes.join(', ')}`,
+      );
     }
 
     // Проверяем наличие steps
@@ -68,17 +89,10 @@ export class StepVolunteerService {
       throw new BadRequestException('У квеста нет этапов');
     }
 
-    // Проверяем, что индекс этапа валиден
-    if (stepIndex < 0 || stepIndex >= quest.steps.length) {
-      throw new BadRequestException(
-        `Индекс этапа ${stepIndex} выходит за границы массива этапов (длина: ${quest.steps.length})`
-      );
-    }
-
-    const step = quest.steps[stepIndex];
-    const stepType = step?.type;
-    if (!stepType) {
-      throw new BadRequestException(`У этапа с индексом ${stepIndex} не указан type`);
+    // Проверяем, что этап с таким типом существует
+    const stepExists = quest.steps.some(step => step?.type === stepType);
+    if (!stepExists) {
+      throw new BadRequestException(`Этап с типом '${stepType}' не найден в квесте`);
     }
 
     // Проверяем существование пользователя
@@ -120,11 +134,25 @@ export class StepVolunteerService {
   /**
    * Удалить волонтёра из этапа
    */
-  async removeVolunteer(questId: number, stepIndex: number, userId: number) {
+  async removeVolunteer(questId: number, stepType: 'no_required' | 'finance' | 'contributers' | 'material', userId: number) {
     // Проверяем существование квеста
     const quest = await this.repository.findQuestById(questId);
     if (!quest) {
       throw new NotFoundException(`Квест с ID ${questId} не найден`);
+    }
+
+    // Валидация типа этапа
+    const allowedTypes: Array<'no_required' | 'finance' | 'contributers' | 'material'> = [
+      'no_required',
+      'finance',
+      'contributers',
+      'material',
+    ];
+
+    if (!allowedTypes.includes(stepType)) {
+      throw new BadRequestException(
+        `Некорректный тип этапа '${stepType}'. Допустимые значения: ${allowedTypes.join(', ')}`,
+      );
     }
 
     // Проверяем наличие steps
@@ -132,17 +160,10 @@ export class StepVolunteerService {
       throw new BadRequestException('У квеста нет этапов');
     }
 
-    // Проверяем, что индекс этапа валиден
-    if (stepIndex < 0 || stepIndex >= quest.steps.length) {
-      throw new BadRequestException(
-        `Индекс этапа ${stepIndex} выходит за границы массива этапов (длина: ${quest.steps.length})`
-      );
-    }
-
-    const step = quest.steps[stepIndex];
-    const stepType = step?.type;
-    if (!stepType) {
-      throw new BadRequestException(`У этапа с индексом ${stepIndex} не указан type`);
+    // Проверяем, что этап с таким типом существует
+    const stepExists = quest.steps.some(step => step?.type === stepType);
+    if (!stepExists) {
+      throw new BadRequestException(`Этап с типом '${stepType}' не найден в квесте`);
     }
 
     // Проверяем существование пользователя

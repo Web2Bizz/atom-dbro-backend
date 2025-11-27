@@ -22,31 +22,41 @@ export class StepVolunteerController {
     private readonly stepVolunteerService: StepVolunteerService,
   ) {}
 
-  @Get(':questId/steps/:stepIndex/volunteers')
+  @Get(':questId/steps/:type/volunteers')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Version('1')
   @ApiOperation({ summary: 'Получить список волонтёров этапа' })
   @ApiParam({ name: 'questId', description: 'ID квеста', type: Number })
-  @ApiParam({ name: 'stepIndex', description: 'Индекс этапа (начиная с 0)', type: Number })
+  @ApiParam({ 
+    name: 'type', 
+    description: 'Тип этапа квеста', 
+    enum: ['no_required', 'finance', 'contributers', 'material'],
+    example: 'finance'
+  })
   @ApiResponse({ status: 200, description: 'Список волонтёров этапа' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 404, description: 'Квест не найден' })
-  @ApiResponse({ status: 400, description: 'Некорректный индекс этапа' })
+  @ApiResponse({ status: 400, description: 'Некорректный тип этапа' })
   getVolunteers(
     @Param('questId', ParseIntPipe) questId: number,
-    @Param('stepIndex', ParseIntPipe) stepIndex: number,
+    @Param('type') type: 'no_required' | 'finance' | 'contributers' | 'material',
   ) {
-    return this.stepVolunteerService.getVolunteers(questId, stepIndex);
+    return this.stepVolunteerService.getVolunteers(questId, type);
   }
 
-  @Post(':questId/steps/:stepIndex/volunteers')
+  @Post(':questId/steps/:type/volunteers')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Version('1')
   @ApiOperation({ summary: 'Добавить волонтёра в этап' })
   @ApiParam({ name: 'questId', description: 'ID квеста', type: Number })
-  @ApiParam({ name: 'stepIndex', description: 'Индекс этапа (начиная с 0)', type: Number })
+  @ApiParam({ 
+    name: 'type', 
+    description: 'Тип этапа квеста', 
+    enum: ['no_required', 'finance', 'contributers', 'material'],
+    example: 'finance'
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -59,35 +69,40 @@ export class StepVolunteerController {
   @ApiResponse({ status: 201, description: 'Волонтёр успешно добавлен в этап' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 404, description: 'Квест, этап или пользователь не найден' })
-  @ApiResponse({ status: 400, description: 'Некорректный индекс этапа' })
+  @ApiResponse({ status: 400, description: 'Некорректный тип этапа' })
   @ApiResponse({ status: 409, description: 'Пользователь уже участвует в этом этапе' })
   addVolunteer(
     @Param('questId', ParseIntPipe) questId: number,
-    @Param('stepIndex', ParseIntPipe) stepIndex: number,
+    @Param('type') type: 'no_required' | 'finance' | 'contributers' | 'material',
     @Body('userId', ParseIntPipe) userId: number,
   ) {
-    return this.stepVolunteerService.addVolunteer(questId, stepIndex, userId);
+    return this.stepVolunteerService.addVolunteer(questId, type, userId);
   }
 
-  @Delete(':questId/steps/:stepIndex/volunteers/:userId')
+  @Delete(':questId/steps/:type/volunteers/:userId')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Version('1')
   @ApiOperation({ summary: 'Удалить волонтёра из этапа' })
   @ApiParam({ name: 'questId', description: 'ID квеста', type: Number })
-  @ApiParam({ name: 'stepIndex', description: 'Индекс этапа (начиная с 0)', type: Number })
+  @ApiParam({ 
+    name: 'type', 
+    description: 'Тип этапа квеста', 
+    enum: ['no_required', 'finance', 'contributers', 'material'],
+    example: 'finance'
+  })
   @ApiParam({ name: 'userId', description: 'ID пользователя', type: Number })
   @ApiResponse({ status: 200, description: 'Волонтёр успешно удалён из этапа' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 404, description: 'Квест, этап или пользователь не найден' })
-  @ApiResponse({ status: 400, description: 'Некорректный индекс этапа' })
+  @ApiResponse({ status: 400, description: 'Некорректный тип этапа' })
   @ApiResponse({ status: 409, description: 'Пользователь уже удалён из этапа' })
   removeVolunteer(
     @Param('questId', ParseIntPipe) questId: number,
-    @Param('stepIndex', ParseIntPipe) stepIndex: number,
+    @Param('type') type: 'no_required' | 'finance' | 'contributers' | 'material',
     @Param('userId', ParseIntPipe) userId: number,
   ) {
-    return this.stepVolunteerService.removeVolunteer(questId, stepIndex, userId);
+    return this.stepVolunteerService.removeVolunteer(questId, type, userId);
   }
 
   @Post(':id/steps/:type/volunteers/:userId')
