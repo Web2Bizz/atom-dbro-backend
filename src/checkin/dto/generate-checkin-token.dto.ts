@@ -4,7 +4,7 @@ import { z } from 'zod/v4';
 export const generateCheckinTokenSchema = z.object({
   questId: z.number().int().positive('ID квеста должен быть положительным числом'),
   type: z.enum(['no_required', 'finance', 'contributers', 'material'], {
-    errorMap: () => ({ message: 'Тип должен быть одним из: no_required, finance, contributers, material' }),
+    message: 'Тип должен быть одним из: no_required, finance, contributers, material',
   }),
 });
 

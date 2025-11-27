@@ -8,9 +8,11 @@ import {
   Body,
   UseGuards,
   Version,
+  NotFoundException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { StepVolunteerService } from './step-volunteer.service';
+import { StepVolunteerRepository } from './step-volunteer.repository';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AddStepVolunteerDto, addStepVolunteerSchema, AddStepVolunteerDtoClass } from '../quest/dto/add-step-volunteer.dto';
 import { AddVolunteersDto, addVolunteersSchema, AddVolunteersDtoClass } from './dto/add-volunteers.dto';
@@ -21,6 +23,7 @@ import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 export class StepVolunteerController {
   constructor(
     private readonly stepVolunteerService: StepVolunteerService,
+    private readonly stepVolunteerRepository: StepVolunteerRepository,
   ) {}
 
   @Get(':questId/steps/:type/volunteers')
@@ -59,10 +62,28 @@ export class StepVolunteerController {
   @ApiResponse({ status: 404, description: 'Квест, этап или один из пользователей не найден' })
   @ApiResponse({ status: 400, description: 'Некорректные данные или этап contributers не найден' })
   @ApiResponse({ status: 409, description: 'Один или несколько пользователей уже участвуют в этом этапе' })
-  addVolunteers(
+  async addVolunteers(
     @Param('questId', ParseIntPipe) questId: number,
     @Body() addVolunteersDto: AddVolunteersDto,
   ) {
+    // Проверяем существование всех пользователей
+    const users = await Promise.all(
+      addVolunteersDto.userIds.map(userId => this.stepVolunteerRepository.findUserById(userId))
+    );
+
+    const notFoundUserIds: number[] = [];
+    users.forEach((user, index) => {
+      if (!user) {
+        notFoundUserIds.push(addVolunteersDto.userIds[index]);
+      }
+    });
+
+    if (notFoundUserIds.length > 0) {
+      throw new NotFoundException(
+        `Пользователи с ID не найдены: ${notFoundUserIds.join(', ')}`
+      );
+    }
+
     return this.stepVolunteerService.addVolunteers(questId, addVolunteersDto.userIds);
   }
 
