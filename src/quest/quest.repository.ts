@@ -70,9 +70,26 @@ export class QuestRepository {
   ) {}
 
   /**
+   * Вычисляет статус этапа на основе currentValue и targetValue из requirement
+   * @param currentValue Текущее значение
+   * @param targetValue Целевое значение
+   * @returns Статус этапа: 'pending' | 'in_progress' | 'completed'
+   */
+  private calculateStepStatus(currentValue: number, targetValue: number): 'pending' | 'in_progress' | 'completed' {
+    if (currentValue === 0) {
+      return 'pending';
+    }
+    if (currentValue >= targetValue) {
+      return 'completed';
+    }
+    return 'in_progress';
+  }
+
+  /**
    * Подсчитывает прогресс шага в процентах (целое число) на основе requirement.currentValue / requirement.targetValue
-   * Для этапов типа 'contributers' вычисляет процент подтверждённых волонтёров от общего количества участников квеста
-   * Значение считается в runtime и не хранится в базе.
+   * Для этапов типа 'contributers' синхронизирует currentValue с количеством подтверждённых волонтёров перед расчётом прогресса
+   * Вычисляет статус этапа в runtime на основе currentValue и targetValue
+   * Значения считаются в runtime и не хранятся в базе.
    */
   private async calculateProgressForSteps(steps: any, questId?: number): Promise<any> {
     if (!Array.isArray(steps)) {
@@ -85,53 +102,41 @@ export class QuestRepository {
           return step;
         }
 
-        // Для этапов типа 'contributers' вычисляем процент подтверждённых волонтёров от общего количества участников квеста
-        if (step.type === 'contributers' && questId) {
-          try {
-            const confirmedVolunteersCount = await this.stepVolunteerRepository.getConfirmedVolunteersCount(questId, step.type);
-            const totalParticipantsCount = await this.getQuestParticipantsCount(questId);
-            
-            // Вычисляем процент: (подтверждённые / общее количество участников) * 100
-            let progress = 0;
-            if (totalParticipantsCount > 0) {
-              const rawProgress = (confirmedVolunteersCount / totalParticipantsCount) * 100;
-              progress = Number.isFinite(rawProgress) && !Number.isNaN(rawProgress)
-                ? Math.max(0, Math.min(100, Math.round(rawProgress)))
-                : 0;
-            }
-            
-            return {
-              ...step,
-              progress,
-            };
-          } catch (error: any) {
-            this.logger.error(`Ошибка при подсчёте прогресса для квеста ${questId}, этап типа ${step.type}:`, error);
-            return {
-              ...step,
-              progress: 0,
-            };
-          }
-        }
-
         const requirement = (step as any).requirement as { currentValue?: number; targetValue?: number } | undefined;
         if (!requirement || requirement.targetValue === undefined || requirement.targetValue === null) {
-          // Если нет требования или targetValue, считаем прогресс 0
+          // Если нет требования или targetValue, считаем прогресс 0 и статус pending
           return {
             ...step,
             progress: 0,
+            status: 'pending',
           };
         }
 
-        const currentValue = requirement.currentValue ?? 0;
+        // Для этапов типа 'contributers' синхронизируем currentValue с количеством подтверждённых волонтёров
+        let currentValue = requirement.currentValue ?? 0;
+        if (step.type === 'contributers' && questId) {
+          try {
+            currentValue = await this.stepVolunteerRepository.getConfirmedVolunteersCount(questId, step.type);
+          } catch (error: any) {
+            this.logger.error(`Ошибка при подсчёте подтверждённых волонтёров для квеста ${questId}, этап типа ${step.type}:`, error);
+            currentValue = requirement.currentValue ?? 0;
+          }
+        }
+
+        // Вычисляем процент выполнения цели: (currentValue / targetValue) * 100
         const rawProgress = (currentValue / requirement.targetValue) * 100;
         const progress =
           Number.isFinite(rawProgress) && !Number.isNaN(rawProgress)
             ? Math.max(0, Math.min(100, Math.round(rawProgress)))
             : 0;
 
+        // Вычисляем статус на основе currentValue и targetValue
+        const status = this.calculateStepStatus(currentValue, requirement.targetValue);
+
         return {
           ...step,
           progress,
+          status,
         };
       })
     );

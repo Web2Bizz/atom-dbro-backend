@@ -76,14 +76,13 @@ export class UpdateQuestDtoClass {
   gallery?: string[];
 
   @ApiProperty({ 
-    description: 'Этапы квеста', 
+    description: 'Этапы квеста. Поле status вычисляется автоматически в runtime на основе requirement.currentValue и requirement.targetValue', 
     type: [StepDtoClass],
     required: false,
     example: [
       {
         title: 'Собрать одежду',
         description: 'Собрать тёплые вещи для бездомных',
-        status: 'pending',
         progress: 0,
         type: 'no_required',
         requirement: { currentValue: 0, targetValue: 10 },
