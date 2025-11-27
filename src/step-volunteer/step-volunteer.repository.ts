@@ -287,6 +287,33 @@ export class StepVolunteerRepository {
   }
 
   /**
+   * Получить количество подтверждённых (с recordStatus = 'CREATED') уникальных волонтёров для квеста и типа шага
+   * Используется для вычисления процента подтверждённых волонтёров от общего количества участников квеста
+   * @param questId ID квеста
+   * @param type Тип шага
+   * @returns Количество подтверждённых уникальных волонтёров или 0
+   */
+  async getConfirmedVolunteersCount(questId: number, type: string): Promise<number> {
+    try {
+      const [result] = await this.db
+        .select({
+          count: sql<number>`COUNT(DISTINCT ${questStepVolunteers.userId})`.as('count'),
+        })
+        .from(questStepVolunteers)
+        .where(and(
+          eq(questStepVolunteers.questId, questId),
+          eq(questStepVolunteers.type, type),
+          eq(questStepVolunteers.recordStatus, 'CREATED')
+        ));
+
+      return Number(result?.count ?? 0);
+    } catch (error: any) {
+      this.logger.error(`Ошибка в getConfirmedVolunteersCount для квеста ${questId}, type ${type}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Восстановить волонтёра (изменить record_status на CREATED)
    */
   async restore(

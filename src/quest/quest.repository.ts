@@ -12,7 +12,7 @@ import {
   categories,
   questCategories,
 } from '../database/schema';
-import { eq, and, ne, inArray } from 'drizzle-orm';
+import { eq, and, ne, inArray, sql } from 'drizzle-orm';
 import { StepVolunteerRepository } from '../step-volunteer/step-volunteer.repository';
 
 export interface QuestWithDetails {
@@ -71,7 +71,7 @@ export class QuestRepository {
 
   /**
    * Подсчитывает прогресс шага в процентах (целое число) на основе requirement.currentValue / requirement.targetValue
-   * Для этапов типа 'contributers' возвращает количество волонтёров вместо процента
+   * Для этапов типа 'contributers' вычисляет процент подтверждённых волонтёров от общего количества участников квеста
    * Значение считается в runtime и не хранится в базе.
    */
   private async calculateProgressForSteps(steps: any, questId?: number): Promise<any> {
@@ -85,16 +85,27 @@ export class QuestRepository {
           return step;
         }
 
-        // Для этапов типа 'contributers' используем количество волонтёров
+        // Для этапов типа 'contributers' вычисляем процент подтверждённых волонтёров от общего количества участников квеста
         if (step.type === 'contributers' && questId) {
           try {
-            const volunteersCount = await this.stepVolunteerRepository.getVolunteersCount(questId, step.type);
+            const confirmedVolunteersCount = await this.stepVolunteerRepository.getConfirmedVolunteersCount(questId, step.type);
+            const totalParticipantsCount = await this.getQuestParticipantsCount(questId);
+            
+            // Вычисляем процент: (подтверждённые / общее количество участников) * 100
+            let progress = 0;
+            if (totalParticipantsCount > 0) {
+              const rawProgress = (confirmedVolunteersCount / totalParticipantsCount) * 100;
+              progress = Number.isFinite(rawProgress) && !Number.isNaN(rawProgress)
+                ? Math.max(0, Math.min(100, Math.round(rawProgress)))
+                : 0;
+            }
+            
             return {
               ...step,
-              progress: volunteersCount,
+              progress,
             };
           } catch (error: any) {
-            this.logger.error(`Ошибка при подсчёте волонтёров для квеста ${questId}, этап типа ${step.type}:`, error);
+            this.logger.error(`Ошибка при подсчёте прогресса для квеста ${questId}, этап типа ${step.type}:`, error);
             return {
               ...step,
               progress: 0,
@@ -1212,6 +1223,27 @@ export class QuestRepository {
       return questUsers;
     } catch (error: any) {
       this.logger.error(`Ошибка в findQuestUsers для квеста ID ${questId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Получить общее количество участников квеста
+   * @param questId ID квеста
+   * @returns Количество участников квеста или 0
+   */
+  async getQuestParticipantsCount(questId: number): Promise<number> {
+    try {
+      const [result] = await this.db
+        .select({
+          count: sql<number>`COUNT(*)`.as('count'),
+        })
+        .from(userQuests)
+        .where(eq(userQuests.questId, questId));
+
+      return Number(result?.count ?? 0);
+    } catch (error: any) {
+      this.logger.error(`Ошибка в getQuestParticipantsCount для квеста ID ${questId}:`, error);
       throw error;
     }
   }
