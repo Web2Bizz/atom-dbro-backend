@@ -229,7 +229,8 @@ export const questStepVolunteers = pgTable('quest_step_volunteers', {
   questId: integer('quest_id')
     .references(() => quests.id)
     .notNull(),
-  stepIndex: integer('step_index').notNull(),
+  type: varchar('type', { length: 20 }).notNull(),
+  contributeValue: integer('contribute_value').notNull().default(0),
   userId: integer('user_id')
     .references(() => users.id)
     .notNull(),
@@ -237,7 +238,8 @@ export const questStepVolunteers = pgTable('quest_step_volunteers', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => ({
-  uniqueQuestStepUser: unique().on(table.questId, table.stepIndex, table.userId),
+  // Пользователь может быть волонтёром в квесте по каждому типу шага только один раз
+  uniqueQuestStepUser: unique().on(table.questId, table.type, table.userId),
 }));
 
 // Relations

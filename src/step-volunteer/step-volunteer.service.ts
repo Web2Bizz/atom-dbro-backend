@@ -31,8 +31,14 @@ export class StepVolunteerService {
       );
     }
 
+    const step = quest.steps[stepIndex];
+    const stepType = step?.type;
+    if (!stepType) {
+      throw new BadRequestException(`У этапа с индексом ${stepIndex} не указан type`);
+    }
+
     // Получаем волонтёров этапа
-    const volunteers = await this.repository.findVolunteersByQuestAndStep(questId, stepIndex);
+    const volunteers = await this.repository.findVolunteersByQuestAndStep(questId, stepType);
 
     return volunteers.map(volunteer => ({
       id: volunteer.userId,
@@ -66,6 +72,12 @@ export class StepVolunteerService {
       );
     }
 
+    const step = quest.steps[stepIndex];
+    const stepType = step?.type;
+    if (!stepType) {
+      throw new BadRequestException(`У этапа с индексом ${stepIndex} не указан type`);
+    }
+
     // Проверяем существование пользователя
     const user = await this.repository.findUserById(userId);
     if (!user) {
@@ -79,11 +91,11 @@ export class StepVolunteerService {
     }
 
     // Проверяем, не участвует ли уже пользователь в этапе
-    const existingVolunteer = await this.repository.findVolunteer(questId, stepIndex, userId);
+    const existingVolunteer = await this.repository.findVolunteer(questId, stepType, userId);
     if (existingVolunteer) {
       if (existingVolunteer.recordStatus === 'DELETED') {
         // Если запись была удалена, восстанавливаем её
-        const restored = await this.repository.restore(questId, stepIndex, userId);
+        const restored = await this.repository.restore(questId, stepType, userId);
         if (!restored) {
           throw new Error('Не удалось восстановить волонтёра в этапе');
         }
@@ -94,7 +106,7 @@ export class StepVolunteerService {
     }
 
     // Создаём запись волонтёра
-    const volunteer = await this.repository.create(questId, stepIndex, userId);
+    const volunteer = await this.repository.create(questId, stepType, userId);
     if (!volunteer) {
       throw new Error('Не удалось добавить волонтёра в этап');
     }
@@ -124,6 +136,12 @@ export class StepVolunteerService {
       );
     }
 
+    const step = quest.steps[stepIndex];
+    const stepType = step?.type;
+    if (!stepType) {
+      throw new BadRequestException(`У этапа с индексом ${stepIndex} не указан type`);
+    }
+
     // Проверяем существование пользователя
     const user = await this.repository.findUserById(userId);
     if (!user) {
@@ -131,7 +149,7 @@ export class StepVolunteerService {
     }
 
     // Проверяем, существует ли запись волонтёра
-    const volunteer = await this.repository.findVolunteer(questId, stepIndex, userId);
+    const volunteer = await this.repository.findVolunteer(questId, stepType, userId);
     if (!volunteer) {
       throw new NotFoundException('Пользователь не участвует в этом этапе');
     }
@@ -142,7 +160,7 @@ export class StepVolunteerService {
     }
 
     // Удаляем волонтёра (soft delete)
-    const deletedVolunteer = await this.repository.softDelete(questId, stepIndex, userId);
+    const deletedVolunteer = await this.repository.softDelete(questId, stepType, userId);
     if (!deletedVolunteer) {
       throw new Error('Не удалось удалить волонтёра из этапа');
     }

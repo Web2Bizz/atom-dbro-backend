@@ -83,11 +83,11 @@ export class StepVolunteerRepository {
   }
 
   /**
-   * Получить всех волонтёров этапа (только действующих)
+   * Получить всех волонтёров этапа по типу шага (только действующих)
    */
   async findVolunteersByQuestAndStep(
     questId: number,
-    stepIndex: number,
+    type: string,
   ): Promise<Array<{
     id: number;
     userId: number;
@@ -102,6 +102,8 @@ export class StepVolunteerRepository {
         .select({
           id: questStepVolunteers.id,
           userId: questStepVolunteers.userId,
+          // type: questStepVolunteers.type,
+          // contributeValue: questStepVolunteers.contributeValue,
           firstName: users.firstName,
           lastName: users.lastName,
           middleName: users.middleName,
@@ -112,7 +114,7 @@ export class StepVolunteerRepository {
         .innerJoin(users, eq(questStepVolunteers.userId, users.id))
         .where(and(
           eq(questStepVolunteers.questId, questId),
-          eq(questStepVolunteers.stepIndex, stepIndex),
+          eq(questStepVolunteers.type, type),
           ne(questStepVolunteers.recordStatus, 'DELETED'),
           ne(users.recordStatus, 'DELETED')
         ));
@@ -132,7 +134,7 @@ export class StepVolunteerRepository {
    */
   async findVolunteer(
     questId: number,
-    stepIndex: number,
+    type: string,
     userId: number,
   ): Promise<typeof questStepVolunteers.$inferSelect | undefined> {
     try {
@@ -141,7 +143,7 @@ export class StepVolunteerRepository {
         .from(questStepVolunteers)
         .where(and(
           eq(questStepVolunteers.questId, questId),
-          eq(questStepVolunteers.stepIndex, stepIndex),
+          eq(questStepVolunteers.type, type),
           eq(questStepVolunteers.userId, userId)
         ));
       
@@ -160,7 +162,7 @@ export class StepVolunteerRepository {
    */
   async create(
     questId: number,
-    stepIndex: number,
+    type: string,
     userId: number,
   ): Promise<typeof questStepVolunteers.$inferSelect> {
     try {
@@ -168,7 +170,7 @@ export class StepVolunteerRepository {
         .insert(questStepVolunteers)
         .values({
           questId,
-          stepIndex,
+          type,
           userId,
           recordStatus: 'CREATED',
         })
@@ -189,7 +191,7 @@ export class StepVolunteerRepository {
    */
   async restore(
     questId: number,
-    stepIndex: number,
+    type: string,
     userId: number,
   ): Promise<typeof questStepVolunteers.$inferSelect | undefined> {
     try {
@@ -201,7 +203,7 @@ export class StepVolunteerRepository {
         })
         .where(and(
           eq(questStepVolunteers.questId, questId),
-          eq(questStepVolunteers.stepIndex, stepIndex),
+          eq(questStepVolunteers.type, type),
           eq(questStepVolunteers.userId, userId),
           eq(questStepVolunteers.recordStatus, 'DELETED')
         ))
@@ -222,7 +224,7 @@ export class StepVolunteerRepository {
    */
   async softDelete(
     questId: number,
-    stepIndex: number,
+    type: string,
     userId: number,
   ): Promise<typeof questStepVolunteers.$inferSelect | undefined> {
     try {
@@ -234,7 +236,7 @@ export class StepVolunteerRepository {
         })
         .where(and(
           eq(questStepVolunteers.questId, questId),
-          eq(questStepVolunteers.stepIndex, stepIndex),
+          eq(questStepVolunteers.type, type),
           eq(questStepVolunteers.userId, userId),
           ne(questStepVolunteers.recordStatus, 'DELETED')
         ))
