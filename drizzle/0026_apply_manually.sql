@@ -1,0 +1,99 @@
+-- Удаление старого констрейнта
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.table_constraints 
+    WHERE constraint_name = 'quest_step_volunteers_quest_id_step_index_user_id_unique'
+  ) THEN
+    ALTER TABLE "quest_step_volunteers" 
+    DROP CONSTRAINT "quest_step_volunteers_quest_id_step_index_user_id_unique";
+  END IF;
+EXCEPTION
+  WHEN undefined_object THEN NULL;
+END $$;
+
+-- Удаление колонки step_index
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'quest_step_volunteers' AND column_name = 'step_index'
+  ) THEN
+    ALTER TABLE "quest_step_volunteers" DROP COLUMN "step_index";
+  END IF;
+EXCEPTION
+  WHEN undefined_column THEN NULL;
+END $$;
+
+-- Добавление колонки type
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'quest_step_volunteers' AND column_name = 'type'
+  ) THEN
+    -- Сначала добавляем колонку как nullable
+    ALTER TABLE "quest_step_volunteers" ADD COLUMN "type" varchar(20);
+    -- Заполняем существующие строки значением по умолчанию
+    UPDATE "quest_step_volunteers" SET "type" = 'contributers' WHERE "type" IS NULL;
+    -- Теперь делаем NOT NULL
+    ALTER TABLE "quest_step_volunteers" ALTER COLUMN "type" SET NOT NULL;
+    ALTER TABLE "quest_step_volunteers" ALTER COLUMN "type" SET DEFAULT 'contributers';
+  END IF;
+END $$;
+
+-- Добавление колонки contribute_value
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'quest_step_volunteers' AND column_name = 'contribute_value'
+  ) THEN
+    ALTER TABLE "quest_step_volunteers" 
+    ADD COLUMN "contribute_value" integer NOT NULL DEFAULT 0;
+  END IF;
+END $$;
+
+-- Добавление уникального констрейнта
+DO $$ 
+DECLARE
+  has_duplicates BOOLEAN := FALSE;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints 
+    WHERE constraint_name = 'quest_step_volunteers_quest_id_type_user_id_unique'
+  ) THEN
+    -- Проверяем, нет ли дубликатов перед созданием констрейнта
+    SELECT EXISTS (
+      SELECT 1
+      FROM (
+        SELECT quest_id, type, user_id, COUNT(*) as cnt
+        FROM quest_step_volunteers
+        WHERE type IS NOT NULL
+        GROUP BY quest_id, type, user_id
+        HAVING COUNT(*) > 1
+      ) duplicates
+    ) INTO has_duplicates;
+    
+    IF NOT has_duplicates THEN
+      BEGIN
+        ALTER TABLE "quest_step_volunteers"
+        ADD CONSTRAINT "quest_step_volunteers_quest_id_type_user_id_unique"
+          UNIQUE ("quest_id", "type", "user_id");
+      EXCEPTION
+        WHEN duplicate_table THEN NULL;
+        WHEN unique_violation THEN NULL;
+        WHEN OTHERS THEN
+          RAISE NOTICE 'Не удалось добавить уникальный констрейнт: %', SQLERRM;
+      END;
+    ELSE
+      RAISE NOTICE 'Не удалось добавить уникальный констрейнт: найдены дубликаты в quest_step_volunteers';
+    END IF;
+  END IF;
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE NOTICE 'Ошибка при добавлении уникального констрейнта: %', SQLERRM;
+END $$;
+
+-- Сохранение записи о миграции (опционально, можно пропустить если запись уже есть)
+-- Если таблица drizzle_migrations существует и имеет колонку hash:
+-- INSERT INTO drizzle_migrations (hash, created_at) 
+-- SELECT '0026_alter_quest_step_volunteers.sql', floor(EXTRACT(EPOCH FROM NOW()) * 1000)::bigint
+-- WHERE NOT EXISTS (SELECT 1 FROM drizzle_migrations WHERE hash = '0026_alter_quest_step_volunteers.sql');
+

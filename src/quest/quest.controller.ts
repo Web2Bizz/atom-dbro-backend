@@ -258,7 +258,7 @@ export class QuestController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ZodValidation(updateRequirementSchema)
-  @ApiOperation({ summary: 'Обновить currentValue требования в этапе квеста' })
+  @ApiOperation({ summary: 'Обновить currentValue требования в этапе квеста. Если currentValue не указан, будет синхронизирован с суммой всех contribute_value из quest_step_volunteers и сохранен в этапе (быстрее чем вычислять сумму каждый раз)' })
   @ApiBody({ type: UpdateRequirementDtoClass })
   @ApiResponse({ status: 200, description: 'Требование успешно обновлено' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })

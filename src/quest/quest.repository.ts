@@ -11,8 +11,9 @@ import {
   organizationTypes,
   categories,
   questCategories,
+  questStepVolunteers,
 } from '../database/schema';
-import { eq, and, ne, inArray } from 'drizzle-orm';
+import { eq, and, ne, inArray, sql } from 'drizzle-orm';
 
 export interface QuestWithDetails {
   id: number;
@@ -1176,6 +1177,33 @@ export class QuestRepository {
       return questUsers;
     } catch (error: any) {
       this.logger.error(`Ошибка в findQuestUsers для квеста ID ${questId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Получить сумму всех contribute_value для квеста и типа шага
+   * Используется для синхронизации currentValue в этапе квеста
+   * @param questId ID квеста
+   * @param type Тип шага
+   * @returns Сумма contribute_value или 0
+   */
+  async getSumContributeValue(questId: number, type: string): Promise<number> {
+    try {
+      const [result] = await this.db
+        .select({
+          sum: sql<number>`COALESCE(SUM(${questStepVolunteers.contributeValue}::integer), 0)`.as('sum'),
+        })
+        .from(questStepVolunteers)
+        .where(and(
+          eq(questStepVolunteers.questId, questId),
+          eq(questStepVolunteers.type, type),
+          ne(questStepVolunteers.recordStatus, 'DELETED')
+        ));
+
+      return Number(result?.sum ?? 0);
+    } catch (error: any) {
+      this.logger.error(`Ошибка в getSumContributeValue для квеста ${questId}, type ${type}:`, error);
       throw error;
     }
   }

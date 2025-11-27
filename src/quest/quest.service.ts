@@ -663,7 +663,17 @@ export class QuestService {
       throw new BadRequestException('У требования отсутствует targetValue');
     }
 
-    const newCurrentValue = updateRequirementDto.currentValue;
+    // Определяем новое значение currentValue
+    let newCurrentValue: number;
+    
+    if (updateRequirementDto.currentValue === undefined) {
+      // Если currentValue не передан, вычисляем сумму всех contribute_value из quest_step_volunteers
+      // и используем её как новое значение
+      newCurrentValue = await this.questRepository.getSumContributeValue(questId, stepType);
+    } else {
+      // Если currentValue передан, используем его напрямую
+      newCurrentValue = updateRequirementDto.currentValue;
+    }
 
     // Обновляем только currentValue требования (прогресс считается в репозитории в runtime)
     const updatedSteps = [...quest.steps];
@@ -692,6 +702,83 @@ export class QuestService {
 
     // Возвращаем обновленный квест с полной информацией
     return this.findOne(questId);
+  }
+
+  /**
+   * Синхронизирует currentValue в этапе квеста с суммой contribute_value из quest_step_volunteers
+   * Этот метод обновляет currentValue напрямую в этапе, что быстрее чем вычислять сумму каждый раз
+   * Используется для автоматической синхронизации при изменении contribute_value в других местах кода
+   * @param questId ID квеста
+   * @param stepType Тип шага
+   * @returns Новое значение currentValue
+   */
+  async syncRequirementCurrentValue(
+    questId: number,
+    stepType: 'no_required' | 'finance' | 'contributers' | 'material',
+  ): Promise<number> {
+    // Получаем сумму всех contribute_value из quest_step_volunteers
+    const sumContributeValue = await this.questRepository.getSumContributeValue(questId, stepType);
+    
+    // Получаем квест
+    const quest = await this.questRepository.findById(questId);
+    if (!quest) {
+      throw new NotFoundException(`Квест с ID ${questId} не найден`);
+    }
+
+    // Проверяем наличие steps
+    if (!quest.steps || !Array.isArray(quest.steps)) {
+      throw new BadRequestException('У квеста нет этапов');
+    }
+
+    // Ищем этап по типу
+    const stepIndex = quest.steps.findIndex(step => step?.type === stepType);
+    if (stepIndex === -1) {
+      throw new BadRequestException(`Этап с типом '${stepType}' не найден в квесте`);
+    }
+
+    const step = quest.steps[stepIndex];
+    if (!step) {
+      throw new BadRequestException(`Этап с типом '${stepType}' не найден`);
+    }
+
+    // Проверяем наличие requirement
+    if (!step.requirement) {
+      throw new BadRequestException(`У этапа с типом '${stepType}' нет требования`);
+    }
+
+    const requirement = step.requirement as { currentValue?: number; targetValue?: number };
+    
+    // Проверяем, что targetValue существует
+    if (requirement.targetValue === undefined || requirement.targetValue === null) {
+      throw new BadRequestException('У требования отсутствует targetValue');
+    }
+
+    // Обновляем currentValue в этапе
+    const updatedSteps = [...quest.steps];
+    updatedSteps[stepIndex] = {
+      ...step,
+      requirement: {
+        currentValue: sumContributeValue,
+        targetValue: requirement.targetValue,
+      },
+    };
+
+    // Обновляем квест в базе данных
+    const updatedQuest = await this.questRepository.update(questId, {
+      steps: updatedSteps,
+    });
+    
+    if (!updatedQuest) {
+      throw new NotFoundException(`Квест с ID ${questId} не найден`);
+    }
+
+    // Эмитим событие обновления requirement
+    this.logger.debug(
+      `Requirement currentValue synced for quest ${questId}, step type '${stepType}': ${sumContributeValue}`,
+    );
+    this.questEventsService.emitRequirementUpdated(questId, updatedQuest.steps);
+
+    return sumContributeValue;
   }
 
   async archiveQuest(userId: number, questId: number) {
