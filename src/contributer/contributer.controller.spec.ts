@@ -61,6 +61,10 @@ describe('ContributerController', () => {
     controller = module.get<ContributerController>(ContributerController);
     service = module.get<ContributerService>(ContributerService);
     repository = module.get<ContributerRepository>(ContributerRepository);
+    
+    // Принудительно устанавливаем зависимости, так как DI может не работать корректно в тестах
+    (controller as any).contributerService = mockService;
+    (controller as any).contributerRepository = mockRepository;
   });
 
   describe('getContributers', () => {

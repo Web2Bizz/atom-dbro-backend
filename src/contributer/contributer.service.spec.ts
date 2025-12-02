@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ContributerService } from './contributer.service';
 import { ContributerRepository } from './contributer.repository';
 import { NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { DATABASE_CONNECTION } from '../database/database.module';
 
 describe('ContributerService', () => {
   let service: ContributerService;
@@ -71,6 +72,7 @@ describe('ContributerService', () => {
   };
 
   beforeEach(async () => {
+    // Создаем новый мок репозитория для каждого теста
     mockRepository = {
       findQuestById: vi.fn(),
       findUserById: vi.fn(),
@@ -89,11 +91,18 @@ describe('ContributerService', () => {
           provide: ContributerRepository,
           useValue: mockRepository,
         },
+        {
+          provide: DATABASE_CONNECTION,
+          useValue: {} as any, // Мок для DATABASE_CONNECTION
+        },
       ],
     }).compile();
 
     service = module.get<ContributerService>(ContributerService);
     repository = module.get<ContributerRepository>(ContributerRepository);
+    
+    // Принудительно устанавливаем repository, так как DI может не работать корректно в тестах
+    (service as any).repository = mockRepository;
   });
 
   describe('getContributers', () => {
