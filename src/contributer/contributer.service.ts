@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { ContributerRepository } from './contributer.repository';
 
 @Injectable()
@@ -81,11 +81,16 @@ export class ContributerService {
   /**
    * Добавить несколько contributers в квест
    */
-  async addContributers(questId: number, userIds: number[]) {
+  async addContributers(questId: number, userIds: number[], requesterUserId: number) {
     // Проверяем существование квеста
     const quest = await this.repository.findQuestById(questId);
     if (!quest) {
       throw new NotFoundException(`Квест с ID ${questId} не найден`);
+    }
+
+    // Проверяем, что пользователь является владельцем квеста
+    if (quest.ownerId !== requesterUserId) {
+      throw new ForbiddenException('Только владелец квеста может управлять contributors');
     }
 
     // Проверяем существование всех пользователей
@@ -211,11 +216,16 @@ export class ContributerService {
   /**
    * Удалить contributer из квеста
    */
-  async removeContributer(questId: number, userId: number) {
+  async removeContributer(questId: number, userId: number, requesterUserId: number) {
     // Проверяем существование квеста
     const quest = await this.repository.findQuestById(questId);
     if (!quest) {
       throw new NotFoundException(`Квест с ID ${questId} не найден`);
+    }
+
+    // Проверяем, что пользователь является владельцем квеста
+    if (quest.ownerId !== requesterUserId) {
+      throw new ForbiddenException('Только владелец квеста может управлять contributors');
     }
 
     // Проверяем существование пользователя

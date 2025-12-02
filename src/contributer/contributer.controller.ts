@@ -14,6 +14,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody, ApiBearerAuth } 
 import { ContributerService } from './contributer.service';
 import { ContributerRepository } from './contributer.repository';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AddContributersDto, addContributersSchema, AddContributersDtoClass } from './dto/add-contributers.dto';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 
@@ -50,12 +51,14 @@ export class ContributerController {
   @ApiBody({ type: AddContributersDtoClass })
   @ApiResponse({ status: 201, description: 'Contributers успешно добавлены в квест' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
+  @ApiResponse({ status: 403, description: 'Доступ запрещен. Только владелец квеста может управлять contributors' })
   @ApiResponse({ status: 404, description: 'Квест или один из пользователей не найден' })
   @ApiResponse({ status: 400, description: 'Некорректные данные или пользователи не участвуют в квесте' })
   @ApiResponse({ status: 409, description: 'Один или несколько пользователей уже являются contributers этого квеста' })
   async addContributers(
     @Param('questId', ParseIntPipe) questId: number,
     @Body() addContributersDto: AddContributersDto,
+    @CurrentUser() user: { userId: number; email: string },
   ) {
     // Проверяем существование всех пользователей
     const users = await Promise.all(
@@ -75,7 +78,7 @@ export class ContributerController {
       );
     }
 
-    return this.contributerService.addContributers(questId, addContributersDto.userIds);
+    return this.contributerService.addContributers(questId, addContributersDto.userIds, user.userId);
   }
 
   @Delete(':questId/contributers/:userId')
@@ -87,13 +90,15 @@ export class ContributerController {
   @ApiParam({ name: 'userId', description: 'ID пользователя', type: Number })
   @ApiResponse({ status: 200, description: 'Contributer успешно удалён из квеста' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
+  @ApiResponse({ status: 403, description: 'Доступ запрещен. Только владелец квеста может управлять contributors' })
   @ApiResponse({ status: 404, description: 'Квест, пользователь или contributer не найден' })
   @ApiResponse({ status: 409, description: 'Пользователь уже удалён из contributers этого квеста' })
   removeContributer(
     @Param('questId', ParseIntPipe) questId: number,
     @Param('userId', ParseIntPipe) userId: number,
+    @CurrentUser() user: { userId: number; email: string },
   ) {
-    return this.contributerService.removeContributer(questId, userId);
+    return this.contributerService.removeContributer(questId, userId, user.userId);
   }
 }
 
