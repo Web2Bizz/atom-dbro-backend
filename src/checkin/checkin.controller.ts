@@ -58,8 +58,8 @@ export class CheckinController {
   @ApiQuery({ 
     name: 'type', 
     description: 'Тип этапа квеста', 
-    enum: ['no_required', 'finance', 'contributers', 'material'],
-    example: 'contributers'
+    enum: ['finance', 'material'],
+    example: 'finance'
   })
   @ApiQuery({ 
     name: 'token', 
@@ -75,7 +75,7 @@ export class CheckinController {
   async confirmCheckin(
     @CurrentUser() user: { userId: number },
     @Query('questId', ParseIntPipe) questId: number,
-    @Query('type') type: 'no_required' | 'finance' | 'contributers' | 'material',
+    @Query('type') type: 'finance' | 'material',
     @Query('token') token: string,
   ) {
     return this.checkinService.confirmCheckin(token, questId, type, user.userId);

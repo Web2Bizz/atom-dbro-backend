@@ -265,22 +265,16 @@ export class QuestController {
 - \`id\` (number) - ID квеста, в котором нужно обновить требование этапа
 - \`type\` (string) - Тип этапа, для которого обновляется требование. Допустимые значения:
   - \`finance\` - финансовый этап
-  - \`contributers\` - этап с волонтёрами
-  - \`material\` - материальный этап
-  - \`no_required\` - этап без требований
+    - \`material\` - материальный этап
 
 **Тело запроса:**
 - \`currentValue\` (number, опционально) - Новое значение текущего прогресса требования. 
-  Если не указано, значение будет автоматически вычислено:
-  - Для этапов типа \`contributers\`: количество подтверждённых волонтёров (с \`recordStatus = 'CREATED'\`) из таблицы \`quest_step_volunteers\`
-  - Для других типов этапов: сумма всех \`contribute_value\` из таблицы \`quest_step_volunteers\`
+  Если не указано, значение будет автоматически вычислено как сумма всех \`contribute_value\` из таблицы \`quest_step_volunteers\`.
   Вычисленное значение сохраняется в этапе квеста.
 
 **Что делает endpoint:**
 Обновляет поле \`currentValue\` в объекте \`requirement\` указанного этапа квеста. 
-Это значение показывает текущий прогресс выполнения требования этапа:
-- Для этапов типа \`contributers\`: количество подтверждённых волонтёров
-- Для других типов: сумма вкладов (например, сколько денег собрано, сколько материалов собрано)
+Это значение показывает текущий прогресс выполнения требования этапа - сумму вкладов (например, сколько денег собрано, сколько материалов собрано).
 
 **Важно:**
 - Квест должен иметь статус \`active\`, иначе обновление будет отклонено
@@ -297,7 +291,7 @@ export class QuestController {
   @ApiParam({ 
     name: 'type', 
     description: 'Тип этапа квеста', 
-    enum: ['no_required', 'finance', 'contributers', 'material'],
+    enum: ['finance', 'material'],
     example: 'finance'
   })
   @ApiBody({ type: UpdateRequirementDtoClass })
@@ -307,7 +301,7 @@ export class QuestController {
   @ApiResponse({ status: 400, description: 'Некорректные данные, неверный статус квеста (не active), или отсутствует requirement у этапа' })
   updateRequirementCurrentValue(
     @Param('id', ParseIntPipe) questId: number,
-    @Param('type') type: 'no_required' | 'finance' | 'contributers' | 'material',
+    @Param('type') type: 'finance' | 'material',
     @Body() updateRequirementDto: UpdateRequirementDto,
   ) {
     return this.questService.updateRequirementCurrentValue(questId, type, updateRequirementDto);

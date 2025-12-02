@@ -84,7 +84,7 @@ export class UpdateQuestDtoClass {
         title: 'Собрать одежду',
         description: 'Собрать тёплые вещи для бездомных',
         progress: 0,
-        type: 'no_required',
+        type: 'finance',
         requirement: { currentValue: 0, targetValue: 10 },
         deadline: '2024-12-31T23:59:59Z',
       },

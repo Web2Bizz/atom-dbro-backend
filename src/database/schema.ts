@@ -157,7 +157,7 @@ export const quests = pgTable('quests', {
     description?: string;
     status: string;
     progress: number;
-    type: 'no_required' | 'finance' | 'contributers' | 'material';
+    type: 'finance' | 'material';
     requirement?: {
       currentValue: number;
       targetValue: number;
@@ -223,14 +223,28 @@ export const userQuests = pgTable('user_quests', {
   uniqueUserQuest: unique().on(table.userId, table.questId),
 }));
 
-// Связующая таблица: волонтёры этапов квестов
+// Связующая таблица: волонтёры этапов квестов (только finance и material)
 export const questStepVolunteers = pgTable('quest_step_volunteers', {
   id: serial('id').primaryKey(),
   questId: integer('quest_id')
     .references(() => quests.id)
     .notNull(),
-  type: varchar('type', { length: 20 }).notNull(),
+  type: varchar('type', { length: 20 }).notNull(), // 'finance' | 'material'
   contributeValue: integer('contribute_value').notNull().default(0),
+  userId: integer('user_id')
+    .references(() => users.id)
+    .notNull(),
+  recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// Связующая таблица: contributers квестов
+export const questContributers = pgTable('quest_contributers', {
+  id: serial('id').primaryKey(),
+  questId: integer('quest_id')
+    .references(() => quests.id)
+    .notNull(),
   userId: integer('user_id')
     .references(() => users.id)
     .notNull(),
@@ -259,6 +273,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   quests: many(userQuests),
   ownedQuests: many(quests),
   stepVolunteers: many(questStepVolunteers),
+  contributers: many(questContributers),
   organisation: one(organizations, {
     fields: [users.organisationId],
     references: [organizations.id],
@@ -354,6 +369,7 @@ export const questsRelations = relations(quests, ({ one, many }) => ({
   categories: many(questCategories),
   updates: many(questUpdates),
   stepVolunteers: many(questStepVolunteers),
+  contributers: many(questContributers),
 }));
 
 export const questCategoriesRelations = relations(questCategories, ({ one }) => ({
@@ -399,6 +415,17 @@ export const questStepVolunteersRelations = relations(questStepVolunteers, ({ on
   }),
   quest: one(quests, {
     fields: [questStepVolunteers.questId],
+    references: [quests.id],
+  }),
+}));
+
+export const questContributersRelations = relations(questContributers, ({ one }) => ({
+  user: one(users, {
+    fields: [questContributers.userId],
+    references: [users.id],
+  }),
+  quest: one(quests, {
+    fields: [questContributers.questId],
     references: [quests.id],
   }),
 }));

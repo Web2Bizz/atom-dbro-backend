@@ -20,6 +20,7 @@ import { CategoryModule } from './category/category.module';
 import { QuestUpdateModule } from './quest-update/quest-update.module';
 import { OrganizationUpdateModule } from './organization-update/organization-update.module';
 import { StepVolunteerModule } from './step-volunteer/step-volunteer.module';
+import { ContributerModule } from './contributer/contributer.module';
 import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
 import { RedisModule } from './redis/redis.module';
 import { CheckinModule } from './checkin/checkin.module';
@@ -58,6 +59,7 @@ import { HttpMetricsInterceptor } from './common/interceptors/http-metrics.inter
     QuestUpdateModule,
     OrganizationUpdateModule,
     StepVolunteerModule,
+    ContributerModule,
     RabbitMQModule,
     CheckinModule,
   ],

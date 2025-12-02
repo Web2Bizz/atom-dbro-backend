@@ -183,6 +183,13 @@
       "when": 1764200000000,
       "tag": "0025_add_quest_step_volunteers",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1764711458976,
+      "tag": "0030_extract_contributers",
+      "breakpoints": true
     }
   ]
 }

@@ -3,8 +3,8 @@ import { z } from 'zod/v4';
 
 export const generateCheckinTokenSchema = z.object({
   questId: z.number().int().positive('ID квеста должен быть положительным числом'),
-  type: z.enum(['no_required', 'finance', 'contributers', 'material'], {
-    message: 'Тип должен быть одним из: no_required, finance, contributers, material',
+  type: z.enum(['finance', 'material'], {
+    message: 'Тип должен быть одним из: finance, material',
   }),
 });
 
@@ -20,9 +20,9 @@ export class GenerateCheckinTokenDtoClass {
 
   @ApiProperty({
     description: 'Тип этапа квеста',
-    enum: ['no_required', 'finance', 'contributers', 'material'],
-    example: 'contributers',
+    enum: ['finance', 'material'],
+    example: 'finance',
   })
-  type: 'no_required' | 'finance' | 'contributers' | 'material';
+  type: 'finance' | 'material';
 }
 
