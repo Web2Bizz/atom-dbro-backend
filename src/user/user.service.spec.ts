@@ -174,7 +174,8 @@ describe('UserService', () => {
       lastName: 'НоваяФамилия',
     };
 
-    it('should successfully update user', async () => {
+    it('should successfully update user when user updates own profile', async () => {
+      const currentUserId = 1;
       const updatedUser = {
         ...mockUser,
         firstName: 'НовоеИмя',
@@ -183,7 +184,7 @@ describe('UserService', () => {
       mockRepository.findById.mockResolvedValue(mockUser);
       mockRepository.update.mockResolvedValue(updatedUser);
 
-      const result = await service.update(userId, updateUserDto);
+      const result = await service.update(userId, updateUserDto, currentUserId);
 
       expect(result).toMatchObject({
         id: 1,
@@ -197,7 +198,8 @@ describe('UserService', () => {
       });
     });
 
-    it('should successfully update user email', async () => {
+    it('should successfully update user email when user updates own profile', async () => {
+      const currentUserId = 1;
       const updateDto: UpdateUserDto = {
         email: 'newemail@example.com',
       };
@@ -208,7 +210,7 @@ describe('UserService', () => {
       mockRepository.findById.mockResolvedValue(mockUser);
       mockRepository.update.mockResolvedValue(updatedUser);
 
-      const result = await service.update(userId, updateDto);
+      const result = await service.update(userId, updateDto, currentUserId);
 
       expect(result.email).toBe('newemail@example.com');
       expect(mockRepository.update).toHaveBeenCalledWith(userId, {
@@ -216,7 +218,8 @@ describe('UserService', () => {
       });
     });
 
-    it('should successfully update user avatarUrls', async () => {
+    it('should successfully update user avatarUrls when user updates own profile', async () => {
+      const currentUserId = 1;
       const updateDto: UpdateUserDto = {
         avatarUrls: { size_4: 'https://example.com/new-avatar.png', size_5: 'https://example.com/new-avatar2.png' } as any,
       };
@@ -227,7 +230,7 @@ describe('UserService', () => {
       mockRepository.findById.mockResolvedValue(mockUser);
       mockRepository.update.mockResolvedValue(updatedUser);
 
-      const result = await service.update(userId, updateDto);
+      const result = await service.update(userId, updateDto, currentUserId);
 
       expect(result.avatarUrls).toEqual({
         size_4: 'https://example.com/new-avatar.png',
@@ -239,7 +242,7 @@ describe('UserService', () => {
       const nonExistentUserId = 999;
       mockRepository.findById.mockResolvedValue(undefined);
 
-      const promise = service.update(nonExistentUserId, updateUserDto);
+      const promise = service.update(nonExistentUserId, updateUserDto, nonExistentUserId);
       await expect(promise).rejects.toThrow(NotFoundException);
       expect(mockRepository.findById).toHaveBeenCalledWith(nonExistentUserId);
     });
