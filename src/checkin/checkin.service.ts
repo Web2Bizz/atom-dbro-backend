@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, UnauthorizedException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { GenerateCheckinTokenDto } from './dto/generate-checkin-token.dto';
 import { QuestRepository } from '../quest/quest.repository';
 import { StepVolunteerRepository } from '../step-volunteer/step-volunteer.repository';
 import { ContributerRepository } from '../contributer/contributer.repository';
+import { QuestEventsService } from '../quest/quest.events';
 import { UserRepository } from '../user/user.repository';
 
 @Injectable()
@@ -17,6 +18,8 @@ export class CheckinService {
     private readonly questRepository: QuestRepository,
     private readonly stepVolunteerRepository: StepVolunteerRepository,
     private readonly contributerRepository: ContributerRepository,
+    @Inject(forwardRef(() => QuestEventsService))
+    private readonly questEventsService: QuestEventsService,
     private readonly userRepository: UserRepository,
   ) {}
 
@@ -136,6 +139,8 @@ export class CheckinService {
         // Создаем запись contributer
         await this.contributerRepository.create(questId, userId);
       }
+      // Эмитим событие подтверждения checkin (обработчик синхронизирует currentValue)
+      this.questEventsService.emitCheckinConfirmed(questId, 'contributers', userId);
     } else {
       const existingVolunteer = await this.stepVolunteerRepository.findVolunteer(questId, type, userId);
       if (existingVolunteer) {
@@ -149,6 +154,8 @@ export class CheckinService {
         // Создаем запись волонтёра этапа
         await this.stepVolunteerRepository.create(questId, type, userId, 0);
       }
+      // Эмитим событие подтверждения checkin (обработчик синхронизирует currentValue)
+      this.questEventsService.emitCheckinConfirmed(questId, type as 'finance' | 'material', userId);
     }
 
     // Обновляем запись в user_quests: меняем статус на completed и устанавливаем completedAt
