@@ -313,7 +313,7 @@ describe('QuestService', () => {
     const questId = 1;
     const userId = 1;
 
-    it('should successfully complete quest when user is owner', async () => {
+    it('should successfully complete quest when user is owner and emit quest_completed event with reward data for each participant', async () => {
       const participants = [
         {
           userId: 2,
@@ -321,19 +321,51 @@ describe('QuestService', () => {
           userQuestStatus: 'in_progress',
           user: { experience: 0 },
         },
+        {
+          userId: 3,
+          userQuestId: 2,
+          userQuestStatus: 'completed',
+          user: { experience: 50 },
+        },
       ];
-      mockRepository.findById.mockResolvedValue(mockQuest);
+
+      const questWithRewardAndAchievement = {
+        ...mockQuest,
+        ownerId: userId,
+        experienceReward: 150,
+        achievementId: 10,
+      };
+
+      mockRepository.findById.mockResolvedValue(questWithRewardAndAchievement);
       mockRepository.findQuestParticipants.mockResolvedValue(participants);
-      mockRepository.update.mockResolvedValue({ ...mockQuest, status: 'completed' });
+      mockRepository.update.mockResolvedValue({ ...questWithRewardAndAchievement, status: 'completed' });
       mockRepository.updateUserQuest.mockResolvedValue(undefined);
       mockRepository.updateUserExperience.mockResolvedValue(undefined);
-      mockRepository.findQuestDataForEvent.mockResolvedValue({});
+      mockRepository.findUserAchievement.mockResolvedValue(undefined);
+      mockRepository.createUserAchievement.mockResolvedValue(undefined);
+      mockRepository.findQuestDataForEvent.mockResolvedValue({
+        some: 'quest-data',
+      });
 
       const result = await service.completeQuest(userId, questId);
 
       expect(result).toBeDefined();
       expect(mockRepository.findById).toHaveBeenCalledWith(questId);
       expect(mockRepository.update).toHaveBeenCalledWith(questId, { status: 'completed' });
+
+      expect(mockQuestEventsService.emitQuestCompleted).toHaveBeenCalledTimes(participants.length);
+
+      for (const participant of participants) {
+        expect(mockQuestEventsService.emitQuestCompleted).toHaveBeenCalledWith(
+          questId,
+          participant.userId,
+          expect.objectContaining({
+            userId: participant.userId,
+            experienceReward: questWithRewardAndAchievement.experienceReward,
+            achievementId: questWithRewardAndAchievement.achievementId,
+          }),
+        );
+      }
     });
 
     it('should throw ForbiddenException when user is not owner', async () => {
