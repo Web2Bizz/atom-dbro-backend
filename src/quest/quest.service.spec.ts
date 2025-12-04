@@ -5,6 +5,7 @@ import { QuestService } from './quest.service';
 import { QuestRepository } from './quest.repository';
 import { QuestEventsService } from './quest.events';
 import { StepVolunteerRepository } from '../step-volunteer/step-volunteer.repository';
+import { ContributerRepository } from '../contributer/contributer.repository';
 import { NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { CreateQuestDto } from './dto/create-quest.dto';
 import { UpdateQuestDto } from './dto/update-quest.dto';
@@ -77,9 +78,16 @@ describe('QuestService', () => {
     emitUserJoined: ReturnType<typeof vi.fn>;
     emitQuestCreated: ReturnType<typeof vi.fn>;
     emitQuestCompleted: ReturnType<typeof vi.fn>;
+    emitRequirementUpdated: ReturnType<typeof vi.fn>;
   };
 
-  let mockStepVolunteerRepository: any;
+  let mockStepVolunteerRepository: {
+    getSumContributeValue: ReturnType<typeof vi.fn>;
+  };
+
+  let mockContributerRepository: {
+    getConfirmedContributersCount: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
     mockRepository = {
@@ -116,9 +124,16 @@ describe('QuestService', () => {
       emitUserJoined: vi.fn(),
       emitQuestCreated: vi.fn(),
       emitQuestCompleted: vi.fn(),
+      emitRequirementUpdated: vi.fn(),
     };
 
-    mockStepVolunteerRepository = {};
+    mockStepVolunteerRepository = {
+      getSumContributeValue: vi.fn(),
+    };
+
+    mockContributerRepository = {
+      getConfirmedContributersCount: vi.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -135,6 +150,10 @@ describe('QuestService', () => {
           provide: StepVolunteerRepository,
           useValue: mockStepVolunteerRepository,
         },
+        {
+          provide: ContributerRepository,
+          useValue: mockContributerRepository,
+        },
       ],
     }).compile();
 
@@ -144,6 +163,7 @@ describe('QuestService', () => {
     (service as any).questRepository = mockRepository;
     (service as any).questEventsService = mockQuestEventsService;
     (service as any).stepVolunteerRepository = mockStepVolunteerRepository;
+    (service as any).contributerRepository = mockContributerRepository;
   });
 
   describe('findAll', () => {
@@ -552,17 +572,136 @@ describe('QuestService', () => {
 
   describe('updateRequirementCurrentValue', () => {
     const questId = 1;
-    const stepType = 'finance' as const;
     const updateRequirementDto = { currentValue: 100 };
 
-    it('should throw ForbiddenException when user is not owner', async () => {
-      const nonOwnerUserId = 999;
-      mockRepository.findById.mockResolvedValue({ ...mockQuest, ownerId: 1 });
+    describe('for finance type', () => {
+      const stepType = 'finance' as const;
 
-      await expect(
-        service.updateRequirementCurrentValue(questId, stepType, updateRequirementDto, nonOwnerUserId)
-      ).rejects.toThrow(ForbiddenException);
-      expect(mockRepository.findById).toHaveBeenCalledWith(questId);
+      it('should throw ForbiddenException when user is not owner', async () => {
+        const nonOwnerUserId = 999;
+        mockRepository.findById.mockResolvedValue({ ...mockQuest, ownerId: 1 });
+
+        await expect(
+          service.updateRequirementCurrentValue(questId, stepType, updateRequirementDto, nonOwnerUserId)
+        ).rejects.toThrow(ForbiddenException);
+        expect(mockRepository.findById).toHaveBeenCalledWith(questId);
+      });
+
+      it('should use getSumContributeValue when currentValue is not provided', async () => {
+        const ownerUserId = 1;
+        const questWithSteps = {
+          ...mockQuest,
+          ownerId: ownerUserId,
+          steps: [
+            {
+              type: 'finance',
+              requirement: { currentValue: 0, targetValue: 1000 },
+            },
+          ],
+        };
+        mockRepository.findById.mockResolvedValue(questWithSteps);
+        mockStepVolunteerRepository.getSumContributeValue.mockResolvedValue(500);
+        mockRepository.update.mockResolvedValue(questWithSteps);
+        mockRepository.findByIdWithDetails.mockResolvedValue(questWithSteps);
+        mockRepository.findCategoriesForQuest.mockResolvedValue([]);
+
+        await service.updateRequirementCurrentValue(questId, stepType, {}, ownerUserId);
+
+        expect(mockStepVolunteerRepository.getSumContributeValue).toHaveBeenCalledWith(questId, stepType);
+        expect(mockContributerRepository.getConfirmedContributersCount).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('for contributers type', () => {
+      const stepType = 'contributers' as const;
+
+      it('should throw ForbiddenException when user is not owner', async () => {
+        const nonOwnerUserId = 999;
+        mockRepository.findById.mockResolvedValue({ ...mockQuest, ownerId: 1 });
+
+        await expect(
+          service.updateRequirementCurrentValue(questId, stepType, updateRequirementDto, nonOwnerUserId)
+        ).rejects.toThrow(ForbiddenException);
+        expect(mockRepository.findById).toHaveBeenCalledWith(questId);
+      });
+
+      it('should use getConfirmedContributersCount when currentValue is not provided', async () => {
+        const ownerUserId = 1;
+        const questWithSteps = {
+          ...mockQuest,
+          ownerId: ownerUserId,
+          steps: [
+            {
+              type: 'contributers',
+              requirement: { currentValue: 0, targetValue: 10 },
+            },
+          ],
+        };
+        mockRepository.findById.mockResolvedValue(questWithSteps);
+        mockContributerRepository.getConfirmedContributersCount.mockResolvedValue(3);
+        mockRepository.update.mockResolvedValue(questWithSteps);
+        mockRepository.findByIdWithDetails.mockResolvedValue(questWithSteps);
+        mockRepository.findCategoriesForQuest.mockResolvedValue([]);
+
+        await service.updateRequirementCurrentValue(questId, stepType, {}, ownerUserId);
+
+        expect(mockContributerRepository.getConfirmedContributersCount).toHaveBeenCalledWith(questId);
+        expect(mockStepVolunteerRepository.getSumContributeValue).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('syncRequirementCurrentValue', () => {
+    const questId = 1;
+
+    describe('for finance type', () => {
+      const stepType = 'finance' as const;
+
+      it('should use getSumContributeValue for finance type', async () => {
+        const questWithSteps = {
+          ...mockQuest,
+          steps: [
+            {
+              type: 'finance',
+              requirement: { currentValue: 0, targetValue: 1000 },
+            },
+          ],
+        };
+        mockRepository.findById.mockResolvedValue(questWithSteps);
+        mockStepVolunteerRepository.getSumContributeValue.mockResolvedValue(500);
+        mockRepository.update.mockResolvedValue(questWithSteps);
+
+        const result = await service.syncRequirementCurrentValue(questId, stepType);
+
+        expect(result).toBe(500);
+        expect(mockStepVolunteerRepository.getSumContributeValue).toHaveBeenCalledWith(questId, stepType);
+        expect(mockContributerRepository.getConfirmedContributersCount).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('for contributers type', () => {
+      const stepType = 'contributers' as const;
+
+      it('should use getConfirmedContributersCount for contributers type', async () => {
+        const questWithSteps = {
+          ...mockQuest,
+          steps: [
+            {
+              type: 'contributers',
+              requirement: { currentValue: 0, targetValue: 10 },
+            },
+          ],
+        };
+        mockRepository.findById.mockResolvedValue(questWithSteps);
+        mockContributerRepository.getConfirmedContributersCount.mockResolvedValue(3);
+        mockRepository.update.mockResolvedValue(questWithSteps);
+
+        const result = await service.syncRequirementCurrentValue(questId, stepType);
+
+        expect(result).toBe(3);
+        expect(mockContributerRepository.getConfirmedContributersCount).toHaveBeenCalledWith(questId);
+        expect(mockStepVolunteerRepository.getSumContributeValue).not.toHaveBeenCalled();
+      });
     });
   });
 });
