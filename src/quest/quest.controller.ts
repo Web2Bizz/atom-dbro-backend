@@ -133,12 +133,14 @@ export class QuestController {
   @ApiBody({ type: UpdateQuestDtoClass })
   @ApiResponse({ status: 200, description: 'Квест обновлен', type: UpdateQuestDtoClass })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
+  @ApiResponse({ status: 403, description: 'Только владелец квеста может его обновить' })
   @ApiResponse({ status: 404, description: 'Квест не найден' })
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateQuestDto: UpdateQuestDto,
+    @CurrentUser() user: { userId: number; email: string },
   ) {
-    return this.questService.update(id, updateQuestDto);
+    return this.questService.update(id, updateQuestDto, user.userId);
   }
 
   @Delete(':id')
@@ -147,9 +149,13 @@ export class QuestController {
   @ApiOperation({ summary: 'Удалить квест (требуется авторизация)' })
   @ApiResponse({ status: 200, description: 'Квест удален' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
+  @ApiResponse({ status: 403, description: 'Только владелец квеста может его удалить' })
   @ApiResponse({ status: 404, description: 'Квест не найден' })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.questService.remove(id);
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: { userId: number; email: string },
+  ) {
+    return this.questService.remove(id, user.userId);
   }
 
   @Post(':id/join/:userId')
@@ -297,14 +303,16 @@ export class QuestController {
   @ApiBody({ type: UpdateRequirementDtoClass })
   @ApiResponse({ status: 200, description: 'Требование успешно обновлено. Возвращает обновленный квест с актуальными данными' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
+  @ApiResponse({ status: 403, description: 'Только владелец квеста может обновить требование этапа' })
   @ApiResponse({ status: 404, description: 'Квест или этап с указанным типом не найден' })
   @ApiResponse({ status: 400, description: 'Некорректные данные, неверный статус квеста (не active), или отсутствует requirement у этапа' })
   updateRequirementCurrentValue(
     @Param('id', ParseIntPipe) questId: number,
     @Param('type') type: 'finance' | 'material',
     @Body() updateRequirementDto: UpdateRequirementDto,
+    @CurrentUser() user: { userId: number; email: string },
   ) {
-    return this.questService.updateRequirementCurrentValue(questId, type, updateRequirementDto);
+    return this.questService.updateRequirementCurrentValue(questId, type, updateRequirementDto, user.userId);
   }
 
 }

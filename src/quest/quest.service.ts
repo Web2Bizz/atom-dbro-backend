@@ -238,11 +238,16 @@ export class QuestService {
     };
   }
 
-  async update(id: number, updateQuestDto: UpdateQuestDto) {
+  async update(id: number, updateQuestDto: UpdateQuestDto, userId: number) {
     // Проверяем существование квеста
     const existingQuest = await this.questRepository.findById(id);
     if (!existingQuest) {
       throw new NotFoundException(`Квест с ID ${id} не найден`);
+    }
+
+    // Проверяем, что пользователь является владельцем квеста
+    if (existingQuest.ownerId !== userId) {
+      throw new ForbiddenException('Только владелец квеста может его обновить');
     }
 
     // Если обновляется achievementId, проверяем существование достижения
@@ -396,12 +401,23 @@ export class QuestService {
     return this.findOne(id);
   }
 
-  async remove(id: number) {
-    const quest = await this.questRepository.softDelete(id);
+  async remove(id: number, userId: number) {
+    // Проверяем существование квеста
+    const quest = await this.questRepository.findById(id);
     if (!quest) {
       throw new NotFoundException(`Квест с ID ${id} не найден`);
     }
-    return quest;
+
+    // Проверяем, что пользователь является владельцем квеста
+    if (quest.ownerId !== userId) {
+      throw new ForbiddenException('Только владелец квеста может его удалить');
+    }
+
+    const deletedQuest = await this.questRepository.softDelete(id);
+    if (!deletedQuest) {
+      throw new NotFoundException(`Квест с ID ${id} не найден`);
+    }
+    return deletedQuest;
   }
 
   async joinQuest(userId: number, questId: number) {
@@ -614,9 +630,18 @@ export class QuestService {
     questId: number,
     stepType: 'finance' | 'material',
     updateRequirementDto: UpdateRequirementDto,
+    userId: number,
   ) {
     // Проверяем существование квеста
     const quest = await this.questRepository.findById(questId);
+    if (!quest) {
+      throw new NotFoundException(`Квест с ID ${questId} не найден`);
+    }
+
+    // Проверяем, что пользователь является владельцем квеста
+    if (quest.ownerId !== userId) {
+      throw new ForbiddenException('Только владелец квеста может обновить требование этапа');
+    }
 
     // Проверяем статус квеста
     if (quest.status !== 'active') {
