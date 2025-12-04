@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ContributerService } from './contributer.service';
 import { ContributerRepository } from './contributer.repository';
+import { QuestEventsService } from '../quest/quest.events';
 import { NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 
@@ -71,6 +72,11 @@ describe('ContributerService', () => {
     softDelete: ReturnType<typeof vi.fn>;
   };
 
+  let mockQuestEventsService: {
+    emitContributerAdded: ReturnType<typeof vi.fn>;
+    emitContributerRemoved: ReturnType<typeof vi.fn>;
+  };
+
   beforeEach(async () => {
     // Создаем новый мок репозитория для каждого теста
     mockRepository = {
@@ -84,12 +90,21 @@ describe('ContributerService', () => {
       softDelete: vi.fn(),
     };
 
+    mockQuestEventsService = {
+      emitContributerAdded: vi.fn(),
+      emitContributerRemoved: vi.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ContributerService,
         {
           provide: ContributerRepository,
           useValue: mockRepository,
+        },
+        {
+          provide: QuestEventsService,
+          useValue: mockQuestEventsService,
         },
         {
           provide: DATABASE_CONNECTION,
@@ -101,8 +116,9 @@ describe('ContributerService', () => {
     service = module.get<ContributerService>(ContributerService);
     repository = module.get<ContributerRepository>(ContributerRepository);
     
-    // Принудительно устанавливаем repository, так как DI может не работать корректно в тестах
+    // Принудительно устанавливаем repository и questEventsService, так как DI может не работать корректно в тестах
     (service as any).repository = mockRepository;
+    (service as any).questEventsService = mockQuestEventsService;
   });
 
   describe('getContributers', () => {
@@ -178,6 +194,7 @@ describe('ContributerService', () => {
       expect(mockRepository.isUserInQuest).toHaveBeenCalledWith(questId, userId);
       expect(mockRepository.findContributer).toHaveBeenCalledWith(questId, userId);
       expect(mockRepository.create).toHaveBeenCalledWith(questId, userId);
+      expect(mockQuestEventsService.emitContributerAdded).toHaveBeenCalledWith(questId, userId);
     });
 
     it('should throw NotFoundException when quest does not exist', async () => {
@@ -227,6 +244,7 @@ describe('ContributerService', () => {
 
       expect(result).toEqual({ message: 'Contributer успешно добавлен в квест' });
       expect(mockRepository.restore).toHaveBeenCalledWith(questId, userId);
+      expect(mockQuestEventsService.emitContributerAdded).toHaveBeenCalledWith(questId, userId);
     });
   });
 
@@ -255,6 +273,9 @@ describe('ContributerService', () => {
       expect(result.added).toBe(2);
       expect(result.restored).toBe(0);
       expect(result.total).toBe(2);
+      expect(mockQuestEventsService.emitContributerAdded).toHaveBeenCalledTimes(2);
+      expect(mockQuestEventsService.emitContributerAdded).toHaveBeenCalledWith(questId, 2);
+      expect(mockQuestEventsService.emitContributerAdded).toHaveBeenCalledWith(questId, 3);
     });
 
     it('should successfully restore multiple deleted contributors', async () => {
@@ -384,6 +405,7 @@ describe('ContributerService', () => {
       expect(mockRepository.findUserById).toHaveBeenCalledWith(userId);
       expect(mockRepository.findContributer).toHaveBeenCalledWith(questId, userId);
       expect(mockRepository.softDelete).toHaveBeenCalledWith(questId, userId);
+      expect(mockQuestEventsService.emitContributerRemoved).toHaveBeenCalledWith(questId, userId);
     });
 
     it('should throw NotFoundException when quest does not exist', async () => {
