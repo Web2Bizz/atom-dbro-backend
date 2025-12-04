@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   users,
@@ -329,11 +329,17 @@ export class OrganizationService {
     };
   }
 
-  async update(id: number, updateOrganizationDto: UpdateOrganizationDto) {
+  async update(id: number, updateOrganizationDto: UpdateOrganizationDto, userId: number) {
     // Проверяем существование организации (исключая удаленные)
     const existingOrg = await this.repository.findById(id);
     if (!existingOrg) {
       throw new NotFoundException(`Организация с ID ${id} не найдена`);
+    }
+
+    // Проверяем, что пользователь является владельцем организации
+    const owner = await this.repository.findOwner(id, userId);
+    if (!owner) {
+      throw new ForbiddenException('Только владелец организации может её обновить');
     }
 
     // Если обновляется cityId, проверяем существование города (исключая удаленные)
@@ -442,55 +448,17 @@ export class OrganizationService {
     return organization;
   }
 
-  async approveOrganization(id: number) {
-    // Проверяем существование организации (исключая удаленные)
-    const existingOrg = await this.repository.findById(id);
-    if (!existingOrg) {
-      throw new NotFoundException(`Организация с ID ${id} не найдена`);
-    }
-
-    // Проверяем, что организация еще не подтверждена
-    if (existingOrg.isApproved) {
-      throw new BadRequestException(`Организация с ID ${id} уже подтверждена`);
-    }
-
-    // Устанавливаем isApproved в true
-    const organization = await this.repository.updateApprovalStatus(id, true);
-    
-    if (!organization) {
-      throw new NotFoundException(`Организация с ID ${id} не найдена`);
-    }
-
-    return organization;
-  }
-
-  async disapproveOrganization(id: number) {
-    // Проверяем существование организации (исключая удаленные)
-    const existingOrg = await this.repository.findById(id);
-    if (!existingOrg) {
-      throw new NotFoundException(`Организация с ID ${id} не найдена`);
-    }
-
-    // Проверяем, что организация подтверждена (можно отменить только подтвержденную)
-    if (!existingOrg.isApproved) {
-      throw new BadRequestException(`Организация с ID ${id} не подтверждена, отмена невозможна`);
-    }
-
-    // Устанавливаем isApproved в false
-    const organization = await this.repository.updateApprovalStatus(id, false);
-    
-    if (!organization) {
-      throw new NotFoundException(`Организация с ID ${id} не найдена`);
-    }
-
-    return organization;
-  }
-
-  async addOwner(organizationId: number, userId: number) {
+  async addOwner(organizationId: number, userId: number, currentUserId: number) {
     // Проверяем существование организации (исключая удаленные)
     const organization = await this.repository.findById(organizationId);
     if (!organization) {
       throw new NotFoundException(`Организация с ID ${organizationId} не найдена`);
+    }
+
+    // Проверяем, что текущий пользователь является владельцем организации
+    const currentOwner = await this.repository.findOwner(organizationId, currentUserId);
+    if (!currentOwner) {
+      throw new ForbiddenException('Только владелец организации может добавлять других владельцев');
     }
 
     // Проверяем существование пользователя (исключая удаленные)
@@ -516,11 +484,17 @@ export class OrganizationService {
     return { message: 'Владелец успешно добавлен' };
   }
 
-  async addHelpType(organizationId: number, helpTypeId: number) {
+  async addHelpType(organizationId: number, helpTypeId: number, userId: number) {
     // Проверяем существование организации (исключая удаленные)
     const organization = await this.repository.findById(organizationId);
     if (!organization) {
       throw new NotFoundException(`Организация с ID ${organizationId} не найдена`);
+    }
+
+    // Проверяем, что пользователь является владельцем организации
+    const owner = await this.repository.findOwner(organizationId, userId);
+    if (!owner) {
+      throw new ForbiddenException('Только владелец организации может добавлять виды помощи');
     }
 
     // Проверяем существование вида помощи (исключая удаленные)
@@ -546,7 +520,19 @@ export class OrganizationService {
     return { message: 'Вид помощи успешно добавлен' };
   }
 
-  async removeHelpType(organizationId: number, helpTypeId: number) {
+  async removeHelpType(organizationId: number, helpTypeId: number, userId: number) {
+    // Проверяем существование организации (исключая удаленные)
+    const organization = await this.repository.findById(organizationId);
+    if (!organization) {
+      throw new NotFoundException(`Организация с ID ${organizationId} не найдена`);
+    }
+
+    // Проверяем, что пользователь является владельцем организации
+    const owner = await this.repository.findOwner(organizationId, userId);
+    if (!owner) {
+      throw new ForbiddenException('Только владелец организации может удалять виды помощи');
+    }
+
     const deleted = await this.repository.removeHelpType(organizationId, helpTypeId);
     if (!deleted) {
       throw new NotFoundException('Связь не найдена');

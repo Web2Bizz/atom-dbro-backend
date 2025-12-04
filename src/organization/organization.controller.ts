@@ -113,35 +113,13 @@ export class OrganizationController {
   @ApiResponse({ status: 200, description: 'Организация обновлена', type: UpdateOrganizationDtoClass })
   @ApiResponse({ status: 404, description: 'Организация не найдена' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
+  @ApiResponse({ status: 403, description: 'Только владелец организации может её обновить' })
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateOrganizationDto: UpdateOrganizationDto,
+    @CurrentUser() user: { userId: number; email: string },
   ) {
-    return this.organizationService.update(id, updateOrganizationDto);
-  }
-
-  @Patch(':id/approve')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Подтвердить организацию' })
-  @ApiResponse({ status: 200, description: 'Организация успешно подтверждена' })
-  @ApiResponse({ status: 400, description: 'Организация уже подтверждена' })
-  @ApiResponse({ status: 404, description: 'Организация не найдена' })
-  @ApiResponse({ status: 401, description: 'Не авторизован' })
-  approveOrganization(@Param('id', ParseIntPipe) id: number) {
-    return this.organizationService.approveOrganization(id);
-  }
-
-  @Patch(':id/disapprove')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Отменить подтверждение организации' })
-  @ApiResponse({ status: 200, description: 'Подтверждение организации успешно отменено' })
-  @ApiResponse({ status: 400, description: 'Организация не подтверждена, отмена невозможна' })
-  @ApiResponse({ status: 404, description: 'Организация не найдена' })
-  @ApiResponse({ status: 401, description: 'Не авторизован' })
-  disapproveOrganization(@Param('id', ParseIntPipe) id: number) {
-    return this.organizationService.disapproveOrganization(id);
+    return this.organizationService.update(id, updateOrganizationDto, user.userId);
   }
 
   @Post(':id/owners')
@@ -154,11 +132,13 @@ export class OrganizationController {
   @ApiResponse({ status: 404, description: 'Организация или пользователь не найдены' })
   @ApiResponse({ status: 409, description: 'Пользователь уже является владельцем организации' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
+  @ApiResponse({ status: 403, description: 'Только владелец организации может добавлять других владельцев' })
   addOwner(
     @Param('id', ParseIntPipe) organizationId: number,
     @Body() addOwnerDto: AddOwnerDto,
+    @CurrentUser() user: { userId: number; email: string },
   ) {
-    return this.organizationService.addOwner(organizationId, addOwnerDto.userId);
+    return this.organizationService.addOwner(organizationId, addOwnerDto.userId, user.userId);
   }
 
   @Post(':id/help-types')
@@ -171,11 +151,13 @@ export class OrganizationController {
   @ApiResponse({ status: 404, description: 'Организация или вид помощи не найдены' })
   @ApiResponse({ status: 409, description: 'Вид помощи уже добавлен к организации' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
+  @ApiResponse({ status: 403, description: 'Только владелец организации может добавлять виды помощи' })
   addHelpType(
     @Param('id', ParseIntPipe) organizationId: number,
     @Body() addHelpTypeDto: AddHelpTypeDto,
+    @CurrentUser() user: { userId: number; email: string },
   ) {
-    return this.organizationService.addHelpType(organizationId, addHelpTypeDto.helpTypeId);
+    return this.organizationService.addHelpType(organizationId, addHelpTypeDto.helpTypeId, user.userId);
   }
 
   @Delete(':id/help-types/:helpTypeId')
@@ -185,11 +167,13 @@ export class OrganizationController {
   @ApiResponse({ status: 200, description: 'Вид помощи успешно удален' })
   @ApiResponse({ status: 404, description: 'Связь не найдена' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
+  @ApiResponse({ status: 403, description: 'Только владелец организации может удалять виды помощи' })
   removeHelpType(
     @Param('id', ParseIntPipe) organizationId: number,
     @Param('helpTypeId', ParseIntPipe) helpTypeId: number,
+    @CurrentUser() user: { userId: number; email: string },
   ) {
-    return this.organizationService.removeHelpType(organizationId, helpTypeId);
+    return this.organizationService.removeHelpType(organizationId, helpTypeId, user.userId);
   }
 
   @Post(':id/gallery')
