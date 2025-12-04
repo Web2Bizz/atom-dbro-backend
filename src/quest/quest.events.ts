@@ -100,5 +100,12 @@ export class QuestEventsService {
       }),
     );
   }
+
+  /**
+   * Сырые события для внутренних обработчиков доменных событий
+   */
+  getRawEvents(): Observable<QuestEvent> {
+    return this.questEvents$.asObservable();
+  }
 }
 

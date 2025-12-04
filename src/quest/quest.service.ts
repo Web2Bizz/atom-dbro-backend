@@ -515,31 +515,13 @@ export class QuestService {
       throw new Error('Не удалось завершить квест');
     }
 
-    // Обрабатываем каждого участника
+    // Обновляем статус userQuest на 'completed' для всех участников, если еще не completed
     for (const participant of participants) {
-      // Обновляем статус userQuest на 'completed', если еще не completed
       if (participant.userQuestStatus !== 'completed') {
         await this.questRepository.updateUserQuest(participant.userQuestId, {
           status: 'completed',
           completedAt: new Date(),
         });
-      }
-
-      // Начисляем опыт пользователю
-      const newExperience = participant.user.experience + quest.experienceReward;
-      await this.questRepository.updateUserExperience(participant.userId, newExperience);
-
-      // Присваиваем достижение только тем пользователям, у которых статус 'completed'
-      // (т.е. тем, кто уже завершил квест до его общего завершения)
-      if (participant.userQuestStatus === 'completed' && quest.achievementId) {
-        const existingUserAchievement = await this.questRepository.findUserAchievement(
-          participant.userId,
-          quest.achievementId,
-        );
-
-        if (!existingUserAchievement) {
-          await this.questRepository.createUserAchievement(participant.userId, quest.achievementId);
-        }
       }
     }
 
@@ -548,7 +530,12 @@ export class QuestService {
 
     // Эмитим событие завершения квеста для каждого участника
     for (const participant of participants) {
-      this.questEventsService.emitQuestCompleted(questId, participant.userId, questData || {});
+      this.questEventsService.emitQuestCompleted(questId, participant.userId, {
+        ...(questData || {}),
+        userId: participant.userId,
+        experienceReward: quest.experienceReward,
+        achievementId: quest.achievementId,
+      });
     }
 
     return completedQuest;
