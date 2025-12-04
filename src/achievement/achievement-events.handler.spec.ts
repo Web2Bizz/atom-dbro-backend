@@ -1,87 +1,20 @@
 import 'reflect-metadata';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { AchievementEventsService } from './achievement.events';
+import { AchievementEventsHandler } from './achievement-events.handler';
 import { ExperienceService } from '../experience/experience.service';
 
-// Временные типы и фейковые классы для описания контракта будущего AchievementEventsHandler
-interface AchievementAwardedEvent {
-  type: 'achievement_awarded';
-  data: {
-    userId: number;
-    achievementId: number;
-    questId?: number;
-    experienceReward?: number;
-  };
-  timestamp: Date;
-}
-
-// Временная шина событий для тестов (будет заменена на реальный AchievementEventsService)
-class FakeAchievementEventsService {
-  private subscribers: Array<(event: AchievementAwardedEvent) => void> = [];
-
-  emitAchievementAwarded(data: AchievementAwardedEvent['data']) {
-    const event: AchievementAwardedEvent = {
-      type: 'achievement_awarded',
-      data,
-      timestamp: new Date(),
-    };
-    for (const sub of this.subscribers) {
-      sub(event);
-    }
-  }
-
-  subscribe(handler: (event: AchievementAwardedEvent) => void) {
-    this.subscribers.push(handler);
-  }
-
-  getRawEvents() {
-    // В реальной реализации это будет Observable
-    return {
-      pipe: (filterFn: any) => ({
-        subscribe: (handlers: { next: (e: AchievementAwardedEvent) => void }) => {
-          this.subscribe(handlers.next);
-        },
-      }),
-    };
-  }
-}
-
-// Временный handler по контракту (будет заменен на реальный AchievementEventsHandler)
-class FakeAchievementEventsHandler {
-  constructor(
-    private readonly events: FakeAchievementEventsService,
-    private readonly experienceService: ExperienceService,
-  ) {}
-
-  onModuleInit() {
-    // Имитация подписки через getRawEvents (как в реальной реализации)
-    this.events.getRawEvents().pipe(() => true).subscribe({
-      next: (event: AchievementAwardedEvent) => void this.handle(event),
-    });
-  }
-
-  private async handle(event: AchievementAwardedEvent) {
-    const { userId, experienceReward } = event.data || {};
-    if (!userId) {
-      return;
-    }
-
-    if (typeof experienceReward === 'number' && experienceReward > 0) {
-      await this.experienceService.addExperience(userId, experienceReward);
-    }
-  }
-}
-
-describe('AchievementEventsHandler (contract)', () => {
-  let events: FakeAchievementEventsService;
-  let handler: FakeAchievementEventsHandler;
+describe('AchievementEventsHandler', () => {
+  let events: AchievementEventsService;
+  let handler: AchievementEventsHandler;
 
   const mockExperienceService = {
     addExperience: vi.fn(),
   } as unknown as ExperienceService;
 
   beforeEach(() => {
-    events = new FakeAchievementEventsService();
-    handler = new FakeAchievementEventsHandler(events, mockExperienceService);
+    events = new AchievementEventsService();
+    handler = new AchievementEventsHandler(events, mockExperienceService);
     handler.onModuleInit();
     (mockExperienceService.addExperience as any).mockReset();
   });
