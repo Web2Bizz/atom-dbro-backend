@@ -23,6 +23,65 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Validate and prepare environment variables
+        id: validate
+        run: |
+          REGISTRY_URL="${{ env.REGISTRY_URL }}"
+          IMAGE_NAME="${{ env.IMAGE_NAME }}"
+          
+          # Проверяем, что переменные установлены
+          if [ -z "$REGISTRY_URL" ]; then
+            echo "❌ ERROR: REGISTRY_URL is not set or empty"
+            exit 1
+          fi
+          if [ -z "$IMAGE_NAME" ]; then
+            echo "❌ ERROR: IMAGE_NAME is not set or empty"
+            exit 1
+          fi
+          
+          # Удаляем протокол из REGISTRY_URL, если он есть
+          REGISTRY_URL="${REGISTRY_URL#http://}"
+          REGISTRY_URL="${REGISTRY_URL#https://}"
+          REGISTRY_URL="${REGISTRY_URL%/}"
+          
+          # Удаляем пробелы в начале и конце
+          REGISTRY_URL=$(echo "$REGISTRY_URL" | xargs)
+          IMAGE_NAME=$(echo "$IMAGE_NAME" | xargs)
+          
+          # Проверяем, что переменные не пусты после очистки
+          if [ -z "$REGISTRY_URL" ]; then
+            echo "❌ ERROR: REGISTRY_URL is empty after cleaning"
+            exit 1
+          fi
+          if [ -z "$IMAGE_NAME" ]; then
+            echo "❌ ERROR: IMAGE_NAME is empty after cleaning"
+            exit 1
+          fi
+          
+          # Проверяем формат REGISTRY_URL (не должен содержать пробелы)
+          if [[ "$REGISTRY_URL" =~ [[:space:]] ]]; then
+            echo "❌ ERROR: REGISTRY_URL contains spaces: '$REGISTRY_URL'"
+            exit 1
+          fi
+          
+          # Проверяем формат IMAGE_NAME (должен соответствовать Docker naming conventions)
+          # Docker image names: lowercase letters, numbers, dots, dashes, underscores
+          # Must start and end with alphanumeric character
+          if [[ ! "$IMAGE_NAME" =~ ^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$ ]]; then
+            echo "❌ ERROR: IMAGE_NAME has invalid format: '$IMAGE_NAME'"
+            echo "Image name must contain only lowercase letters, numbers, dots, dashes, and underscores"
+            echo "Must start and end with alphanumeric character"
+            exit 1
+          fi
+          
+          # Выводим значения для отладки (маскируем чувствительные данные)
+          echo "✅ REGISTRY_URL length: ${#REGISTRY_URL} characters"
+          echo "✅ IMAGE_NAME: $IMAGE_NAME"
+          
+          # Сохраняем очищенные значения для использования
+          echo "registry_url=$REGISTRY_URL" >> $GITHUB_OUTPUT
+          echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
+
       - name: Generate image version from date
         id: version
         run: |
@@ -30,6 +89,12 @@ jobs:
           VERSION=$(date -u +"%Y-%m-%d-%H%M%S")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "📦 Image version: $VERSION"
+          
+          # Валидация формата версии
+          if [[ ! "$VERSION" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}$ ]]; then
+            echo "❌ ERROR: Invalid version format: $VERSION"
+            exit 1
+          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -41,6 +106,57 @@ jobs:
           username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
 
+      - name: Prepare image tags
+        id: tags
+        run: |
+          REGISTRY_URL="${{ env.REGISTRY_URL }}"
+          IMAGE_NAME="${{ env.IMAGE_NAME }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # Удаляем протокол из REGISTRY_URL, если он есть
+          REGISTRY_URL="${REGISTRY_URL#http://}"
+          REGISTRY_URL="${REGISTRY_URL#https://}"
+          REGISTRY_URL="${REGISTRY_URL%/}"
+          
+          # Удаляем пробелы
+          REGISTRY_URL=$(echo "$REGISTRY_URL" | xargs)
+          IMAGE_NAME=$(echo "$IMAGE_NAME" | xargs)
+          
+          # Формируем теги
+          TAG_VERSION="$REGISTRY_URL/$IMAGE_NAME:$VERSION"
+          TAG_LATEST="$REGISTRY_URL/$IMAGE_NAME:latest"
+          
+          # Проверяем формат тегов перед использованием
+          echo "🔍 Validating image tags..."
+          echo "REGISTRY_URL: '$REGISTRY_URL' (length: ${#REGISTRY_URL})"
+          echo "IMAGE_NAME: '$IMAGE_NAME' (length: ${#IMAGE_NAME})"
+          echo "VERSION: '$VERSION'"
+          echo "TAG_VERSION: '$TAG_VERSION'"
+          echo "TAG_LATEST: '$TAG_LATEST'"
+          
+          # Проверяем, что теги не пусты
+          if [ -z "$TAG_VERSION" ] || [ -z "$TAG_LATEST" ]; then
+            echo "❌ ERROR: One or more tags are empty"
+            exit 1
+          fi
+          
+          # Проверяем базовый формат (не должен содержать двойные слеши или пробелы)
+          if [[ "$TAG_VERSION" =~ // ]] || [[ "$TAG_VERSION" =~ [[:space:]] ]]; then
+            echo "❌ ERROR: Invalid tag format: '$TAG_VERSION'"
+            exit 1
+          fi
+          
+          if [[ "$TAG_LATEST" =~ // ]] || [[ "$TAG_LATEST" =~ [[:space:]] ]]; then
+            echo "❌ ERROR: Invalid tag format: '$TAG_LATEST'"
+            exit 1
+          fi
+          
+          # Сохраняем теги
+          echo "tag_version=$TAG_VERSION" >> $GITHUB_OUTPUT
+          echo "tag_latest=$TAG_LATEST" >> $GITHUB_OUTPUT
+          echo "registry_url=$REGISTRY_URL" >> $GITHUB_OUTPUT
+          echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -48,17 +164,18 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
-            ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest
-          cache-from: type=registry,ref=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+            ${{ steps.tags.outputs.tag_version }}
+            ${{ steps.tags.outputs.tag_latest }}
+          cache-from: type=registry,ref=${{ steps.tags.outputs.registry_url }}/${{ steps.tags.outputs.image_name }}:buildcache
+          cache-to: type=registry,ref=${{ steps.tags.outputs.registry_url }}/${{ steps.tags.outputs.image_name }}:buildcache,mode=max
 
       - name: Output image info
         run: |
           echo "✅ Image pushed successfully"
-          echo "📦 Version tag: ${{ steps.version.outputs.version }}"
-          echo "📦 Latest tag: latest"
-          echo "🔗 Full image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}"
+          echo "📦 Version tag: ${{ steps.tags.outputs.tag_version }}"
+          echo "📦 Latest tag: ${{ steps.tags.outputs.tag_latest }}"
+          echo "🔗 Full image version: ${{ steps.tags.outputs.tag_version }}"
+          echo "🔗 Full image latest: ${{ steps.tags.outputs.tag_latest }}"
 
       - name: Cleanup
         if: always()
@@ -114,12 +231,39 @@ jobs:
               exit 1
             fi
             
+            # Нормализуем REGISTRY_URL (удаляем протокол и trailing slash)
+            REGISTRY_URL="${REGISTRY_URL#http://}"
+            REGISTRY_URL="${REGISTRY_URL#https://}"
+            REGISTRY_URL="${REGISTRY_URL%/}"
+            REGISTRY_URL=$(echo "$REGISTRY_URL" | xargs)
+            
+            # Проверяем формат после нормализации
+            if [ -z "$REGISTRY_URL" ]; then
+              echo "❌ ERROR: REGISTRY_URL is empty after normalization"
+              exit 1
+            fi
+            
+            if [[ "$REGISTRY_URL" =~ [[:space:]] ]] || [[ "$REGISTRY_URL" =~ // ]]; then
+              echo "❌ ERROR: Invalid REGISTRY_URL format: '$REGISTRY_URL'"
+              exit 1
+            fi
+            
             # Логин в Docker Registry
             echo "🔐 Logging in to Docker Registry: $REGISTRY_URL"
             echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY_URL" -u "$REGISTRY_USERNAME" --password-stdin
             
             # Полный путь к образу
             FULL_IMAGE_NAME="$REGISTRY_URL/$IMAGE_NAME:$IMAGE_VERSION"
+            
+            # Проверяем формат тега перед использованием
+            if [[ "$FULL_IMAGE_NAME" =~ [[:space:]] ]] || [[ "$FULL_IMAGE_NAME" =~ // ]]; then
+              echo "❌ ERROR: Invalid image tag format: '$FULL_IMAGE_NAME'"
+              echo "REGISTRY_URL: '$REGISTRY_URL'"
+              echo "IMAGE_NAME: '$IMAGE_NAME'"
+              echo "IMAGE_VERSION: '$IMAGE_VERSION'"
+              exit 1
+            fi
+            
             echo "📦 Pulling image: $FULL_IMAGE_NAME"
             
             # Загружаем образ из Registry
