@@ -86,6 +86,7 @@ describe('AuthService', () => {
 
   let mockUserRepository: {
     create: ReturnType<typeof vi.fn>;
+    updatePassword: ReturnType<typeof vi.fn>;
   };
 
   let mockAvatarService: {
@@ -112,6 +113,7 @@ describe('AuthService', () => {
 
     mockUserRepository = {
       create: vi.fn(),
+      updatePassword: vi.fn(),
     };
 
     mockAvatarService = {
