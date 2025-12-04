@@ -107,6 +107,12 @@ export class UserService {
   }
 
   async update(id: number, updateUserDto: UpdateUserDto) {
+    // Проверяем существование пользователя
+    const existingUser = await this.userRepository.findById(id);
+    if (!existingUser) {
+      throw new NotFoundException(`Пользователь с ID ${id} не найден или был удален`);
+    }
+
     // Исключаем experience и level из обновления (они обновляются только через ExperienceService)
     const { firstName, lastName, middleName, email, organisationId, avatarUrls } = updateUserDto;
 

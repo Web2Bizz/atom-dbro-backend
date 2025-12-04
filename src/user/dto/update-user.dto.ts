@@ -5,7 +5,7 @@ export const updateUserSchema = z.object({
   firstName: z.string().max(255, 'Имя не должно превышать 255 символов').optional(),
   lastName: z.string().max(255, 'Фамилия не должна превышать 255 символов').optional(),
   middleName: z.string().max(255, 'Отчество не должно превышать 255 символов').optional(),
-  email: z.string().email('Некорректный формат email').optional(),
+  email: z.string().email('Некорректный формат email').max(255, 'Email не должен превышать 255 символов').optional(),
   avatarUrls: z
     .record(z.string(), z.string())
     .optional()

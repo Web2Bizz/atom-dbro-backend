@@ -6,7 +6,7 @@ export const createUserSchema = z.object({
   firstName: z.string().min(1, 'Имя обязательно').max(255, 'Имя не должно превышать 255 символов'),
   lastName: z.string().min(1, 'Фамилия обязательна').max(255, 'Фамилия не должна превышать 255 символов'),
   middleName: z.string().max(255, 'Отчество не должно превышать 255 символов').optional(),
-  email: z.string().email('Некорректный формат email').min(1, 'Email обязателен'),
+  email: z.string().email('Некорректный формат email').min(1, 'Email обязателен').max(255, 'Email не должен превышать 255 символов'),
   password: z.string().min(1, 'Пароль обязателен'),
   role: z.nativeEnum(UserRole, {
     message: 'Роль должна быть одним из: USER, MODERATOR',

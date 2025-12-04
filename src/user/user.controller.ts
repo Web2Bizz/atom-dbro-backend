@@ -44,28 +44,31 @@ export class UserController {
     return this.userService.changePassword(user.userId, changePasswordDto);
   }
 
+  @Patch('me')
+  @Version('1')
+  @UseGuards(JwtAuthGuard)
+  @ZodValidation(updateUserSchema)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Обновить свой профиль (требуется авторизация) - принимает объект avatarUrls с ключами size_4 - size_9, сохраняет как числовые ключи' })
+  @ApiBody({ type: UpdateUserDtoClass })
+  @ApiResponse({ status: 200, description: 'Пользователь обновлен', type: UpdateUserDtoClass })
+  @ApiResponse({ status: 401, description: 'Не авторизован' })
+  @ApiResponse({ status: 400, description: 'Организация не найдена или некорректные данные' })
+  @ApiResponse({ status: 404, description: 'Пользователь не найден' })
+  @ApiResponse({ status: 409, description: 'Пользователь с таким email уже существует' })
+  update(
+    @CurrentUser() user: { userId: number; email: string },
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    return this.userService.update(user.userId, updateUserDto);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Получить пользователя по ID' })
   @ApiResponse({ status: 200, description: 'Пользователь найден' })
   @ApiResponse({ status: 404, description: 'Пользователь не найден' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.userService.findOne(id);
-  }
-
-  @Patch(':id')
-  @Version('1')
-  @ZodValidation(updateUserSchema)
-  @ApiOperation({ summary: 'Обновить пользователя (v1) - принимает объект avatarUrls с ключами size_4 - size_9, сохраняет как числовые ключи' })
-  @ApiBody({ type: UpdateUserDtoClass })
-  @ApiResponse({ status: 200, description: 'Пользователь обновлен', type: UpdateUserDtoClass })
-  @ApiResponse({ status: 400, description: 'Организация не найдена или некорректные данные' })
-  @ApiResponse({ status: 404, description: 'Пользователь не найден' })
-  @ApiResponse({ status: 409, description: 'Пользователь с таким email уже существует' })
-  update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateUserDto: UpdateUserDto,
-  ) {
-    return this.userService.update(id, updateUserDto);
   }
 }
 
