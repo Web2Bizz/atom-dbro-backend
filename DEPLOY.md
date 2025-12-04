@@ -296,7 +296,7 @@ docker compose up -d --build app
 
 ## Автоматический деплой через CI/CD (GitHub Actions)
 
-Проект настроен для автоматического деплоя через GitHub Actions. При каждом push в ветку `main` происходит автоматическая сборка Docker образа, экспорт в архив, передача на сервер через SSH и деплой.
+Проект настроен для автоматического деплоя через GitHub Actions. При каждом push в ветку `main` происходит автоматическая сборка Docker образа, версионирование по дате, загрузка образа в Docker Registry и деплой на сервер с pull образа из Registry.
 
 ### Настройка GitHub Secrets
 
@@ -307,6 +307,20 @@ docker compose up -d --build app
 3. Добавьте следующие секреты:
 
 #### Обязательные секреты:
+
+- **`DOCKER_REGISTRY_URL`** - URL Docker Registry
+  - Пример: `registry.example.com` или `docker.io` или `ghcr.io`
+  - ⚠️ **ВАЖНО**: Укажите полный URL без протокола (без `https://` или `http://`)
+  
+- **`DOCKER_REGISTRY_USERNAME`** - Имя пользователя для доступа к Docker Registry
+  - Пример: `myuser` или `ghp_xxxxxxxxxxxx` (для GitHub Container Registry)
+  - ⚠️ **ВАЖНО**: Убедитесь, что пользователь имеет права на push/pull образов
+  
+- **`DOCKER_REGISTRY_PASSWORD`** - Пароль или токен для доступа к Docker Registry
+  - Для Docker Hub: пароль от аккаунта
+  - Для GitHub Container Registry: Personal Access Token (PAT) с правами `write:packages`
+  - Для других Registry: соответствующий токен доступа
+  - ⚠️ **ВАЖНО**: Храните токены в безопасности и регулярно обновляйте их
 
 - **`DEPLOY_HOST`** - IP-адрес или домен сервера деплоя
   - Пример: `192.168.1.100` или `deploy.example.com`
@@ -561,37 +575,98 @@ chmod 755 ~/atom-dbro-backend
 После настройки, при каждом push в ветку `main`:
 
 1. **GitHub Actions запускает workflow** (`.github/workflows/deploy.yml`)
-2. **Сборка Docker образа** с тегом `latest`
-3. **Экспорт образа** в архив `image.tar.gz`
-4. **Передача образа на сервер** через SSH (SCP)
+2. **Генерация версии образа** на основе даты и времени (формат: `YYYY-MM-DD-HHMMSS`, например: `2024-01-15-143022`)
+3. **Сборка Docker образа** с использованием Docker Buildx
+4. **Push образа в Docker Registry** с двумя тегами:
+   - Версионный тег: `REGISTRY_URL/IMAGE_NAME:YYYY-MM-DD-HHMMSS`
+   - Тег latest: `REGISTRY_URL/IMAGE_NAME:latest`
 5. **Подключение к серверу через SSH** и выполнение деплоя:
-   - Загрузка образа в Docker (`docker load`)
+   - Логин в Docker Registry
+   - Pull образа из Registry (по версионному тегу или latest)
+   - Локальное тегирование образа для docker-compose
    - Остановка и удаление старого контейнера приложения
    - Запуск нового контейнера через `docker compose` (только сервис приложения, без зависимостей)
    - Проверка готовности контейнера
-   - Health check приложения (проверка доступности API)
+   - Выполнение миграций базы данных (если необходимо)
    - Очистка неиспользуемых Docker ресурсов
 6. **Уведомление о результате** в GitHub Actions
 
 **⚠️ ВАЖНО**: 
-- Миграции базы данных **не выполняются автоматически** - их нужно запускать вручную при необходимости
+- Образы версионируются по дате и времени сборки для возможности отката к любой версии
 - Перезапускается **только контейнер приложения**, база данных не затрагивается
 - Используется `docker compose` (не `docker-compose`)
+- Все образы хранятся в централизованном Docker Registry
 
 ### Ручной деплой
 
 Для ручного деплоя выполните следующие шаги:
 
-1. **Соберите Docker образ** (локально или на сервере):
+#### Вариант 1: Деплой latest версии из Registry
+
+1. **На сервере войдите в Docker Registry**:
 ```bash
-docker build -t atom-dbro-backend:latest .
+docker login REGISTRY_URL -u USERNAME -p PASSWORD
 ```
 
-2. **На сервере перезапустите контейнер**:
+2. **Загрузите образ из Registry**:
+```bash
+docker pull REGISTRY_URL/atom-dbro-backend:latest
+docker tag REGISTRY_URL/atom-dbro-backend:latest atom-dbro-backend:latest
+```
+
+3. **Перезапустите контейнер**:
 ```bash
 cd /path/to/project
 export DOCKER_IMAGE="atom-dbro-backend:latest"
 docker compose up -d --force-recreate --no-deps app
+```
+
+#### Вариант 2: Деплой конкретной версии из Registry
+
+1. **На сервере войдите в Docker Registry**:
+```bash
+docker login REGISTRY_URL -u USERNAME -p PASSWORD
+```
+
+2. **Загрузите конкретную версию образа** (например, `2024-01-15-143022`):
+```bash
+docker pull REGISTRY_URL/atom-dbro-backend:2024-01-15-143022
+docker tag REGISTRY_URL/atom-dbro-backend:2024-01-15-143022 atom-dbro-backend:latest
+```
+
+3. **Перезапустите контейнер**:
+```bash
+cd /path/to/project
+export DOCKER_IMAGE="atom-dbro-backend:latest"
+docker compose up -d --force-recreate --no-deps app
+```
+
+#### Вариант 3: Локальная сборка и push в Registry
+
+1. **Соберите Docker образ локально**:
+```bash
+docker build -t REGISTRY_URL/atom-dbro-backend:latest .
+```
+
+2. **Войдите в Docker Registry**:
+```bash
+docker login REGISTRY_URL -u USERNAME -p PASSWORD
+```
+
+3. **Загрузите образ в Registry**:
+```bash
+docker push REGISTRY_URL/atom-dbro-backend:latest
+```
+
+4. **На сервере выполните шаги из Варианта 1**
+
+**Примечание**: Для версионирования используйте формат `YYYY-MM-DD-HHMMSS`:
+```bash
+VERSION=$(date -u +"%Y-%m-%d-%H%M%S")
+docker build -t REGISTRY_URL/atom-dbro-backend:$VERSION .
+docker tag REGISTRY_URL/atom-dbro-backend:$VERSION REGISTRY_URL/atom-dbro-backend:latest
+docker push REGISTRY_URL/atom-dbro-backend:$VERSION
+docker push REGISTRY_URL/atom-dbro-backend:latest
 ```
 
 Или используйте скрипт `scripts/deploy.sh` (если он существует и настроен).
