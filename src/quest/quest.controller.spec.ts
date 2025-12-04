@@ -336,5 +336,57 @@ describe('QuestController', () => {
       await expect(promise).rejects.toThrow(ForbiddenException);
     });
   });
+
+  describe('findOneV2', () => {
+    const questId = 1;
+    const questWithParticipation = {
+      ...mockQuest,
+      isParticipating: false,
+    };
+
+    it('should successfully return quest by id without authentication (200)', async () => {
+      mockService.findOneWithUserParticipation.mockResolvedValue(questWithParticipation);
+
+      const result = await controller.findOneV2(questId, undefined as any);
+
+      expect(result).toEqual(questWithParticipation);
+      expect(mockService.findOneWithUserParticipation).toHaveBeenCalledWith(questId, undefined);
+    });
+
+    it('should successfully return quest by id with authentication when user is not participating (200)', async () => {
+      const questNotParticipating = {
+        ...mockQuest,
+        isParticipating: false,
+      };
+      mockService.findOneWithUserParticipation.mockResolvedValue(questNotParticipating);
+
+      const result = await controller.findOneV2(questId, mockCurrentUser);
+
+      expect(result).toEqual(questNotParticipating);
+      expect(mockService.findOneWithUserParticipation).toHaveBeenCalledWith(questId, mockCurrentUser.userId);
+    });
+
+    it('should successfully return quest by id with authentication when user is participating (200)', async () => {
+      const questParticipating = {
+        ...mockQuest,
+        isParticipating: true,
+      };
+      mockService.findOneWithUserParticipation.mockResolvedValue(questParticipating);
+
+      const result = await controller.findOneV2(questId, mockCurrentUser);
+
+      expect(result).toEqual(questParticipating);
+      expect(mockService.findOneWithUserParticipation).toHaveBeenCalledWith(questId, mockCurrentUser.userId);
+    });
+
+    it('should throw NotFoundException when quest does not exist (404)', async () => {
+      mockService.findOneWithUserParticipation.mockRejectedValue(
+        new NotFoundException(`Квест с ID ${questId} не найден`)
+      );
+
+      const promise = controller.findOneV2(questId, undefined as any);
+      await expect(promise).rejects.toThrow(NotFoundException);
+    });
+  });
 });
 
