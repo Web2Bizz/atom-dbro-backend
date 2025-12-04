@@ -3,7 +3,7 @@ import { Subject, Observable } from 'rxjs';
 import { map, filter } from 'rxjs/operators';
 
 export interface QuestEvent {
-  type: 'quest_created' | 'user_joined' | 'quest_completed' | 'requirement_updated';
+  type: 'quest_created' | 'user_joined' | 'quest_completed' | 'requirement_updated' | 'contributer_added' | 'contributer_removed' | 'step_volunteer_added' | 'checkin_confirmed';
   questId: number;
   data: any;
   timestamp: Date;
@@ -69,6 +69,69 @@ export class QuestEventsService {
       questId,
       data: {
         steps,
+      },
+      timestamp: new Date(),
+    });
+  }
+
+  /**
+   * Эмитить событие добавления contributer
+   */
+  emitContributerAdded(questId: number, userId: number) {
+    this.logger.log(`Emitting contributer_added event for quest ${questId}, user ${userId}`);
+    this.questEvents$.next({
+      type: 'contributer_added',
+      questId,
+      data: {
+        userId,
+      },
+      timestamp: new Date(),
+    });
+  }
+
+  /**
+   * Эмитить событие удаления contributer
+   */
+  emitContributerRemoved(questId: number, userId: number) {
+    this.logger.log(`Emitting contributer_removed event for quest ${questId}, user ${userId}`);
+    this.questEvents$.next({
+      type: 'contributer_removed',
+      questId,
+      data: {
+        userId,
+      },
+      timestamp: new Date(),
+    });
+  }
+
+  /**
+   * Эмитить событие добавления вклада в этап (finance/material)
+   */
+  emitStepVolunteerAdded(questId: number, stepType: 'finance' | 'material', userId: number, contributeValue: number) {
+    this.logger.log(`Emitting step_volunteer_added event for quest ${questId}, type ${stepType}, user ${userId}`);
+    this.questEvents$.next({
+      type: 'step_volunteer_added',
+      questId,
+      data: {
+        stepType,
+        userId,
+        contributeValue,
+      },
+      timestamp: new Date(),
+    });
+  }
+
+  /**
+   * Эмитить событие подтверждения checkin
+   */
+  emitCheckinConfirmed(questId: number, stepType: 'finance' | 'material' | 'contributers', userId: number) {
+    this.logger.log(`Emitting checkin_confirmed event for quest ${questId}, type ${stepType}, user ${userId}`);
+    this.questEvents$.next({
+      type: 'checkin_confirmed',
+      questId,
+      data: {
+        stepType,
+        userId,
       },
       timestamp: new Date(),
     });

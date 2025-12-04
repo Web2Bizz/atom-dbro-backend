@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ContributerRepository } from './contributer.repository';
+import { QuestEventsService } from '../quest/quest.events';
 
 @Injectable()
 export class ContributerService {
@@ -7,6 +8,8 @@ export class ContributerService {
 
   constructor(
     private readonly repository: ContributerRepository,
+    @Inject(forwardRef(() => QuestEventsService))
+    private readonly questEventsService: QuestEventsService,
   ) {}
 
   /**
@@ -63,6 +66,8 @@ export class ContributerService {
         if (!restored) {
           throw new Error('Не удалось восстановить contributer');
         }
+        // Эмитим событие добавления contributer (обработчик синхронизирует currentValue)
+        this.questEventsService.emitContributerAdded(questId, userId);
         return { message: 'Contributer успешно добавлен в квест' };
       } else {
         throw new ConflictException('Пользователь уже является contributer этого квеста');
@@ -74,6 +79,9 @@ export class ContributerService {
     if (!contributer) {
       throw new Error('Не удалось добавить contributer в квест');
     }
+
+    // Эмитим событие добавления contributer (обработчик синхронизирует currentValue)
+    this.questEventsService.emitContributerAdded(questId, userId);
 
     return { message: 'Contributer успешно добавлен в квест' };
   }
@@ -203,6 +211,15 @@ export class ContributerService {
       }
     }
 
+    // Эмитим события добавления contributers (обработчик синхронизирует currentValue)
+    if (addedCount > 0 || restoredCount > 0) {
+      // Эмитим событие для каждого добавленного contributer
+      const allAddedUserIds = [...newUserIds, ...deletedUserIds];
+      for (const userId of allAddedUserIds) {
+        this.questEventsService.emitContributerAdded(questId, userId);
+      }
+    }
+
     const totalCount = addedCount + restoredCount;
 
     return {
@@ -250,6 +267,9 @@ export class ContributerService {
     if (!deletedContributer) {
       throw new Error('Не удалось удалить contributer из квеста');
     }
+
+    // Эмитим событие удаления contributer (обработчик синхронизирует currentValue)
+    this.questEventsService.emitContributerRemoved(questId, userId);
 
     return { message: 'Contributer успешно удалён из квеста' };
   }

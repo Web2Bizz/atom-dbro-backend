@@ -687,10 +687,15 @@ export class QuestService {
     if (updateRequirementDto.currentValue === undefined) {
       // Если currentValue не передан, вычисляем значение в зависимости от типа этапа
       if (stepType === 'contributers') {
+<<<<<<< Updated upstream
         // Для типа contributers считаем количество подтверждённых contributers из таблицы quest_contributers
         newCurrentValue = await this.contributerRepository.getConfirmedContributersCount(questId);
       } else {
         // Для finance и material считаем сумму всех contribute_value из quest_step_volunteers
+=======
+        newCurrentValue = await this.contributerRepository.getConfirmedContributersCount(questId);
+      } else {
+>>>>>>> Stashed changes
         newCurrentValue = await this.stepVolunteerRepository.getSumContributeValue(questId, stepType);
       }
     } else {
@@ -741,6 +746,7 @@ export class QuestService {
     questId: number,
     stepType: 'finance' | 'material' | 'contributers',
   ): Promise<number> {
+<<<<<<< Updated upstream
     // Определяем новое значение currentValue в зависимости от типа этапа
     let newCurrentValue: number;
     if (stepType === 'contributers') {
@@ -748,6 +754,13 @@ export class QuestService {
       newCurrentValue = await this.contributerRepository.getConfirmedContributersCount(questId);
     } else {
       // Для finance и material считаем сумму всех contribute_value из quest_step_volunteers
+=======
+    // Получаем значение currentValue в зависимости от типа этапа
+    let newCurrentValue: number;
+    if (stepType === 'contributers') {
+      newCurrentValue = await this.contributerRepository.getConfirmedContributersCount(questId);
+    } else {
+>>>>>>> Stashed changes
       newCurrentValue = await this.stepVolunteerRepository.getSumContributeValue(questId, stepType);
     }
     

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { StepVolunteerRepository } from './step-volunteer.repository';
 import { QuestService } from '../quest/quest.service';
+import { QuestEventsService } from '../quest/quest.events';
 
 @Injectable()
 export class StepVolunteerService {
@@ -10,6 +11,8 @@ export class StepVolunteerService {
     private readonly repository: StepVolunteerRepository,
     @Inject(forwardRef(() => QuestService))
     private readonly questService: QuestService,
+    @Inject(forwardRef(() => QuestEventsService))
+    private readonly questEventsService: QuestEventsService,
   ) {}
 
   /**
@@ -88,7 +91,10 @@ export class StepVolunteerService {
       contributeValue,
     );
 
-    // Синхронизируем currentValue в этапе квеста с суммой всех вкладов
+    // Эмитим событие добавления вклада (обработчик синхронизирует currentValue)
+    this.questEventsService.emitStepVolunteerAdded(questId, stepType, userId, contributeValue);
+    
+    // Синхронизируем currentValue синхронно для немедленного результата
     await this.questService.syncRequirementCurrentValue(questId, stepType);
 
     // Возвращаем обновленный квест с полной информацией
