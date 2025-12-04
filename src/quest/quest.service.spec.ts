@@ -368,6 +368,48 @@ describe('QuestService', () => {
       }
     });
 
+    it('should not duplicate reward when completeQuest is called twice for the same quest', async () => {
+      const questId = 1;
+      const ownerUserId = 1;
+      const participants = [
+        {
+          userId: 2,
+          userQuestId: 1,
+          userQuestStatus: 'in_progress',
+          user: { experience: 0 },
+        },
+      ];
+
+      const questWithRewardAndAchievement = {
+        ...mockQuest,
+        ownerId: ownerUserId,
+        experienceReward: 150,
+        achievementId: 10,
+      };
+
+      // Первый вызов completeQuest
+      mockRepository.findById.mockResolvedValueOnce(questWithRewardAndAchievement);
+      mockRepository.findQuestParticipants.mockResolvedValueOnce(participants);
+      mockRepository.update.mockResolvedValueOnce({ ...questWithRewardAndAchievement, status: 'completed' });
+      mockRepository.updateUserQuest.mockResolvedValueOnce(undefined);
+      mockRepository.findQuestDataForEvent.mockResolvedValueOnce({});
+
+      await service.completeQuest(ownerUserId, questId);
+
+      // Второй вызов completeQuest (квест уже завершён)
+      const completedQuest = { ...questWithRewardAndAchievement, status: 'completed' };
+      mockRepository.findById.mockResolvedValueOnce(completedQuest);
+
+      // Ожидаем ConflictException при попытке завершить уже завершённый квест
+      await expect(service.completeQuest(ownerUserId, questId)).rejects.toThrow(ConflictException);
+
+      // Проверяем, что событие quest_completed было эмитировано только один раз для каждого участника
+      const callsForParticipant = mockQuestEventsService.emitQuestCompleted.mock.calls.filter(
+        ([qId, userId]) => qId === questId && userId === participants[0].userId,
+      );
+      expect(callsForParticipant.length).toBe(1);
+    });
+
     it('should throw ForbiddenException when user is not owner', async () => {
       const nonOwnerUserId = 999;
       mockRepository.findById.mockResolvedValue(mockQuest);
