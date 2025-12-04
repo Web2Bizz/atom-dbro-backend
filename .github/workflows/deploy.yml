@@ -9,97 +9,66 @@ on:
 env:
   NODE_VERSION: '20'
   IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME || 'atom-dbro-backend' }}
+  REGISTRY_URL: ${{ secrets.DOCKER_REGISTRY_URL }}
 
 jobs:
-  build-and-transfer:
-    name: Build and Transfer Docker Image
+  build-and-push:
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    outputs:
+      image-version: ${{ steps.version.outputs.version }}
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Verify Docker access
+      - name: Generate image version from date
+        id: version
         run: |
-          echo "=== Verifying Docker access ==="
-          docker ps 2>&1 | head -3 || {
-            echo "❌ ERROR: Cannot access Docker daemon"
-            exit 1
-          }
-          echo "✅ Docker access verified"
-      - name: Build Docker image
-        run: |
-          echo "📦 Building Docker image: ${{ env.IMAGE_NAME }}:latest"
-          docker build --no-cache -t ${{ env.IMAGE_NAME }}:latest -f ./Dockerfile .
-          echo "✅ Docker image built successfully"
-      - name: Verify image was built
-        run: |
-          if ! docker images | grep -q "${{ env.IMAGE_NAME }}.*latest"; then
-            echo "❌ ERROR: Docker image was not built successfully"
-            exit 1
-          fi
-          echo "✅ Docker image built successfully: ${{ env.IMAGE_NAME }}:latest"
-          docker images | grep "${{ env.IMAGE_NAME }}"
-      - name: Export Docker image to tar.gz
-        run: |
-          echo "📦 Exporting Docker image to tar.gz..."
-          docker save ${{ env.IMAGE_NAME }}:latest | gzip > image.tar.gz
-          
-          echo "📊 Image file info:"
-          ls -lh image.tar.gz
-          IMAGE_SIZE=$(du -h image.tar.gz | cut -f1)
-          echo "Image size: $IMAGE_SIZE"
-          
-          # Проверяем, что файл создан и не пустой
-          if [ ! -f image.tar.gz ] || [ ! -s image.tar.gz ]; then
-            echo "❌ ERROR: Failed to export Docker image"
-            exit 1
-          fi
-          
-          echo "✅ Docker image exported successfully"
-      - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.9.0
+          # Формат: YYYY-MM-DD-HHMMSS (UTC)
+          VERSION=$(date -u +"%Y-%m-%d-%H%M%S")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Image version: $VERSION"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Registry
+        uses: docker/login-action@v3
         with:
-          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+          registry: ${{ env.REGISTRY_URL }}
+          username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
+          password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
 
-      - name: Validate SSH connection
-        run: |
-          SSH_PORT="${DEPLOY_SSH_PORT:-22}"
-          ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "echo 'SSH connection successful' && hostname"
-        env:
-          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=registry,ref=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
 
-      - name: Transfer Docker image to server
+      - name: Output image info
         run: |
-          SSH_PORT="${DEPLOY_SSH_PORT:-22}"
-          
-          echo "📦 Transferring Docker image to server..."
-          echo "📊 Image file size: $(du -h image.tar.gz | cut -f1)"
-          
-          # Передаем образ на сервер
-          scp -o StrictHostKeyChecking=no -P "$SSH_PORT" image.tar.gz ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/
-          
-          # Проверяем, что файл успешно передан
-          ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "if [ -f /tmp/image.tar.gz ]; then echo '✅ Image file transferred successfully'; ls -lh /tmp/image.tar.gz; else echo '❌ ERROR: Image file not found on server'; exit 1; fi"
-          
-          echo "✅ Docker image transferred successfully"
-        env:
-          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
+          echo "✅ Image pushed successfully"
+          echo "📦 Version tag: ${{ steps.version.outputs.version }}"
+          echo "📦 Latest tag: latest"
+          echo "🔗 Full image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}"
 
       - name: Cleanup
         if: always()
         run: |
-          echo "🧹 Cleaning up temporary files and Docker resources..."
-          rm -f image.tar.gz
-          docker rmi ${{ env.IMAGE_NAME }}:latest 2>/dev/null || true
+          echo "🧹 Cleaning up Docker resources..."
           docker builder prune -f || true
           echo "✅ Cleanup completed"
   deploy:
     name: Deploy Application
-    needs: build-and-transfer
+    needs: build-and-push
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     
@@ -112,10 +81,14 @@ jobs:
       - name: Deploy application
         run: |
           SSH_PORT="${DEPLOY_SSH_PORT:-22}"
-          ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "export PROJECT_DIR_VALUE='$PROJECT_DIR_VALUE' CONTAINER_NAME='$CONTAINER_NAME' IMAGE_NAME='$IMAGE_NAME' SERVICE_NAME='$SERVICE_NAME' COMPOSE_PROJECT_NAME='$COMPOSE_PROJECT_NAME'; bash -s" << 'REMOTE_SCRIPT'
+          ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "export REGISTRY_URL='$REGISTRY_URL' REGISTRY_USERNAME='$REGISTRY_USERNAME' REGISTRY_PASSWORD='$REGISTRY_PASSWORD' PROJECT_DIR_VALUE='$PROJECT_DIR_VALUE' CONTAINER_NAME='$CONTAINER_NAME' IMAGE_NAME='$IMAGE_NAME' SERVICE_NAME='$SERVICE_NAME' COMPOSE_PROJECT_NAME='$COMPOSE_PROJECT_NAME' IMAGE_VERSION='$IMAGE_VERSION'; bash -s" << 'REMOTE_SCRIPT'
             set -e
             
+            REGISTRY_URL="${REGISTRY_URL}"
+            REGISTRY_USERNAME="${REGISTRY_USERNAME}"
+            REGISTRY_PASSWORD="${REGISTRY_PASSWORD}"
             IMAGE_NAME="${IMAGE_NAME:-atom-dbro-backend}"
+            IMAGE_VERSION="${IMAGE_VERSION:-latest}"
             PROJECT_DIR="$PROJECT_DIR_VALUE"
             CONTAINER_NAME="${CONTAINER_NAME:-atom-dbro-app}"
             SERVICE_NAME="${SERVICE_NAME:-app}"
@@ -126,6 +99,46 @@ jobs:
               echo "❌ ERROR: PROJECT_DIR is not set"
               exit 1
             fi
+            
+            # Проверяем, что переменные Docker Registry установлены
+            if [ -z "$REGISTRY_URL" ]; then
+              echo "❌ ERROR: REGISTRY_URL is not set"
+              exit 1
+            fi
+            if [ -z "$REGISTRY_USERNAME" ]; then
+              echo "❌ ERROR: REGISTRY_USERNAME is not set"
+              exit 1
+            fi
+            if [ -z "$REGISTRY_PASSWORD" ]; then
+              echo "❌ ERROR: REGISTRY_PASSWORD is not set"
+              exit 1
+            fi
+            
+            # Логин в Docker Registry
+            echo "🔐 Logging in to Docker Registry: $REGISTRY_URL"
+            echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY_URL" -u "$REGISTRY_USERNAME" --password-stdin
+            
+            # Полный путь к образу
+            FULL_IMAGE_NAME="$REGISTRY_URL/$IMAGE_NAME:$IMAGE_VERSION"
+            echo "📦 Pulling image: $FULL_IMAGE_NAME"
+            
+            # Загружаем образ из Registry
+            if ! docker pull "$FULL_IMAGE_NAME"; then
+              echo "❌ ERROR: Failed to pull image from Registry: $FULL_IMAGE_NAME"
+              exit 1
+            fi
+            
+            # Проверяем, что образ загружен (используем docker inspect для надежности)
+            if ! docker inspect "$FULL_IMAGE_NAME" > /dev/null 2>&1; then
+              echo "❌ ERROR: Image was not pulled successfully: $FULL_IMAGE_NAME"
+              echo "Available images:"
+              docker images | head -10
+              exit 1
+            fi
+            
+            # Тегируем локально для docker-compose
+            docker tag "$FULL_IMAGE_NAME" "$IMAGE_NAME:latest"
+            echo "✅ Image tagged as $IMAGE_NAME:latest"
             
             # Переходим в директорию проекта
             echo "📁 Changing to project directory: $PROJECT_DIR"
@@ -144,28 +157,6 @@ jobs:
             fi
             
             echo "✅ Found docker-compose.yml in $(pwd)"
-            
-            # Загружаем образ в Docker
-            echo "📥 Importing Docker image from tar.gz..."
-            if [ ! -f /tmp/image.tar.gz ]; then
-              echo "❌ ERROR: Image file not found: /tmp/image.tar.gz"
-              exit 1
-            fi
-            
-            echo "📊 Image file size: $(du -h /tmp/image.tar.gz | cut -f1)"
-            docker load -i /tmp/image.tar.gz
-            
-            # Проверяем, что образ загружен
-            if ! docker images | grep -q "$IMAGE_NAME.*latest"; then
-              echo "❌ ERROR: Failed to import Docker image"
-              exit 1
-            fi
-            
-            echo "✅ Docker image imported successfully"
-            
-            # Удаляем временный файл
-            rm -f /tmp/image.tar.gz
-            echo "🧹 Cleaned up temporary image file"
             
             # Очищаем старые версии образа перед деплоем
             echo "🧹 Removing old image versions (if any)..."
@@ -362,8 +353,12 @@ jobs:
           REMOTE_SCRIPT
         env:
           DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
+          REGISTRY_URL: ${{ secrets.DOCKER_REGISTRY_URL }}
+          REGISTRY_USERNAME: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
           PROJECT_DIR_VALUE: ${{ secrets.DEPLOY_PROJECT_PATH }}
           CONTAINER_NAME: ${{ secrets.DEPLOY_CONTAINER_NAME || 'atom-dbro-app' }}
           SERVICE_NAME: ${{ secrets.DEPLOY_SERVICE_NAME || 'app' }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_VERSION: ${{ needs.build-and-push.outputs.image-version }}
           COMPOSE_PROJECT_NAME: ${{ secrets.DEPLOY_COMPOSE_PROJECT_NAME || '' }}
