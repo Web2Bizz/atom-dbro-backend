@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { QuestRepository } from '../quest/quest.repository';
 import { StepVolunteerRepository } from '../step-volunteer/step-volunteer.repository';
 import { ContributerRepository } from '../contributer/contributer.repository';
+import { QuestEventsService } from '../quest/quest.events';
 import { UserRepository } from '../user/user.repository';
 import {
   NotFoundException,
@@ -115,6 +116,10 @@ describe('CheckinService', () => {
     findById: ReturnType<typeof vi.fn>;
   };
 
+  let mockQuestEventsService: {
+    emitCheckinConfirmed: ReturnType<typeof vi.fn>;
+  };
+
   beforeEach(async () => {
     mockJwtService = {
       sign: vi.fn(),
@@ -150,6 +155,10 @@ describe('CheckinService', () => {
       findById: vi.fn(),
     };
 
+    mockQuestEventsService = {
+      emitCheckinConfirmed: vi.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CheckinService,
@@ -174,6 +183,10 @@ describe('CheckinService', () => {
           useValue: mockContributerRepository,
         },
         {
+          provide: QuestEventsService,
+          useValue: mockQuestEventsService,
+        },
+        {
           provide: UserRepository,
           useValue: mockUserRepository,
         },
@@ -193,6 +206,7 @@ describe('CheckinService', () => {
     (service as any).questRepository = mockQuestRepository;
     (service as any).stepVolunteerRepository = mockStepVolunteerRepository;
     (service as any).contributerRepository = mockContributerRepository;
+    (service as any).questEventsService = mockQuestEventsService;
     (service as any).userRepository = mockUserRepository;
   });
 
@@ -330,7 +344,7 @@ describe('CheckinService', () => {
       const token = 'generated-token';
       const contributersDto: GenerateCheckinTokenDto = {
         questId: 1,
-        type: 'contributers',
+        type: 'contributers' as 'contributers',
       };
       mockUserRepository.findById.mockResolvedValue(mockUser);
       mockQuestRepository.findById.mockResolvedValue(mockQuest);
@@ -415,6 +429,7 @@ describe('CheckinService', () => {
       expect(mockQuestRepository.findById).toHaveBeenCalledWith(questId);
       expect(mockQuestRepository.findUserQuest).toHaveBeenCalledWith(userId, questId);
       expect(mockStepVolunteerRepository.create).toHaveBeenCalledWith(questId, type, userId, 0);
+      expect(mockQuestEventsService.emitCheckinConfirmed).toHaveBeenCalledWith(questId, type, userId);
       expect(mockQuestRepository.updateUserQuest).toHaveBeenCalledWith(mockUserQuest.id, {
         status: 'completed',
         completedAt: expect.any(Date),
@@ -595,6 +610,7 @@ describe('CheckinService', () => {
       });
       expect(mockStepVolunteerRepository.restore).toHaveBeenCalledWith(questId, type, userId);
       expect(mockStepVolunteerRepository.create).not.toHaveBeenCalled();
+      expect(mockQuestEventsService.emitCheckinConfirmed).toHaveBeenCalledWith(questId, type, userId);
     });
 
     it('should create new record if it does not exist', async () => {
@@ -704,6 +720,7 @@ describe('CheckinService', () => {
       });
       expect(mockContributerRepository.create).toHaveBeenCalledWith(questId, userId);
       expect(mockStepVolunteerRepository.create).not.toHaveBeenCalled();
+      expect(mockQuestEventsService.emitCheckinConfirmed).toHaveBeenCalledWith(questId, type, userId);
     });
   });
 });

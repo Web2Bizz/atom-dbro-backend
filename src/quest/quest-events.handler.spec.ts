@@ -14,6 +14,10 @@ describe('QuestEventsHandler', () => {
     assignToUser: vi.fn(),
   };
 
+  const mockQuestService = {
+    syncRequirementCurrentValue: vi.fn(),
+  };
+
   let achievementEventsService: AchievementEventsService;
 
   beforeEach(() => {
@@ -23,12 +27,14 @@ describe('QuestEventsHandler', () => {
       eventsService as any,
       mockAchievementService as unknown as AchievementService,
       achievementEventsService,
+      mockQuestService as any,
     );
 
     // Инициализируем подписку на события
     handler.onModuleInit();
 
     mockAchievementService.assignToUser.mockReset();
+    mockQuestService.syncRequirementCurrentValue.mockReset();
   });
 
   it('should handle quest_completed event: assign achievement and emit achievement_awarded (new flow)', async () => {
@@ -193,6 +199,115 @@ describe('QuestEventsHandler', () => {
     const assignToUserCallOrder = (mockAchievementService.assignToUser as any).mock.invocationCallOrder[0];
     // Событие achievement_awarded эмитится синхронно после assignToUser, поэтому порядок должен быть правильным
     expect(assignToUserCallOrder).toBeDefined();
+  });
+
+  describe('handleRequirementSync', () => {
+    const questId = 1;
+    const userId = 2;
+
+    it('should sync requirement currentValue for contributer_added event', async () => {
+      eventsService.emitContributerAdded(questId, userId);
+
+      // Даем event loop обработать асинхронный handler
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, 'contributers');
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledTimes(1);
+    });
+
+    it('should sync requirement currentValue for contributer_removed event', async () => {
+      eventsService.emitContributerRemoved(questId, userId);
+
+      // Даем event loop обработать асинхронный handler
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, 'contributers');
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledTimes(1);
+    });
+
+    it('should sync requirement currentValue for step_volunteer_added event with finance type', async () => {
+      const stepType = 'finance';
+      const contributeValue = 100;
+      eventsService.emitStepVolunteerAdded(questId, stepType, userId, contributeValue);
+
+      // Даем event loop обработать асинхронный handler
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, stepType);
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledTimes(1);
+    });
+
+    it('should sync requirement currentValue for step_volunteer_added event with material type', async () => {
+      const stepType = 'material';
+      const contributeValue = 50;
+      eventsService.emitStepVolunteerAdded(questId, stepType, userId, contributeValue);
+
+      // Даем event loop обработать асинхронный handler
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, stepType);
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledTimes(1);
+    });
+
+    it('should sync requirement currentValue for checkin_confirmed event with contributers type', async () => {
+      const stepType = 'contributers';
+      eventsService.emitCheckinConfirmed(questId, stepType, userId);
+
+      // Даем event loop обработать асинхронный handler
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, stepType);
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledTimes(1);
+    });
+
+    it('should sync requirement currentValue for checkin_confirmed event with finance type', async () => {
+      const stepType = 'finance';
+      eventsService.emitCheckinConfirmed(questId, stepType, userId);
+
+      // Даем event loop обработать асинхронный handler
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, stepType);
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledTimes(1);
+    });
+
+    it('should sync requirement currentValue for checkin_confirmed event with material type', async () => {
+      const stepType = 'material';
+      eventsService.emitCheckinConfirmed(questId, stepType, userId);
+
+      // Даем event loop обработать асинхронный handler
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, stepType);
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle multiple events sequentially', async () => {
+      eventsService.emitContributerAdded(questId, userId);
+      eventsService.emitStepVolunteerAdded(questId, 'finance', userId, 100);
+      eventsService.emitCheckinConfirmed(questId, 'material', userId);
+
+      // Даем event loop обработать асинхронные handlers
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledTimes(3);
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, 'contributers');
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, 'finance');
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, 'material');
+    });
+
+    it('should handle errors gracefully when syncRequirementCurrentValue fails', async () => {
+      const error = new Error('Sync failed');
+      mockQuestService.syncRequirementCurrentValue.mockRejectedValue(error);
+
+      eventsService.emitContributerAdded(questId, userId);
+
+      // Даем event loop обработать асинхронный handler
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Метод должен быть вызван, но ошибка должна быть обработана внутри handler
+      expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, 'contributers');
+    });
   });
 });
 
