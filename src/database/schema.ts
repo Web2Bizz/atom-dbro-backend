@@ -157,7 +157,7 @@ export const quests = pgTable('quests', {
     description?: string;
     status: string;
     progress: number;
-    type: 'finance' | 'material';
+    type: 'finance' | 'material' | 'contributers';
     requirement?: {
       currentValue: number;
       targetValue: number;
@@ -229,7 +229,7 @@ export const questStepVolunteers = pgTable('quest_step_volunteers', {
   questId: integer('quest_id')
     .references(() => quests.id)
     .notNull(),
-  type: varchar('type', { length: 20 }).notNull(), // 'finance' | 'material'
+  type: varchar('type', { length: 20 }).notNull(), // 'finance' | 'material' | 'contributers'
   contributeValue: integer('contribute_value').notNull().default(0),
   userId: integer('user_id')
     .references(() => users.id)

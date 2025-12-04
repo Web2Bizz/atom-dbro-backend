@@ -5,6 +5,7 @@ import { UpdateRequirementDto } from './dto/update-requirement.dto';
 import { QuestEventsService } from './quest.events';
 import { QuestRepository } from './quest.repository';
 import { StepVolunteerRepository } from '../step-volunteer/step-volunteer.repository';
+import { ContributerRepository } from '../contributer/contributer.repository';
 
 @Injectable()
 export class QuestService {
@@ -17,6 +18,8 @@ export class QuestService {
     private readonly questEventsService: QuestEventsService,
     @Inject(forwardRef(() => StepVolunteerRepository))
     private readonly stepVolunteerRepository: StepVolunteerRepository,
+    @Inject(forwardRef(() => ContributerRepository))
+    private readonly contributerRepository: ContributerRepository,
   ) {}
 
   async create(createQuestDto: CreateQuestDto, userId: number) {
@@ -615,7 +618,7 @@ export class QuestService {
 
   async updateRequirementCurrentValue(
     questId: number,
-    stepType: 'finance' | 'material',
+    stepType: 'finance' | 'material' | 'contributers',
     updateRequirementDto: UpdateRequirementDto,
     userId: number,
   ) {
@@ -641,9 +644,10 @@ export class QuestService {
     }
 
     // Валидация типа этапа
-    const allowedTypes: Array<'finance' | 'material'> = [
+    const allowedTypes: Array<'finance' | 'material' | 'contributers'> = [
       'finance',
       'material',
+      'contributers',
     ];
 
     if (!allowedTypes.includes(stepType)) {
@@ -681,8 +685,14 @@ export class QuestService {
     let newCurrentValue: number;
     
     if (updateRequirementDto.currentValue === undefined) {
-      // Если currentValue не передан, вычисляем сумму всех contribute_value из quest_step_volunteers
-      newCurrentValue = await this.stepVolunteerRepository.getSumContributeValue(questId, stepType);
+      // Если currentValue не передан, вычисляем значение в зависимости от типа этапа
+      if (stepType === 'contributers') {
+        // Для типа contributers считаем количество подтверждённых contributers из таблицы quest_contributers
+        newCurrentValue = await this.contributerRepository.getConfirmedContributersCount(questId);
+      } else {
+        // Для finance и material считаем сумму всех contribute_value из quest_step_volunteers
+        newCurrentValue = await this.stepVolunteerRepository.getSumContributeValue(questId, stepType);
+      }
     } else {
       // Если currentValue передан, используем его напрямую
       newCurrentValue = updateRequirementDto.currentValue;
@@ -718,9 +728,9 @@ export class QuestService {
   }
 
   /**
-   * Синхронизирует currentValue в этапе квеста с актуальным значением из quest_step_volunteers
-   * Для этапов типа 'contributers' синхронизирует с количеством подтверждённых волонтёров
-   * Для других типов этапов синхронизирует с суммой contribute_value
+   * Синхронизирует currentValue в этапе квеста с актуальным значением
+   * Для этапов типа 'contributers' синхронизирует с количеством подтверждённых contributers из таблицы quest_contributers
+   * Для других типов этапов (finance, material) синхронизирует с суммой contribute_value из quest_step_volunteers
    * Этот метод обновляет currentValue напрямую в этапе, что быстрее чем вычислять значение каждый раз
    * Используется для автоматической синхронизации при изменении данных в других местах кода
    * @param questId ID квеста
@@ -729,10 +739,17 @@ export class QuestService {
    */
   async syncRequirementCurrentValue(
     questId: number,
-    stepType: 'finance' | 'material',
+    stepType: 'finance' | 'material' | 'contributers',
   ): Promise<number> {
-    // Получаем сумму всех contribute_value из quest_step_volunteers
-    const newCurrentValue = await this.stepVolunteerRepository.getSumContributeValue(questId, stepType);
+    // Определяем новое значение currentValue в зависимости от типа этапа
+    let newCurrentValue: number;
+    if (stepType === 'contributers') {
+      // Для типа contributers считаем количество подтверждённых contributers из таблицы quest_contributers
+      newCurrentValue = await this.contributerRepository.getConfirmedContributersCount(questId);
+    } else {
+      // Для finance и material считаем сумму всех contribute_value из quest_step_volunteers
+      newCurrentValue = await this.stepVolunteerRepository.getSumContributeValue(questId, stepType);
+    }
     
     // Получаем квест
     const quest = await this.questRepository.findById(questId);

@@ -6,12 +6,14 @@ import { QuestEventsHandler } from './quest-events.handler';
 import { QuestRepository } from './quest.repository';
 import { DatabaseModule } from '../database/database.module';
 import { StepVolunteerModule } from '../step-volunteer/step-volunteer.module';
+import { ContributerModule } from '../contributer/contributer.module';
 import { AchievementModule } from '../achievement/achievement.module';
 
 @Module({
   imports: [
     DatabaseModule,
     forwardRef(() => StepVolunteerModule),
+    forwardRef(() => ContributerModule),
     AchievementModule,
   ],
   controllers: [QuestController],

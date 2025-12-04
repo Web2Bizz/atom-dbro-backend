@@ -5,6 +5,7 @@ import { CheckinService } from './checkin.service';
 import { CheckinController } from './checkin.controller';
 import { QuestModule } from '../quest/quest.module';
 import { StepVolunteerModule } from '../step-volunteer/step-volunteer.module';
+import { ContributerModule } from '../contributer/contributer.module';
 import { UserModule } from '../user/user.module';
 
 @Module({
@@ -21,6 +22,7 @@ import { UserModule } from '../user/user.module';
     }),
     QuestModule,
     StepVolunteerModule,
+    ContributerModule,
     UserModule,
   ],
   controllers: [CheckinController],
