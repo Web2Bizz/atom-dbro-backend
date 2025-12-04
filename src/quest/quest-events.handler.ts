@@ -1,8 +1,9 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { filter } from 'rxjs/operators';
 import { QuestEventsService, QuestEvent } from './quest.events';
-import { ExperienceService } from '../experience/experience.service';
 import { AchievementService } from '../achievement/achievement.service';
+import { AchievementEventsService } from '../achievement/achievement.events';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 
 @Injectable()
 export class QuestEventsHandler implements OnModuleInit {
@@ -10,8 +11,8 @@ export class QuestEventsHandler implements OnModuleInit {
 
   constructor(
     private readonly questEventsService: QuestEventsService,
-    private readonly experienceService: ExperienceService,
     private readonly achievementService: AchievementService,
+    private readonly achievementEvents: AchievementEventsService,
   ) {}
 
   onModuleInit() {
@@ -29,7 +30,7 @@ export class QuestEventsHandler implements OnModuleInit {
   }
 
   private async handleQuestCompleted(event: QuestEvent): Promise<void> {
-    const { data } = event;
+    const { questId, data } = event;
     const { userId, experienceReward, achievementId } = data || {};
 
     if (!userId) {
@@ -37,26 +38,47 @@ export class QuestEventsHandler implements OnModuleInit {
       return;
     }
 
-    // Начисление опыта
-    try {
-      if (typeof experienceReward === 'number' && experienceReward > 0) {
-        await this.experienceService.addExperience(userId, experienceReward);
-      }
-    } catch (error) {
-      this.logger.error(
-        `Failed to add experience for user ${userId} on quest_completed event`,
-        error instanceof Error ? error.stack : String(error),
+    if (!achievementId) {
+      this.logger.log(
+        `quest_completed for user ${userId}, quest ${questId} without achievementId – no achievement to award`,
       );
+      return;
     }
 
-    // Выдача достижения
+    // 1. Пытаемся выдать достижение
     try {
-      if (achievementId) {
-        await this.achievementService.assignToUser(userId, achievementId);
-      }
+      const userAchievement = await this.achievementService.assignToUser(userId, achievementId);
+
+      this.logger.log(
+        `Achievement ${achievementId} assigned to user ${userId} for quest ${questId}, userAchievementId=${userAchievement.id}`,
+      );
+
+      // 2. При успешной выдаче эмитим событие achievement_awarded
+      this.achievementEvents.emitAchievementAwarded({
+        userId,
+        achievementId,
+        questId,
+        experienceReward,
+      });
     } catch (error) {
+      if (error instanceof ConflictException) {
+        // Достижение уже есть — считаем, что награда уже была, не эмитим повторное событие
+        this.logger.log(
+          `User ${userId} already has achievement ${achievementId}, skip awarding again`,
+        );
+        return;
+      }
+
+      if (error instanceof NotFoundException) {
+        this.logger.warn(
+          `Failed to assign achievement ${achievementId} to user ${userId} on quest_completed: ${error.message}`,
+        );
+        return;
+      }
+
+      // Неожиданные ошибки логируем как ошибки
       this.logger.error(
-        `Failed to assign achievement ${achievementId} to user ${userId} on quest_completed event`,
+        `Unexpected error assigning achievement ${achievementId} to user ${userId} on quest_completed`,
         error instanceof Error ? error.stack : String(error),
       );
     }
