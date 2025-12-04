@@ -224,13 +224,16 @@ export class QuestService {
     };
   }
 
-  async findOneWithUserParticipation(id: number, userId: number) {
+  async findOneWithUserParticipation(id: number, userId?: number) {
     // Получаем квест с полной информацией
     const quest = await this.findOne(id);
 
-    // Проверяем, участвует ли пользователь в квесте
-    const userQuest = await this.questRepository.findUserQuest(userId, id);
-    const isParticipating = !!userQuest;
+    // Проверяем, участвует ли пользователь в квесте (только если userId передан)
+    let isParticipating = false;
+    if (userId !== undefined && userId !== null) {
+      const userQuest = await this.questRepository.findUserQuest(userId, id);
+      isParticipating = !!userQuest;
+    }
 
     return {
       ...quest,

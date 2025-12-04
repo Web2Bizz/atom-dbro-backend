@@ -112,17 +112,14 @@ export class QuestController {
 
   @Get(':id')
   @Version('2')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Получить квест по ID с информацией об участии пользователя (v2)' })
   @ApiResponse({ status: 200, description: 'Квест найден с флагом участия' })
-  @ApiResponse({ status: 401, description: 'Не авторизован' })
   @ApiResponse({ status: 404, description: 'Квест не найден' })
   findOneV2(
     @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() user: { userId: number; email: string },
+    @CurrentUser() user?: { userId: number; email: string },
   ) {
-    return this.questService.findOneWithUserParticipation(id, user.userId);
+    return this.questService.findOneWithUserParticipation(id, user?.userId);
   }
 
   @Patch(':id')
