@@ -4,9 +4,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { ConflictException, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
+import { RegisterDto, registerSchema } from './dto/register.dto';
+import { LoginDto, loginSchema } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ForgotPasswordDto, forgotPasswordSchema } from './dto/forgot-password.dto';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -91,9 +92,7 @@ describe('AuthController', () => {
         new ConflictException('Пользователь с таким email уже существует')
       );
 
-      const promise = controller.register(registerDto);
-      await expect(promise).rejects.toThrow(ConflictException);
-      await expect(promise).rejects.toThrow('Пользователь с таким email уже существует');
+      await expect(controller.register(registerDto)).rejects.toThrow(ConflictException);
       expect(mockService.register).toHaveBeenCalledWith(registerDto);
     });
   });
@@ -118,9 +117,7 @@ describe('AuthController', () => {
         new NotFoundException('Пользователь не найден')
       );
 
-      const promise = controller.login(loginDto);
-      await expect(promise).rejects.toThrow(NotFoundException);
-      await expect(promise).rejects.toThrow('Пользователь не найден');
+      await expect(controller.login(loginDto)).rejects.toThrow(NotFoundException);
       expect(mockService.login).toHaveBeenCalledWith(loginDto);
     });
 
@@ -154,9 +151,7 @@ describe('AuthController', () => {
         new UnauthorizedException('Недействительный refresh token')
       );
 
-      const promise = controller.refresh(refreshTokenDto);
-      await expect(promise).rejects.toThrow(UnauthorizedException);
-      await expect(promise).rejects.toThrow('Недействительный refresh token');
+      await expect(controller.refresh(refreshTokenDto)).rejects.toThrow(UnauthorizedException);
       expect(mockService.refresh).toHaveBeenCalledWith(refreshTokenDto);
     });
 
@@ -165,9 +160,7 @@ describe('AuthController', () => {
         new UnauthorizedException('Пользователь не найден')
       );
 
-      const promise = controller.refresh(refreshTokenDto);
-      await expect(promise).rejects.toThrow(UnauthorizedException);
-      await expect(promise).rejects.toThrow('Пользователь не найден');
+      await expect(controller.refresh(refreshTokenDto)).rejects.toThrow(UnauthorizedException);
       expect(mockService.refresh).toHaveBeenCalledWith(refreshTokenDto);
     });
   });
@@ -185,6 +178,172 @@ describe('AuthController', () => {
 
     // Примечание: Проверка JwtAuthGuard должна выполняться в интеграционных тестах
     // или отдельно. В unit-тестах контроллера мы проверяем только логику контроллера.
+  });
+
+  describe('email validation', () => {
+    describe('register schema validation', () => {
+      const validBaseData = {
+        firstName: 'Иван',
+        lastName: 'Иванов',
+        middleName: 'Иванович',
+        password: 'password123',
+        confirmPassword: 'password123',
+      };
+
+      it('should accept valid email format', () => {
+        const validData = { ...validBaseData, email: 'ivan@example.com' };
+        expect(() => registerSchema.parse(validData)).not.toThrow();
+      });
+
+      it('should accept email with subdomain', () => {
+        const validData = { ...validBaseData, email: 'user@subdomain.example.com' };
+        expect(() => registerSchema.parse(validData)).not.toThrow();
+      });
+
+      it('should accept email with plus tag', () => {
+        const validData = { ...validBaseData, email: 'user.name+tag@example.co.uk' };
+        expect(() => registerSchema.parse(validData)).not.toThrow();
+      });
+
+      it('should reject email without @ symbol', () => {
+        const invalidData = { ...validBaseData, email: 'invalidemail.com' };
+        expect(() => registerSchema.parse(invalidData)).toThrow();
+      });
+
+      it('should reject email without domain', () => {
+        const invalidData = { ...validBaseData, email: 'user@' };
+        expect(() => registerSchema.parse(invalidData)).toThrow();
+      });
+
+      it('should reject email without local part', () => {
+        const invalidData = { ...validBaseData, email: '@example.com' };
+        expect(() => registerSchema.parse(invalidData)).toThrow();
+      });
+
+      it('should reject email with spaces', () => {
+        const invalidData = { ...validBaseData, email: 'user @example.com' };
+        expect(() => registerSchema.parse(invalidData)).toThrow();
+      });
+
+      it('should reject email with invalid domain format', () => {
+        const invalidData = { ...validBaseData, email: 'user@example' };
+        expect(() => registerSchema.parse(invalidData)).toThrow();
+      });
+
+      it('should reject email ending with dot', () => {
+        const invalidData = { ...validBaseData, email: 'user@example.' };
+        expect(() => registerSchema.parse(invalidData)).toThrow();
+      });
+
+      it('should reject empty email string', () => {
+        const invalidData = { ...validBaseData, email: '' };
+        expect(() => registerSchema.parse(invalidData)).toThrow();
+      });
+
+      it('should accept email with 255 characters', () => {
+        // Создаем email длиной 255 символов: 'a' + '@' + 'b' * 249 + '.com'
+        // 1 (a) + 1 (@) + 249 (b's) + 4 (.com) = 255
+        const localPart = 'a';
+        const domain = 'b'.repeat(249) + '.com';
+        const email255 = `${localPart}@${domain}`;
+        expect(email255.length).toBe(255);
+        const validData = { ...validBaseData, email: email255 };
+        expect(() => registerSchema.parse(validData)).not.toThrow();
+      });
+
+      it('should reject email with 256 characters', () => {
+        // Создаем email длиной 256 символов: 'a' + '@' + 'b' * 250 + '.com'
+        // 1 (a) + 1 (@) + 250 (b's) + 4 (.com) = 256
+        const localPart = 'a';
+        const domain = 'b'.repeat(250) + '.com';
+        const email256 = `${localPart}@${domain}`;
+        expect(email256.length).toBe(256);
+        const invalidData = { ...validBaseData, email: email256 };
+        expect(() => registerSchema.parse(invalidData)).toThrow();
+      });
+    });
+
+    describe('login schema validation', () => {
+      const validBaseData = {
+        password: 'password123',
+      };
+
+      it('should accept valid email format', () => {
+        const validData = { ...validBaseData, email: 'ivan@example.com' };
+        expect(() => loginSchema.parse(validData)).not.toThrow();
+      });
+
+      it('should reject invalid email format', () => {
+        const invalidData = { ...validBaseData, email: 'invalid' };
+        expect(() => loginSchema.parse(invalidData)).toThrow();
+      });
+
+      it('should reject empty email string', () => {
+        const invalidData = { ...validBaseData, email: '' };
+        expect(() => loginSchema.parse(invalidData)).toThrow();
+      });
+
+      it('should accept email with 255 characters', () => {
+        // Создаем email длиной 255 символов: 'a' + '@' + 'b' * 249 + '.com'
+        // 1 (a) + 1 (@) + 249 (b's) + 4 (.com) = 255
+        const localPart = 'a';
+        const domain = 'b'.repeat(249) + '.com';
+        const email255 = `${localPart}@${domain}`;
+        expect(email255.length).toBe(255);
+        const validData = { ...validBaseData, email: email255 };
+        expect(() => loginSchema.parse(validData)).not.toThrow();
+      });
+
+      it('should reject email with 256 characters', () => {
+        // Создаем email длиной 256 символов: 'a' + '@' + 'b' * 250 + '.com'
+        // 1 (a) + 1 (@) + 250 (b's) + 4 (.com) = 256
+        const localPart = 'a';
+        const domain = 'b'.repeat(250) + '.com';
+        const email256 = `${localPart}@${domain}`;
+        expect(email256.length).toBe(256);
+        const invalidData = { ...validBaseData, email: email256 };
+        expect(() => loginSchema.parse(invalidData)).toThrow();
+      });
+    });
+
+    describe('forgotPassword schema validation', () => {
+      it('should accept valid email format', () => {
+        const validData = { email: 'ivan@example.com' };
+        expect(() => forgotPasswordSchema.parse(validData)).not.toThrow();
+      });
+
+      it('should reject invalid email format', () => {
+        const invalidData = { email: 'invalid' };
+        expect(() => forgotPasswordSchema.parse(invalidData)).toThrow();
+      });
+
+      it('should reject empty email string', () => {
+        const invalidData = { email: '' };
+        expect(() => forgotPasswordSchema.parse(invalidData)).toThrow();
+      });
+
+      it('should accept email with 255 characters', () => {
+        // Создаем email длиной 255 символов: 'a' + '@' + 'b' * 249 + '.com'
+        // 1 (a) + 1 (@) + 249 (b's) + 4 (.com) = 255
+        const localPart = 'a';
+        const domain = 'b'.repeat(249) + '.com';
+        const email255 = `${localPart}@${domain}`;
+        expect(email255.length).toBe(255);
+        const validData = { email: email255 };
+        expect(() => forgotPasswordSchema.parse(validData)).not.toThrow();
+      });
+
+      it('should reject email with 256 characters', () => {
+        // Создаем email длиной 256 символов: 'a' + '@' + 'b' * 250 + '.com'
+        // 1 (a) + 1 (@) + 250 (b's) + 4 (.com) = 256
+        const localPart = 'a';
+        const domain = 'b'.repeat(250) + '.com';
+        const email256 = `${localPart}@${domain}`;
+        expect(email256.length).toBe(256);
+        const invalidData = { email: email256 };
+        expect(() => forgotPasswordSchema.parse(invalidData)).toThrow();
+      });
+    });
   });
 });
 

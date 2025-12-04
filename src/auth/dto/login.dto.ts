@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { z } from 'zod/v4';
 
 export const loginSchema = z.object({
-  email: z.string().email('Некорректный формат email').min(1, 'Email обязателен'),
+  email: z.string().email('Некорректный формат email').min(1, 'Email обязателен').max(255, 'Email не должен превышать 255 символов'),
   password: z.string().min(1, 'Пароль обязателен'),
 });
 
