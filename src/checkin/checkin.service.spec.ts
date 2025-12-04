@@ -6,6 +6,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { QuestRepository } from '../quest/quest.repository';
 import { StepVolunteerRepository } from '../step-volunteer/step-volunteer.repository';
+import { ContributerRepository } from '../contributer/contributer.repository';
 import { UserRepository } from '../user/user.repository';
 import {
   NotFoundException,
@@ -21,6 +22,7 @@ describe('CheckinService', () => {
   let configService: ConfigService;
   let questRepository: QuestRepository;
   let stepVolunteerRepository: StepVolunteerRepository;
+  let contributerRepository: ContributerRepository;
   let userRepository: UserRepository;
 
   const mockUser = {
@@ -49,6 +51,13 @@ describe('CheckinService', () => {
         requirement: {
           targetValue: 50,
           currentValue: 25,
+        },
+      },
+      {
+        type: 'contributers',
+        requirement: {
+          targetValue: 10,
+          currentValue: 3,
         },
       },
     ],
@@ -96,6 +105,12 @@ describe('CheckinService', () => {
     restore: ReturnType<typeof vi.fn>;
   };
 
+  let mockContributerRepository: {
+    findContributer: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    restore: ReturnType<typeof vi.fn>;
+  };
+
   let mockUserRepository: {
     findById: ReturnType<typeof vi.fn>;
   };
@@ -125,6 +140,12 @@ describe('CheckinService', () => {
       restore: vi.fn(),
     };
 
+    mockContributerRepository = {
+      findContributer: vi.fn(),
+      create: vi.fn(),
+      restore: vi.fn(),
+    };
+
     mockUserRepository = {
       findById: vi.fn(),
     };
@@ -149,6 +170,10 @@ describe('CheckinService', () => {
           useValue: mockStepVolunteerRepository,
         },
         {
+          provide: ContributerRepository,
+          useValue: mockContributerRepository,
+        },
+        {
           provide: UserRepository,
           useValue: mockUserRepository,
         },
@@ -160,12 +185,14 @@ describe('CheckinService', () => {
     configService = module.get<ConfigService>(ConfigService);
     questRepository = module.get<QuestRepository>(QuestRepository);
     stepVolunteerRepository = module.get<StepVolunteerRepository>(StepVolunteerRepository);
+    contributerRepository = module.get<ContributerRepository>(ContributerRepository);
     userRepository = module.get<UserRepository>(UserRepository);
     
     (service as any).jwtService = mockJwtService;
     (service as any).configService = mockConfigService;
     (service as any).questRepository = mockQuestRepository;
     (service as any).stepVolunteerRepository = mockStepVolunteerRepository;
+    (service as any).contributerRepository = mockContributerRepository;
     (service as any).userRepository = mockUserRepository;
   });
 
@@ -296,6 +323,35 @@ describe('CheckinService', () => {
       expect(mockJwtService.sign).toHaveBeenCalledWith(
         expect.any(Object),
         { expiresIn: customExpiresIn }
+      );
+    });
+
+    it('should successfully generate token for contributers type', async () => {
+      const token = 'generated-token';
+      const contributersDto: GenerateCheckinTokenDto = {
+        questId: 1,
+        type: 'contributers',
+      };
+      mockUserRepository.findById.mockResolvedValue(mockUser);
+      mockQuestRepository.findById.mockResolvedValue(mockQuest);
+      mockJwtService.sign.mockReturnValue(token);
+
+      const result = await service.generateToken(userId, contributersDto);
+
+      expect(result).toEqual({
+        token,
+        questId: contributersDto.questId,
+        type: contributersDto.type,
+        expiresIn: '7d',
+      });
+      expect(mockJwtService.sign).toHaveBeenCalledWith(
+        {
+          sub: userId,
+          questId: contributersDto.questId,
+          type: contributersDto.type,
+          purpose: 'checkin',
+        },
+        { expiresIn: '7d' }
       );
     });
 
@@ -600,6 +656,54 @@ describe('CheckinService', () => {
       const updateCall = mockQuestRepository.updateUserQuest.mock.calls[0];
       expect(updateCall[1].completedAt).toBeInstanceOf(Date);
       expect(updateCall[1].status).toBe('completed');
+    });
+  });
+
+  describe('confirmCheckin with contributers type', () => {
+    const token = 'valid-token';
+    const questId = 1;
+    const type = 'contributers';
+    const userId = 1;
+
+    const validPayload = {
+      sub: userId,
+      questId,
+      type,
+      purpose: 'checkin',
+    };
+
+    it('should successfully confirm checkin with contributers type', async () => {
+      const mockContributer = {
+        id: 1,
+        questId: 1,
+        userId: 1,
+        recordStatus: 'CREATED',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockUserRepository.findById.mockResolvedValue(mockUser);
+      mockJwtService.verify.mockReturnValue(validPayload);
+      mockQuestRepository.findById.mockResolvedValue(mockQuest);
+      mockQuestRepository.findUserQuest.mockResolvedValue(mockUserQuest);
+      mockContributerRepository.findContributer.mockResolvedValue(undefined);
+      mockContributerRepository.create.mockResolvedValue(mockContributer);
+      mockQuestRepository.updateUserQuest.mockResolvedValue({
+        ...mockUserQuest,
+        status: 'completed',
+        completedAt: new Date(),
+      });
+
+      const result = await service.confirmCheckin(token, questId, type, userId);
+
+      expect(result).toEqual({
+        message: 'Участие успешно подтверждено',
+        questId,
+        type,
+        userId,
+      });
+      expect(mockContributerRepository.create).toHaveBeenCalledWith(questId, userId);
+      expect(mockStepVolunteerRepository.create).not.toHaveBeenCalled();
     });
   });
 });
