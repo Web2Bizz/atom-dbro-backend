@@ -271,7 +271,8 @@ export class QuestController {
 - \`id\` (number) - ID квеста, в котором нужно обновить требование этапа
 - \`type\` (string) - Тип этапа, для которого обновляется требование. Допустимые значения:
   - \`finance\` - финансовый этап
-    - \`material\` - материальный этап
+  - \`material\` - материальный этап
+  - \`contributers\` - этап с волонтёрами
 
 **Тело запроса:**
 - \`currentValue\` (number, опционально) - Новое значение текущего прогресса требования. 
@@ -297,7 +298,7 @@ export class QuestController {
   @ApiParam({ 
     name: 'type', 
     description: 'Тип этапа квеста', 
-    enum: ['finance', 'material'],
+    enum: ['finance', 'material', 'contributers'],
     example: 'finance'
   })
   @ApiBody({ type: UpdateRequirementDtoClass })
@@ -308,7 +309,7 @@ export class QuestController {
   @ApiResponse({ status: 400, description: 'Некорректные данные, неверный статус квеста (не active), или отсутствует requirement у этапа' })
   updateRequirementCurrentValue(
     @Param('id', ParseIntPipe) questId: number,
-    @Param('type') type: 'finance' | 'material',
+    @Param('type') type: 'finance' | 'material' | 'contributers',
     @Body() updateRequirementDto: UpdateRequirementDto,
     @CurrentUser() user: { userId: number; email: string },
   ) {

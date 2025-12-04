@@ -39,6 +39,8 @@ export class StepVolunteerController {
   - \`material\` - материальный этап
 - \`userId\` (number) - ID пользователя, который вносит вклад
 
+**Примечание:** Для этапов типа \`contributers\` используйте endpoint \`POST /quests/:questId/contributers\`
+
 **Тело запроса:**
 - \`contributeValue\` (number) - Значение вклада пользователя в этап (например, сумма денег, количество материалов и т.д.)
 

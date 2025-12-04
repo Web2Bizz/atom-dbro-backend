@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { GenerateCheckinTokenDto } from './dto/generate-checkin-token.dto';
 import { QuestRepository } from '../quest/quest.repository';
 import { StepVolunteerRepository } from '../step-volunteer/step-volunteer.repository';
+import { ContributerRepository } from '../contributer/contributer.repository';
 import { UserRepository } from '../user/user.repository';
 
 @Injectable()
@@ -15,6 +16,7 @@ export class CheckinService {
     private readonly configService: ConfigService,
     private readonly questRepository: QuestRepository,
     private readonly stepVolunteerRepository: StepVolunteerRepository,
+    private readonly contributerRepository: ContributerRepository,
     private readonly userRepository: UserRepository,
   ) {}
 
@@ -120,17 +122,33 @@ export class CheckinService {
     }
 
     // Проверяем, не участвует ли уже пользователь в этапе
-    const existingVolunteer = await this.stepVolunteerRepository.findVolunteer(questId, type, userId);
-    if (existingVolunteer) {
-      if (existingVolunteer.recordStatus === 'DELETED') {
-        // Восстанавливаем запись
-        await this.stepVolunteerRepository.restore(questId, type, userId);
+    // Для типа contributers используем ContributerRepository, для остальных - StepVolunteerRepository
+    if (type === 'contributers') {
+      const existingContributer = await this.contributerRepository.findContributer(questId, userId);
+      if (existingContributer) {
+        if (existingContributer.recordStatus === 'DELETED') {
+          // Восстанавливаем запись
+          await this.contributerRepository.restore(questId, userId);
+        } else {
+          throw new ConflictException('Пользователь уже участвует в этом этапе');
+        }
       } else {
-        throw new ConflictException('Пользователь уже участвует в этом этапе');
+        // Создаем запись contributer
+        await this.contributerRepository.create(questId, userId);
       }
     } else {
-      // Создаем запись волонтёра этапа
-      await this.stepVolunteerRepository.create(questId, type, userId, 0);
+      const existingVolunteer = await this.stepVolunteerRepository.findVolunteer(questId, type, userId);
+      if (existingVolunteer) {
+        if (existingVolunteer.recordStatus === 'DELETED') {
+          // Восстанавливаем запись
+          await this.stepVolunteerRepository.restore(questId, type, userId);
+        } else {
+          throw new ConflictException('Пользователь уже участвует в этом этапе');
+        }
+      } else {
+        // Создаем запись волонтёра этапа
+        await this.stepVolunteerRepository.create(questId, type, userId, 0);
+      }
     }
 
     // Обновляем запись в user_quests: меняем статус на completed и устанавливаем completedAt
