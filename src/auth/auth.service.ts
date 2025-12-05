@@ -13,6 +13,7 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { BCRYPT_SALT_ROUNDS } from '../common/constants';
 
 @Injectable()
 export class AuthService {
@@ -39,7 +40,7 @@ export class AuthService {
     const { confirmPassword, ...createUserDto } = registerDto;
 
     // Хешируем пароль
-    const passwordHash = await bcrypt.hash(createUserDto.password, 10);
+    const passwordHash = await bcrypt.hash(createUserDto.password, BCRYPT_SALT_ROUNDS);
 
     // Генерируем аватарку - ожидаем ответ от сервиса, в случае ошибки возвращаем 400
     let avatarUrls: Record<number, string>;
@@ -290,7 +291,7 @@ export class AuthService {
     }
 
     // Хешируем новый пароль
-    const passwordHash = await bcrypt.hash(resetPasswordDto.password, 10);
+    const passwordHash = await bcrypt.hash(resetPasswordDto.password, BCRYPT_SALT_ROUNDS);
 
     // Обновляем пароль пользователя
     try {

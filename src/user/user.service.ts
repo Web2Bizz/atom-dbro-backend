@@ -3,6 +3,7 @@ import * as bcrypt from 'bcrypt';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UserRepository } from './user.repository';
+import { BCRYPT_SALT_ROUNDS } from '../common/constants';
 
 @Injectable()
 export class UserService {
@@ -98,7 +99,7 @@ export class UserService {
     }
 
     // Хешируем новый пароль
-    const newPasswordHash = await bcrypt.hash(changePasswordDto.newPassword, 10);
+    const newPasswordHash = await bcrypt.hash(changePasswordDto.newPassword, BCRYPT_SALT_ROUNDS);
 
     // Обновляем пароль через репозиторий
     await this.userRepository.updatePassword(userId, newPasswordHash);

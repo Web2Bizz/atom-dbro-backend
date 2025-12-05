@@ -7,14 +7,10 @@ import { QuestRepository } from './quest.repository';
 import { StepVolunteerRepository } from '../step-volunteer/step-volunteer.repository';
 import { ContributerRepository } from '../contributer/contributer.repository';
 import { MAX_GALLERY_IMAGES, MIN_LEVEL_TO_CREATE_QUEST } from '../common/constants';
-import { EntityValidationService } from '../common/services/entity-validation.service';
-import { formatCoordinateForDb } from '../common/utils/coordinates.util';
 
 @Injectable()
 export class QuestService {
   private readonly logger = new Logger(QuestService.name);
-  // ВРЕМЕННО: порог снижен до 0 (обычно требуется уровень 5)
-  private readonly MIN_LEVEL_TO_CREATE_QUEST = 0;
 
   constructor(
     private readonly questRepository: QuestRepository,
@@ -52,8 +48,8 @@ export class QuestService {
     if (!user) {
       throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
     }
-    if (user.level < this.MIN_LEVEL_TO_CREATE_QUEST) {
-      throw new ForbiddenException(`Для создания квеста требуется уровень ${this.MIN_LEVEL_TO_CREATE_QUEST} или выше`);
+    if (user.level < MIN_LEVEL_TO_CREATE_QUEST) {
+      throw new ForbiddenException(`Для создания квеста требуется уровень ${MIN_LEVEL_TO_CREATE_QUEST} или выше`);
     }
 
     let achievementId: number | undefined = undefined;
@@ -92,8 +88,8 @@ export class QuestService {
     }
 
     // Валидация галереи (максимум 10 элементов)
-    if (createQuestDto.gallery && createQuestDto.gallery.length > 10) {
-      throw new BadRequestException('Галерея не может содержать более 10 изображений');
+    if (createQuestDto.gallery && createQuestDto.gallery.length > MAX_GALLERY_IMAGES) {
+      throw new BadRequestException(`Галерея не может содержать более ${MAX_GALLERY_IMAGES} изображений`);
     }
 
     // Преобразуем координаты в строки для decimal полей
@@ -322,8 +318,8 @@ export class QuestService {
     }
     if (updateQuestDto.gallery !== undefined) {
       // Валидация галереи (максимум 10 элементов)
-      if (updateQuestDto.gallery && updateQuestDto.gallery.length > 10) {
-        throw new BadRequestException('Галерея не может содержать более 10 изображений');
+      if (updateQuestDto.gallery && updateQuestDto.gallery.length > MAX_GALLERY_IMAGES) {
+        throw new BadRequestException(`Галерея не может содержать более ${MAX_GALLERY_IMAGES} изображений`);
       }
       updateData.gallery = updateQuestDto.gallery;
     }
