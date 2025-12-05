@@ -14,6 +14,7 @@ import { S3Service } from './s3.service';
 import { OrganizationRepository, OwnerRelation } from './organization.repository';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { parseCoordinate, formatCoordinateForDb } from '../common/utils/coordinates.util';
+import { EntityValidationService } from '../common/services/entity-validation.service';
 
 @Injectable()
 export class OrganizationService {
@@ -24,6 +25,7 @@ export class OrganizationService {
     private s3Service: S3Service,
     @Inject(DATABASE_CONNECTION)
     private db: NodePgDatabase,
+    private entityValidationService: EntityValidationService,
   ) {}
 
 
@@ -74,6 +76,7 @@ export class OrganizationService {
 
   async create(createOrganizationDto: CreateOrganizationDto, userId: number) {
     // Проверяем существование города (исключая удаленные)
+    await this.entityValidationService.validateCityExists(createOrganizationDto.cityId);
     const [city] = await this.db
       .select()
       .from(cities)
@@ -86,31 +89,11 @@ export class OrganizationService {
     }
 
     // Проверяем существование типа организации (исключая удаленные)
-    const [orgType] = await this.db
-      .select()
-      .from(organizationTypes)
-      .where(and(
-        eq(organizationTypes.id, createOrganizationDto.typeId),
-        ne(organizationTypes.recordStatus, 'DELETED')
-      ));
-    if (!orgType) {
-      throw new NotFoundException(`Тип организации с ID ${createOrganizationDto.typeId} не найден`);
-    }
+    await this.entityValidationService.validateOrganizationTypeExists(createOrganizationDto.typeId);
 
     // Проверяем существование видов помощи (исключая удаленные)
     const helpTypeIds = [...new Set(createOrganizationDto.helpTypeIds)]; // Убеждаемся в уникальности
-    const existingHelpTypes = await this.db
-      .select()
-      .from(helpTypes)
-      .where(and(
-        inArray(helpTypes.id, helpTypeIds),
-        ne(helpTypes.recordStatus, 'DELETED')
-      ));
-    if (existingHelpTypes.length !== helpTypeIds.length) {
-      const foundIds = existingHelpTypes.map(ht => ht.id);
-      const missingIds = helpTypeIds.filter(id => !foundIds.includes(id));
-      throw new NotFoundException(`Виды помощи с ID ${missingIds.join(', ')} не найдены`);
-    }
+    await this.entityValidationService.validateHelpTypesExist(helpTypeIds);
 
     // Проверяем существование пользователя (исключая удаленные)
     const [user] = await this.db
@@ -368,16 +351,7 @@ export class OrganizationService {
         throw new BadRequestException('ID типа организации должен быть положительным целым числом');
       }
       // Проверяем существование типа организации (исключая удаленные)
-      const [orgType] = await this.db
-        .select()
-        .from(organizationTypes)
-        .where(and(
-          eq(organizationTypes.id, organizationTypeId),
-          ne(organizationTypes.recordStatus, 'DELETED')
-        ));
-      if (!orgType) {
-        throw new NotFoundException(`Тип организации с ID ${organizationTypeId} не найден`);
-      }
+      await this.entityValidationService.validateOrganizationTypeExists(organizationTypeId);
       updateData.organizationTypeId = organizationTypeId;
     }
 
@@ -387,18 +361,7 @@ export class OrganizationService {
       
       // Проверяем существование всех видов помощи (исключая удаленные)
       if (helpTypeIds.length > 0) {
-        const existingHelpTypes = await this.db
-          .select()
-          .from(helpTypes)
-          .where(and(
-            inArray(helpTypes.id, helpTypeIds),
-            ne(helpTypes.recordStatus, 'DELETED')
-          ));
-        if (existingHelpTypes.length !== helpTypeIds.length) {
-          const foundIds = existingHelpTypes.map(ht => ht.id);
-          const missingIds = helpTypeIds.filter(id => !foundIds.includes(id));
-          throw new NotFoundException(`Виды помощи с ID ${missingIds.join(', ')} не найдены`);
-        }
+        await this.entityValidationService.validateHelpTypesExist(helpTypeIds);
       }
 
       // Удаляем все старые связи с видами помощи

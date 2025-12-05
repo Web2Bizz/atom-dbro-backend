@@ -7,6 +7,7 @@ import { QuestRepository } from './quest.repository';
 import { StepVolunteerRepository } from '../step-volunteer/step-volunteer.repository';
 import { ContributerRepository } from '../contributer/contributer.repository';
 import { MAX_GALLERY_IMAGES, MIN_LEVEL_TO_CREATE_QUEST } from '../common/constants';
+import { EntityValidationService } from '../common/services/entity-validation.service';
 
 @Injectable()
 export class QuestService {
@@ -19,6 +20,7 @@ export class QuestService {
     private readonly stepVolunteerRepository: StepVolunteerRepository,
     @Inject(forwardRef(() => ContributerRepository))
     private readonly contributerRepository: ContributerRepository,
+    private readonly entityValidationService: EntityValidationService,
   ) {}
 
   /**
@@ -66,6 +68,7 @@ export class QuestService {
     }
 
     // Проверяем существование города (теперь обязателен)
+    await this.entityValidationService.validateCityExists(createQuestDto.cityId);
     const city = await this.questRepository.findCityById(createQuestDto.cityId);
     if (!city) {
       throw new NotFoundException(`Город с ID ${createQuestDto.cityId} не найден`);
@@ -73,18 +76,12 @@ export class QuestService {
 
     // Проверяем существование типа организации, если указан
     if (createQuestDto.organizationTypeId) {
-      const orgType = await this.questRepository.findOrganizationTypeById(createQuestDto.organizationTypeId);
-      if (!orgType) {
-        throw new NotFoundException(`Тип организации с ID ${createQuestDto.organizationTypeId} не найден`);
-      }
+      await this.entityValidationService.validateOrganizationTypeExists(createQuestDto.organizationTypeId);
     }
 
     // Проверяем существование категорий, если указаны
     if (createQuestDto.categoryIds && createQuestDto.categoryIds.length > 0) {
-      const existingCategories = await this.questRepository.findCategoriesByIds(createQuestDto.categoryIds);
-      if (existingCategories.length !== createQuestDto.categoryIds.length) {
-        throw new NotFoundException('Одна или несколько категорий не найдены');
-      }
+      await this.entityValidationService.validateCategoriesExist(createQuestDto.categoryIds);
     }
 
     // Валидация галереи (максимум 10 элементов)
@@ -328,10 +325,7 @@ export class QuestService {
 
     // Проверяем существование категорий, если указаны
     if (categoryIds.length > 0) {
-      const existingCategories = await this.questRepository.findCategoriesByIds(categoryIds);
-      if (existingCategories.length !== categoryIds.length) {
-        throw new NotFoundException('Одна или несколько категорий не найдены');
-      }
+      await this.entityValidationService.validateCategoriesExist(categoryIds);
 
       // Создаем новые связи
       await this.questRepository.linkQuestToCategories(questId, categoryIds);
@@ -378,19 +372,13 @@ export class QuestService {
     if (updateQuestDto.cityId !== undefined) {
       // Проверяем существование города, если указан
       if (updateQuestDto.cityId !== null) {
-        const city = await this.questRepository.findCityById(updateQuestDto.cityId);
-        if (!city) {
-          throw new NotFoundException(`Город с ID ${updateQuestDto.cityId} не найден`);
-        }
+        await this.entityValidationService.validateCityExists(updateQuestDto.cityId);
       }
       updateData.cityId = updateQuestDto.cityId;
     }
     if (updateQuestDto.organizationTypeId !== undefined) {
       if (updateQuestDto.organizationTypeId !== null) {
-        const orgType = await this.questRepository.findOrganizationTypeById(updateQuestDto.organizationTypeId);
-        if (!orgType) {
-          throw new NotFoundException(`Тип организации с ID ${updateQuestDto.organizationTypeId} не найден`);
-        }
+        await this.entityValidationService.validateOrganizationTypeExists(updateQuestDto.organizationTypeId);
       }
       updateData.organizationTypeId = updateQuestDto.organizationTypeId;
     }
