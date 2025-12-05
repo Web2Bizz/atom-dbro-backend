@@ -35,10 +35,8 @@ describe('QuestEventsHandler', () => {
       mockAchievementService as unknown as AchievementService,
       achievementEventsService,
       mockQuestService as any,
+      mockQuestCacheService as any,
     );
-
-    // Устанавливаем мок для QuestCacheService (будет добавлен при реализации)
-    (handler as any).questCacheService = mockQuestCacheService;
 
     // Мокируем logger, чтобы не выводить логи в тестах
     (handler as any).logger = {
