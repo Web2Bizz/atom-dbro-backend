@@ -4,6 +4,7 @@ import { QuestEventsService, QuestEvent } from './quest.events';
 import { AchievementService } from '../achievement/achievement.service';
 import { AchievementEventsService } from '../achievement/achievement.events';
 import { QuestService } from './quest.service';
+import { QuestCacheService } from './quest-cache.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 
 @Injectable()
@@ -16,6 +17,8 @@ export class QuestEventsHandler implements OnModuleInit {
     private readonly achievementEvents: AchievementEventsService,
     @Inject(forwardRef(() => QuestService))
     private readonly questService: QuestService,
+    @Inject(forwardRef(() => QuestCacheService))
+    private readonly questCacheService: QuestCacheService,
   ) {}
 
   onModuleInit() {
@@ -133,6 +136,15 @@ export class QuestEventsHandler implements OnModuleInit {
           await this.questService.syncRequirementCurrentValue(questId, stepType);
           this.logger.debug(`Synced requirement currentValue for quest ${questId}, type ${stepType}`);
         }
+      }
+
+      // Инвалидируем кеш квеста после синхронизации
+      await this.questCacheService.invalidateQuest(questId);
+
+      // Пересчитываем и сохраняем квест в кеш с актуальными значениями
+      const updatedQuest = await this.questCacheService.getQuest(questId);
+      if (updatedQuest) {
+        await this.questCacheService.setQuest(questId, updatedQuest);
       }
     } catch (error) {
       this.logger.error(
