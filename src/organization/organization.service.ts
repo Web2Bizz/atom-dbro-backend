@@ -13,6 +13,7 @@ import { CreateOrganizationsBulkDto } from './dto/create-organizations-bulk.dto'
 import { S3Service } from './s3.service';
 import { OrganizationRepository, OwnerRelation } from './organization.repository';
 import { DATABASE_CONNECTION } from '../database/database.module';
+import { parseCoordinate, formatCoordinateForDb } from '../common/utils/coordinates.util';
 
 @Injectable()
 export class OrganizationService {
@@ -25,16 +26,6 @@ export class OrganizationService {
     private db: NodePgDatabase,
   ) {}
 
-  /**
-   * Преобразует координату в число
-   * @param coord - координата (может быть строкой или числом)
-   * @returns число или null
-   */
-  private parseCoordinate(coord: string | number | null | undefined): number | null {
-    if (coord === null || coord === undefined) return null;
-    const parsed = typeof coord === 'string' ? parseFloat(coord) : coord;
-    return isNaN(parsed) ? null : parsed;
-  }
 
   /**
    * Группирует виды помощи по ID организации
@@ -185,8 +176,8 @@ export class OrganizationService {
       return orgs.map(org => ({
         id: org.id,
         name: org.name,
-        latitude: this.parseCoordinate(org.latitude),
-        longitude: this.parseCoordinate(org.longitude),
+        latitude: parseCoordinate(org.latitude),
+        longitude: parseCoordinate(org.longitude),
         summary: org.summary,
         mission: org.mission,
         description: org.description,
@@ -201,8 +192,8 @@ export class OrganizationService {
         city: org.cityName && org.cityRecordStatus && org.cityRecordStatus !== 'DELETED' ? {
           id: org.cityId,
           name: org.cityName,
-          latitude: this.parseCoordinate(org.cityLatitude),
-          longitude: this.parseCoordinate(org.cityLongitude),
+          latitude: parseCoordinate(org.cityLatitude),
+          longitude: parseCoordinate(org.cityLongitude),
         } : null,
         type: org.organizationTypeName && org.organizationTypeRecordStatus && org.organizationTypeRecordStatus !== 'DELETED' ? {
           id: org.organizationTypeId,
@@ -241,8 +232,8 @@ export class OrganizationService {
       return orgs.map(org => ({
         id: org.id,
         name: org.name,
-        latitude: this.parseCoordinate(org.latitude),
-        longitude: this.parseCoordinate(org.longitude),
+        latitude: parseCoordinate(org.latitude),
+        longitude: parseCoordinate(org.longitude),
         summary: org.summary,
         mission: org.mission,
         description: org.description,
@@ -257,8 +248,8 @@ export class OrganizationService {
         city: org.cityName && org.cityRecordStatus && org.cityRecordStatus !== 'DELETED' ? {
           id: org.cityId,
           name: org.cityName,
-          latitude: this.parseCoordinate(org.cityLatitude),
-          longitude: this.parseCoordinate(org.cityLongitude),
+          latitude: parseCoordinate(org.cityLatitude),
+          longitude: parseCoordinate(org.cityLongitude),
         } : null,
         type: org.organizationTypeName && org.organizationTypeRecordStatus && org.organizationTypeRecordStatus !== 'DELETED' ? {
           id: org.organizationTypeId,

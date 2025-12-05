@@ -93,12 +93,8 @@ export class QuestService {
     }
 
     // Преобразуем координаты в строки для decimal полей
-    const latitude = createQuestDto.latitude !== undefined
-      ? createQuestDto.latitude.toString()
-      : city.latitude;
-    const longitude = createQuestDto.longitude !== undefined
-      ? createQuestDto.longitude.toString()
-      : city.longitude;
+    const latitude = formatCoordinateForDb(createQuestDto.latitude, city.latitude);
+    const longitude = formatCoordinateForDb(createQuestDto.longitude, city.longitude);
 
     // Создаем квест с привязкой к достижению (если указано) и владельцем
     const quest = await this.questRepository.create({
