@@ -1,4 +1,4 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Injectable, Inject, Logger, ConflictException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
@@ -512,6 +512,10 @@ export class OrganizationRepository {
         userId,
       });
     } catch (error: any) {
+      // 23505 - unique_violation (PostgreSQL)
+      if (error.code === '23505') {
+        throw new ConflictException('Пользователь уже является владельцем организации');
+      }
       this.logError('addOwner', { organizationId, userId }, error);
       throw error;
     }
