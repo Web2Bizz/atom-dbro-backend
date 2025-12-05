@@ -243,16 +243,113 @@ export class QuestService {
     };
   }
 
+  /**
+   * Проверяет права пользователя на обновление квеста
+   * @param questId ID квеста
+   * @param userId ID пользователя
+   * @throws NotFoundException если квест не найден
+   * @throws ForbiddenException если пользователь не является владельцем
+   */
+  private async validateQuestUpdatePermissions(questId: number, userId: number): Promise<void> {
+    const existingQuest = await this.questRepository.findById(questId);
+    if (!existingQuest) {
+      throw new NotFoundException(`Квест с ID ${questId} не найден`);
+    }
+
+    if (existingQuest.ownerId !== userId) {
+      throw new ForbiddenException('Только владелец квеста может его обновить');
+    }
+  }
+
+  /**
+   * Проверяет, изменились ли requirements в этапах квеста
+   * @param oldSteps Старые этапы квеста
+   * @param newSteps Новые этапы квеста
+   * @returns true если requirements изменились, false иначе
+   */
+  private checkRequirementsChanged(oldSteps: any[] | undefined, newSteps: any[] | undefined): boolean {
+    if (!oldSteps && !newSteps) {
+      return false;
+    }
+
+    if (!oldSteps && newSteps && Array.isArray(newSteps)) {
+      // Если старых steps не было, но новые есть с requirements
+      return newSteps.some(step => step?.requirement);
+    }
+
+    if (oldSteps && Array.isArray(oldSteps) && !newSteps) {
+      // Если старые steps были с requirements, а новых нет
+      return oldSteps.some(step => step?.requirement);
+    }
+
+    if (oldSteps && Array.isArray(oldSteps) && newSteps && Array.isArray(newSteps)) {
+      const maxLength = Math.max(oldSteps.length, newSteps.length);
+      for (let i = 0; i < maxLength; i++) {
+        const newStep = newSteps[i];
+        const oldStep = oldSteps[i];
+        
+        // Проверяем наличие requirement в новом или старом этапе
+        const hasNewRequirement = newStep?.requirement !== undefined && newStep?.requirement !== null;
+        const hasOldRequirement = oldStep?.requirement !== undefined && oldStep?.requirement !== null;
+        
+        // Если requirement был добавлен или удален
+        if (hasNewRequirement !== hasOldRequirement) {
+          return true;
+        }
+        
+        // Если оба имеют requirement, проверяем изменения
+        if (hasNewRequirement && hasOldRequirement) {
+          const newReq = newStep.requirement as { currentValue?: number; targetValue?: number };
+          const oldReq = oldStep.requirement as { currentValue?: number; targetValue?: number };
+          
+          // Проверяем, изменились ли currentValue или targetValue
+          if (
+            (newReq.currentValue !== undefined && newReq.currentValue !== oldReq.currentValue) ||
+            (newReq.targetValue !== undefined && newReq.targetValue !== oldReq.targetValue)
+          ) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Обновляет категории квеста
+   * @param questId ID квеста
+   * @param categoryIds Массив ID категорий (может быть undefined)
+   * @throws NotFoundException если одна или несколько категорий не найдены
+   */
+  private async updateQuestCategories(questId: number, categoryIds?: number[]): Promise<void> {
+    if (categoryIds === undefined) {
+      return;
+    }
+
+    // Удаляем старые связи
+    await this.questRepository.unlinkQuestFromCategories(questId);
+
+    // Проверяем существование категорий, если указаны
+    if (categoryIds.length > 0) {
+      const existingCategories = await this.questRepository.findCategoriesByIds(categoryIds);
+      if (existingCategories.length !== categoryIds.length) {
+        throw new NotFoundException('Одна или несколько категорий не найдены');
+      }
+
+      // Создаем новые связи
+      await this.questRepository.linkQuestToCategories(questId, categoryIds);
+    }
+  }
+
   async update(id: number, updateQuestDto: UpdateQuestDto, userId: number) {
-    // Проверяем существование квеста
+    // Проверяем права на обновление
+    await this.validateQuestUpdatePermissions(id, userId);
+
+    // Получаем существующий квест для проверки изменений
     const existingQuest = await this.questRepository.findById(id);
     if (!existingQuest) {
       throw new NotFoundException(`Квест с ID ${id} не найден`);
-    }
-
-    // Проверяем, что пользователь является владельцем квеста
-    if (existingQuest.ownerId !== userId) {
-      throw new ForbiddenException('Только владелец квеста может его обновить');
     }
 
     // Если обновляется achievementId, проверяем существование достижения
@@ -323,54 +420,13 @@ export class QuestService {
       }
       updateData.gallery = updateQuestDto.gallery;
     }
-    let requirementsChanged = false;
+    
+    // Проверяем изменения requirements
+    const requirementsChanged = updateQuestDto.steps !== undefined
+      ? this.checkRequirementsChanged(existingQuest.steps, updateQuestDto.steps)
+      : false;
+    
     if (updateQuestDto.steps !== undefined) {
-      // Проверяем, изменились ли requirements в этапах
-      if (existingQuest.steps && Array.isArray(existingQuest.steps) && Array.isArray(updateQuestDto.steps)) {
-        const maxLength = Math.max(existingQuest.steps.length, updateQuestDto.steps.length);
-        for (let i = 0; i < maxLength; i++) {
-          const newStep = updateQuestDto.steps[i];
-          const oldStep = existingQuest.steps[i];
-          
-          // Проверяем наличие requirement в новом или старом этапе
-          const hasNewRequirement = newStep?.requirement !== undefined && newStep?.requirement !== null;
-          const hasOldRequirement = oldStep?.requirement !== undefined && oldStep?.requirement !== null;
-          
-          // Если requirement был добавлен или удален
-          if (hasNewRequirement !== hasOldRequirement) {
-            requirementsChanged = true;
-            break;
-          }
-          
-          // Если оба имеют requirement, проверяем изменения
-          if (hasNewRequirement && hasOldRequirement) {
-            const newReq = newStep.requirement as { currentValue?: number; targetValue?: number };
-            const oldReq = oldStep.requirement as { currentValue?: number; targetValue?: number };
-            
-            // Проверяем, изменились ли currentValue или targetValue
-            if (
-              (newReq.currentValue !== undefined && newReq.currentValue !== oldReq.currentValue) ||
-              (newReq.targetValue !== undefined && newReq.targetValue !== oldReq.targetValue)
-            ) {
-              requirementsChanged = true;
-              break;
-            }
-          }
-        }
-      } else if (updateQuestDto.steps && Array.isArray(updateQuestDto.steps)) {
-        // Если старых steps не было, но новые есть с requirements
-        const hasRequirements = updateQuestDto.steps.some(step => step?.requirement);
-        if (hasRequirements) {
-          requirementsChanged = true;
-        }
-      } else if (existingQuest.steps && Array.isArray(existingQuest.steps)) {
-        // Если старые steps были с requirements, а новых нет
-        const hadRequirements = existingQuest.steps.some(step => step?.requirement);
-        if (hadRequirements) {
-          requirementsChanged = true;
-        }
-      }
-      
       updateData.steps = updateQuestDto.steps;
     }
 
@@ -386,21 +442,7 @@ export class QuestService {
     }
 
     // Обновляем категории, если указаны
-    if (updateQuestDto.categoryIds !== undefined) {
-      // Удаляем старые связи
-      await this.questRepository.unlinkQuestFromCategories(id);
-
-      // Проверяем существование категорий, если указаны
-      if (updateQuestDto.categoryIds.length > 0) {
-        const existingCategories = await this.questRepository.findCategoriesByIds(updateQuestDto.categoryIds);
-        if (existingCategories.length !== updateQuestDto.categoryIds.length) {
-          throw new NotFoundException('Одна или несколько категорий не найдены');
-        }
-
-        // Создаем новые связи
-        await this.questRepository.linkQuestToCategories(id, updateQuestDto.categoryIds);
-      }
-    }
+    await this.updateQuestCategories(id, updateQuestDto.categoryIds);
 
     // Возвращаем обновленный квест с полной информацией
     return this.findOne(id);
