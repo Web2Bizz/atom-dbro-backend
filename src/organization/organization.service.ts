@@ -294,8 +294,8 @@ export class OrganizationService {
     const organization = {
       id: orgData.id,
       name: orgData.name,
-      latitude: this.parseCoordinate(orgData.latitude),
-      longitude: this.parseCoordinate(orgData.longitude),
+      latitude: parseCoordinate(orgData.latitude),
+      longitude: parseCoordinate(orgData.longitude),
       summary: orgData.summary,
       mission: orgData.mission,
       description: orgData.description,
@@ -310,8 +310,8 @@ export class OrganizationService {
       city: orgData.cityName ? {
         id: orgData.cityId,
         name: orgData.cityName,
-        latitude: this.parseCoordinate(orgData.cityLatitude),
-        longitude: this.parseCoordinate(orgData.cityLongitude),
+          latitude: parseCoordinate(orgData.cityLatitude),
+          longitude: parseCoordinate(orgData.cityLongitude),
       } : null,
       type: orgData.organizationTypeName ? {
         id: orgData.organizationTypeId,

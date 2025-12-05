@@ -6,6 +6,7 @@ import { QuestRepository } from './quest.repository';
 import { QuestEventsService } from './quest.events';
 import { StepVolunteerRepository } from '../step-volunteer/step-volunteer.repository';
 import { ContributerRepository } from '../contributer/contributer.repository';
+import { EntityValidationService } from '../common/services/entity-validation.service';
 import { NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { CreateQuestDto } from './dto/create-quest.dto';
 import { UpdateQuestDto } from './dto/update-quest.dto';
@@ -89,6 +90,13 @@ describe('QuestService', () => {
     getConfirmedContributersCount: ReturnType<typeof vi.fn>;
   };
 
+  let mockEntityValidationService: {
+    validateCityExists: ReturnType<typeof vi.fn>;
+    validateOrganizationTypeExists: ReturnType<typeof vi.fn>;
+    validateCategoriesExist: ReturnType<typeof vi.fn>;
+    validateHelpTypesExist: ReturnType<typeof vi.fn>;
+  };
+
   beforeEach(async () => {
     mockRepository = {
       findUserById: vi.fn(),
@@ -135,6 +143,13 @@ describe('QuestService', () => {
       getConfirmedContributersCount: vi.fn(),
     };
 
+    mockEntityValidationService = {
+      validateCityExists: vi.fn().mockResolvedValue(undefined),
+      validateOrganizationTypeExists: vi.fn().mockResolvedValue(undefined),
+      validateCategoriesExist: vi.fn().mockResolvedValue(undefined),
+      validateHelpTypesExist: vi.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         QuestService,
@@ -164,6 +179,7 @@ describe('QuestService', () => {
     (service as any).questEventsService = mockQuestEventsService;
     (service as any).stepVolunteerRepository = mockStepVolunteerRepository;
     (service as any).contributerRepository = mockContributerRepository;
+    (service as any).entityValidationService = mockEntityValidationService;
   });
 
   describe('findAll', () => {
@@ -249,6 +265,9 @@ describe('QuestService', () => {
     it('should throw NotFoundException when city does not exist', async () => {
       mockRepository.findUserById.mockResolvedValue(mockUser);
       mockRepository.findCityById.mockResolvedValue(undefined);
+      mockEntityValidationService.validateCityExists.mockRejectedValue(
+        new NotFoundException(`Город с ID ${createDto.cityId} не найден`)
+      );
 
       const promise = service.create(createDto, userId);
       await expect(promise).rejects.toThrow(NotFoundException);
