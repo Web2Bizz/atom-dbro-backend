@@ -4,6 +4,7 @@ import { QuestEventsService } from './quest.events';
 import { QuestEventsHandler } from './quest-events.handler';
 import { AchievementService } from '../achievement/achievement.service';
 import { AchievementEventsService } from '../achievement/achievement.events';
+import { QuestCacheService } from './quest-cache.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 
 describe('QuestEventsHandler', () => {
@@ -18,6 +19,12 @@ describe('QuestEventsHandler', () => {
     syncRequirementCurrentValue: vi.fn(),
   };
 
+  const mockQuestCacheService = {
+    invalidateQuest: vi.fn(),
+    getQuest: vi.fn(),
+    setQuest: vi.fn(),
+  };
+
   let achievementEventsService: AchievementEventsService;
 
   beforeEach(() => {
@@ -30,11 +37,17 @@ describe('QuestEventsHandler', () => {
       mockQuestService as any,
     );
 
+    // Устанавливаем мок для QuestCacheService (будет добавлен при реализации)
+    (handler as any).questCacheService = mockQuestCacheService;
+
     // Инициализируем подписку на события
     handler.onModuleInit();
 
     mockAchievementService.assignToUser.mockReset();
     mockQuestService.syncRequirementCurrentValue.mockReset();
+    mockQuestCacheService.invalidateQuest.mockReset();
+    mockQuestCacheService.getQuest.mockReset();
+    mockQuestCacheService.setQuest.mockReset();
   });
 
   it('should handle quest_completed event: assign achievement and emit achievement_awarded (new flow)', async () => {
@@ -206,6 +219,12 @@ describe('QuestEventsHandler', () => {
     const userId = 2;
 
     it('should sync requirement currentValue for contributer_added event', async () => {
+      const mockQuest = { id: questId, title: 'Test Quest' };
+      mockQuestService.syncRequirementCurrentValue.mockResolvedValue(5);
+      mockQuestCacheService.getQuest.mockResolvedValue(mockQuest);
+      mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
+      mockQuestCacheService.setQuest.mockResolvedValue(undefined);
+
       eventsService.emitContributerAdded(questId, userId);
 
       // Даем event loop обработать асинхронный handler
@@ -213,9 +232,18 @@ describe('QuestEventsHandler', () => {
 
       expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, 'contributers');
       expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledTimes(1);
+      expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.getQuest).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.setQuest).toHaveBeenCalledWith(questId, expect.any(Object));
     });
 
     it('should sync requirement currentValue for contributer_removed event', async () => {
+      const mockQuest = { id: questId, title: 'Test Quest' };
+      mockQuestService.syncRequirementCurrentValue.mockResolvedValue(3);
+      mockQuestCacheService.getQuest.mockResolvedValue(mockQuest);
+      mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
+      mockQuestCacheService.setQuest.mockResolvedValue(undefined);
+
       eventsService.emitContributerRemoved(questId, userId);
 
       // Даем event loop обработать асинхронный handler
@@ -223,11 +251,20 @@ describe('QuestEventsHandler', () => {
 
       expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, 'contributers');
       expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledTimes(1);
+      expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.getQuest).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.setQuest).toHaveBeenCalledWith(questId, expect.any(Object));
     });
 
     it('should sync requirement currentValue for step_volunteer_added event with finance type', async () => {
       const stepType = 'finance';
       const contributeValue = 100;
+      const mockQuest = { id: questId, title: 'Test Quest' };
+      mockQuestService.syncRequirementCurrentValue.mockResolvedValue(750);
+      mockQuestCacheService.getQuest.mockResolvedValue(mockQuest);
+      mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
+      mockQuestCacheService.setQuest.mockResolvedValue(undefined);
+
       eventsService.emitStepVolunteerAdded(questId, stepType, userId, contributeValue);
 
       // Даем event loop обработать асинхронный handler
@@ -235,11 +272,20 @@ describe('QuestEventsHandler', () => {
 
       expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, stepType);
       expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledTimes(1);
+      expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.getQuest).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.setQuest).toHaveBeenCalledWith(questId, expect.any(Object));
     });
 
     it('should sync requirement currentValue for step_volunteer_added event with material type', async () => {
       const stepType = 'material';
       const contributeValue = 50;
+      const mockQuest = { id: questId, title: 'Test Quest' };
+      mockQuestService.syncRequirementCurrentValue.mockResolvedValue(250);
+      mockQuestCacheService.getQuest.mockResolvedValue(mockQuest);
+      mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
+      mockQuestCacheService.setQuest.mockResolvedValue(undefined);
+
       eventsService.emitStepVolunteerAdded(questId, stepType, userId, contributeValue);
 
       // Даем event loop обработать асинхронный handler
@@ -247,10 +293,19 @@ describe('QuestEventsHandler', () => {
 
       expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, stepType);
       expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledTimes(1);
+      expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.getQuest).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.setQuest).toHaveBeenCalledWith(questId, expect.any(Object));
     });
 
-    it('should sync requirement currentValue for checkin_confirmed event with contributers type', async () => {
+    it('should sync requirement currentValue for checkin_confirmed event with contributers type (when marking in contributers)', async () => {
       const stepType = 'contributers';
+      const mockQuest = { id: questId, title: 'Test Quest' };
+      mockQuestService.syncRequirementCurrentValue.mockResolvedValue(8);
+      mockQuestCacheService.getQuest.mockResolvedValue(mockQuest);
+      mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
+      mockQuestCacheService.setQuest.mockResolvedValue(undefined);
+
       eventsService.emitCheckinConfirmed(questId, stepType, userId);
 
       // Даем event loop обработать асинхронный handler
@@ -258,10 +313,19 @@ describe('QuestEventsHandler', () => {
 
       expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, stepType);
       expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledTimes(1);
+      expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.getQuest).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.setQuest).toHaveBeenCalledWith(questId, expect.any(Object));
     });
 
     it('should sync requirement currentValue for checkin_confirmed event with finance type', async () => {
       const stepType = 'finance';
+      const mockQuest = { id: questId, title: 'Test Quest' };
+      mockQuestService.syncRequirementCurrentValue.mockResolvedValue(600);
+      mockQuestCacheService.getQuest.mockResolvedValue(mockQuest);
+      mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
+      mockQuestCacheService.setQuest.mockResolvedValue(undefined);
+
       eventsService.emitCheckinConfirmed(questId, stepType, userId);
 
       // Даем event loop обработать асинхронный handler
@@ -269,10 +333,19 @@ describe('QuestEventsHandler', () => {
 
       expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, stepType);
       expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledTimes(1);
+      expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.getQuest).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.setQuest).toHaveBeenCalledWith(questId, expect.any(Object));
     });
 
     it('should sync requirement currentValue for checkin_confirmed event with material type', async () => {
       const stepType = 'material';
+      const mockQuest = { id: questId, title: 'Test Quest' };
+      mockQuestService.syncRequirementCurrentValue.mockResolvedValue(400);
+      mockQuestCacheService.getQuest.mockResolvedValue(mockQuest);
+      mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
+      mockQuestCacheService.setQuest.mockResolvedValue(undefined);
+
       eventsService.emitCheckinConfirmed(questId, stepType, userId);
 
       // Даем event loop обработать асинхронный handler
@@ -280,9 +353,21 @@ describe('QuestEventsHandler', () => {
 
       expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, stepType);
       expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledTimes(1);
+      expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.getQuest).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.setQuest).toHaveBeenCalledWith(questId, expect.any(Object));
     });
 
     it('should handle multiple events sequentially', async () => {
+      const mockQuest = { id: questId, title: 'Test Quest' };
+      mockQuestService.syncRequirementCurrentValue
+        .mockResolvedValueOnce(5)
+        .mockResolvedValueOnce(750)
+        .mockResolvedValueOnce(400);
+      mockQuestCacheService.getQuest.mockResolvedValue(mockQuest);
+      mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
+      mockQuestCacheService.setQuest.mockResolvedValue(undefined);
+
       eventsService.emitContributerAdded(questId, userId);
       eventsService.emitStepVolunteerAdded(questId, 'finance', userId, 100);
       eventsService.emitCheckinConfirmed(questId, 'material', userId);
@@ -294,6 +379,29 @@ describe('QuestEventsHandler', () => {
       expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, 'contributers');
       expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, 'finance');
       expect(mockQuestService.syncRequirementCurrentValue).toHaveBeenCalledWith(questId, 'material');
+      expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledTimes(3);
+      expect(mockQuestCacheService.setQuest).toHaveBeenCalledTimes(3);
+    });
+
+    it('should ensure cache invalidation works - after event, next request should get updated data', async () => {
+      const mockQuest = { id: questId, title: 'Test Quest', steps: [] };
+      const updatedQuest = { id: questId, title: 'Test Quest', steps: [{ type: 'contributers', requirement: { currentValue: 5, targetValue: 10 } }] };
+      mockQuestService.syncRequirementCurrentValue.mockResolvedValue(5);
+      mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
+      mockQuestCacheService.getQuest
+        .mockResolvedValueOnce(null) // First call after invalidation - cache miss
+        .mockResolvedValueOnce(updatedQuest); // After recalculation
+      mockQuestCacheService.setQuest.mockResolvedValue(undefined);
+
+      eventsService.emitContributerAdded(questId, userId);
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Verify cache was invalidated
+      expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
+      // Verify quest was recalculated and saved to cache
+      expect(mockQuestCacheService.getQuest).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.setQuest).toHaveBeenCalledWith(questId, expect.any(Object));
     });
 
     it('should handle errors gracefully when syncRequirementCurrentValue fails', async () => {

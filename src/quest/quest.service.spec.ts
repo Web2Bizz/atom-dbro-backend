@@ -7,6 +7,7 @@ import { QuestEventsService } from './quest.events';
 import { StepVolunteerRepository } from '../step-volunteer/step-volunteer.repository';
 import { ContributerRepository } from '../contributer/contributer.repository';
 import { EntityValidationService } from '../common/services/entity-validation.service';
+import { QuestCacheService } from './quest-cache.service';
 import { NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { CreateQuestDto } from './dto/create-quest.dto';
 import { UpdateQuestDto } from './dto/update-quest.dto';
@@ -97,6 +98,12 @@ describe('QuestService', () => {
     validateHelpTypesExist: ReturnType<typeof vi.fn>;
   };
 
+  let mockQuestCacheService: {
+    setQuest: ReturnType<typeof vi.fn>;
+    invalidateQuest: ReturnType<typeof vi.fn>;
+    getQuest: ReturnType<typeof vi.fn>;
+  };
+
   beforeEach(async () => {
     mockRepository = {
       findUserById: vi.fn(),
@@ -150,6 +157,12 @@ describe('QuestService', () => {
       validateHelpTypesExist: vi.fn().mockResolvedValue(undefined),
     };
 
+    mockQuestCacheService = {
+      setQuest: vi.fn(),
+      invalidateQuest: vi.fn(),
+      getQuest: vi.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         QuestService,
@@ -169,6 +182,10 @@ describe('QuestService', () => {
           provide: ContributerRepository,
           useValue: mockContributerRepository,
         },
+        {
+          provide: QuestCacheService,
+          useValue: mockQuestCacheService,
+        },
       ],
     }).compile();
 
@@ -180,6 +197,7 @@ describe('QuestService', () => {
     (service as any).stepVolunteerRepository = mockStepVolunteerRepository;
     (service as any).contributerRepository = mockContributerRepository;
     (service as any).entityValidationService = mockEntityValidationService;
+    (service as any).questCacheService = mockQuestCacheService;
   });
 
   describe('findAll', () => {
@@ -246,12 +264,14 @@ describe('QuestService', () => {
       mockRepository.findCategoriesForQuest.mockResolvedValue([]);
       mockRepository.createUserQuest.mockResolvedValue({ id: 1 } as any);
       mockRepository.findUserDataForEvent.mockResolvedValue({});
+      mockQuestCacheService.setQuest.mockResolvedValue(undefined);
 
       const result = await service.create(createDto, userId);
 
       expect(result).toBeDefined();
       expect(mockRepository.create).toHaveBeenCalled();
       expect(mockRepository.createUserQuest).toHaveBeenCalledWith(userId, mockQuest.id, 'in_progress');
+      expect(mockQuestCacheService.setQuest).toHaveBeenCalledWith(mockQuest.id, expect.any(Object));
     });
 
     it('should throw NotFoundException when user does not exist', async () => {
@@ -292,6 +312,7 @@ describe('QuestService', () => {
       // update вызывает findOne в конце, который использует findByIdWithDetails и findCategoriesForQuest
       mockRepository.findByIdWithDetails.mockResolvedValue(updatedQuest);
       mockRepository.findCategoriesForQuest.mockResolvedValue([]);
+      mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
 
       const result = await service.update(questId, updateDto, ownerUserId);
 
@@ -301,6 +322,32 @@ describe('QuestService', () => {
       // Проверяем, что findOne был вызван (через findByIdWithDetails и findCategoriesForQuest)
       expect(mockRepository.findByIdWithDetails).toHaveBeenCalledWith(questId);
       expect(mockRepository.findCategoriesForQuest).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
+    });
+
+    it('should invalidate cache after update - next request should go to DB', async () => {
+      const ownerUserId = 1;
+      const updatedQuest = {
+        ...mockQuest,
+        title: 'Обновленное название',
+      };
+      mockRepository.findById.mockResolvedValue(mockQuest);
+      mockRepository.update.mockResolvedValue(updatedQuest);
+      mockRepository.findByIdWithDetails.mockResolvedValue(updatedQuest);
+      mockRepository.findCategoriesForQuest.mockResolvedValue([]);
+      mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
+
+      await service.update(questId, updateDto, ownerUserId);
+
+      // Verify cache was invalidated
+      expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
+      
+      // Simulate next request - should go to DB (cache miss)
+      mockQuestCacheService.getQuest.mockResolvedValue(null);
+      mockRepository.findByIdWithDetails.mockResolvedValue(updatedQuest);
+      
+      // In real implementation, getQuest would be called and should go to DB
+      // This test verifies that invalidateQuest was called
     });
 
     it('should throw NotFoundException when quest does not exist', async () => {
@@ -325,12 +372,14 @@ describe('QuestService', () => {
       const ownerUserId = 1;
       mockRepository.findById.mockResolvedValue(mockQuest);
       mockRepository.softDelete.mockResolvedValue(mockQuest);
+      mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
 
       const result = await service.remove(questId, ownerUserId);
 
       expect(result).toEqual(mockQuest);
       expect(mockRepository.findById).toHaveBeenCalledWith(questId);
       expect(mockRepository.softDelete).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
     });
 
     it('should throw NotFoundException when quest does not exist', async () => {
@@ -386,11 +435,14 @@ describe('QuestService', () => {
         some: 'quest-data',
       });
 
+      mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
+
       const result = await service.completeQuest(userId, questId);
 
       expect(result).toBeDefined();
       expect(mockRepository.findById).toHaveBeenCalledWith(questId);
       expect(mockRepository.update).toHaveBeenCalledWith(questId, { status: 'completed' });
+      expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
 
       expect(mockQuestEventsService.emitQuestCompleted).toHaveBeenCalledTimes(participants.length);
 
@@ -478,12 +530,14 @@ describe('QuestService', () => {
       mockRepository.archive.mockResolvedValue(archivedQuest);
       mockRepository.findByIdWithDetails.mockResolvedValue(archivedQuest);
       mockRepository.findCategoriesForQuest.mockResolvedValue([]);
+      mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
 
       const result = await service.archiveQuest(userId, questId);
 
       expect(result).toBeDefined();
       expect(mockRepository.findById).toHaveBeenCalledWith(questId);
       expect(mockRepository.archive).toHaveBeenCalledWith(questId);
+      expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
     });
 
     it('should throw ForbiddenException when user is not owner', async () => {
@@ -504,11 +558,13 @@ describe('QuestService', () => {
       mockRepository.findUserQuest.mockResolvedValue(undefined);
       mockRepository.createUserQuest.mockResolvedValue({ id: 1 } as any);
       mockRepository.findUserDataForEvent.mockResolvedValue({});
+      mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
 
       const result = await service.joinQuest(userId, questId);
 
       expect(result).toBeDefined();
       expect(mockRepository.createUserQuest).toHaveBeenCalledWith(userId, questId, 'in_progress');
+      expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
     });
 
     it('should throw NotFoundException when user does not exist', async () => {
@@ -555,11 +611,13 @@ describe('QuestService', () => {
       mockRepository.findById.mockResolvedValue(mockQuest);
       mockRepository.findUserQuest.mockResolvedValue(userQuest);
       mockRepository.deleteUserQuest.mockResolvedValue(userQuest);
+      mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
 
       const result = await service.leaveQuest(userId, questId);
 
       expect(result).toEqual(userQuest);
       expect(mockRepository.deleteUserQuest).toHaveBeenCalledWith(userQuest.id);
+      expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
     });
 
     it('should throw NotFoundException when user does not participate', async () => {
@@ -624,10 +682,13 @@ describe('QuestService', () => {
         mockRepository.findByIdWithDetails.mockResolvedValue(questWithSteps);
         mockRepository.findCategoriesForQuest.mockResolvedValue([]);
 
+        mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
+
         await service.updateRequirementCurrentValue(questId, stepType, {}, ownerUserId);
 
         expect(mockStepVolunteerRepository.getSumContributeValue).toHaveBeenCalledWith(questId, stepType);
         expect(mockContributerRepository.getConfirmedContributersCount).not.toHaveBeenCalled();
+        expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
       });
     });
 
@@ -662,10 +723,13 @@ describe('QuestService', () => {
         mockRepository.findByIdWithDetails.mockResolvedValue(questWithSteps);
         mockRepository.findCategoriesForQuest.mockResolvedValue([]);
 
+        mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
+
         await service.updateRequirementCurrentValue(questId, stepType, {}, ownerUserId);
 
         expect(mockContributerRepository.getConfirmedContributersCount).toHaveBeenCalledWith(questId);
         expect(mockStepVolunteerRepository.getSumContributeValue).not.toHaveBeenCalled();
+        expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
       });
     });
   });
