@@ -60,7 +60,7 @@ describe('QuestCacheService', () => {
   };
 
   let mockQuestRepository: {
-    findByIdWithDetails: ReturnType<typeof vi.fn>;
+    findByIdWithDetailsDirectly: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
 
@@ -88,7 +88,7 @@ describe('QuestCacheService', () => {
     };
 
     mockQuestRepository = {
-      findByIdWithDetails: vi.fn(),
+      findByIdWithDetailsDirectly: vi.fn(),
       update: vi.fn(),
     };
 
@@ -164,12 +164,12 @@ describe('QuestCacheService', () => {
 
       expect(mockRedisService.get).toHaveBeenCalledWith(`quest:${questId}`);
       expect(result).toEqual(mockQuest);
-      expect(mockQuestRepository.findByIdWithDetails).not.toHaveBeenCalled();
+      expect(mockQuestRepository.findByIdWithDetailsDirectly).not.toHaveBeenCalled();
     });
 
     it('should get quest from DB, recalculate currentValue and save to cache if cache miss', async () => {
       mockRedisService.get.mockResolvedValue(null);
-      mockQuestRepository.findByIdWithDetails.mockResolvedValue(mockQuest);
+      mockQuestRepository.findByIdWithDetailsDirectly.mockResolvedValue(mockQuest);
       mockContributerRepository.getConfirmedContributersCount.mockResolvedValue(5);
       mockStepVolunteerRepository.getSumContributeValue.mockResolvedValue(500);
       mockQuestRepository.update.mockResolvedValue(mockQuest);
@@ -178,7 +178,7 @@ describe('QuestCacheService', () => {
       const result = await service.getQuest(questId);
 
       expect(mockRedisService.get).toHaveBeenCalledWith(`quest:${questId}`);
-      expect(mockQuestRepository.findByIdWithDetails).toHaveBeenCalledWith(questId);
+      expect(mockQuestRepository.findByIdWithDetailsDirectly).toHaveBeenCalledWith(questId);
       expect(mockContributerRepository.getConfirmedContributersCount).toHaveBeenCalledWith(questId);
       expect(mockStepVolunteerRepository.getSumContributeValue).toHaveBeenCalledWith(questId, 'finance');
       expect(mockQuestRepository.update).toHaveBeenCalled();
@@ -192,7 +192,7 @@ describe('QuestCacheService', () => {
 
     it('should fallback to DB if Redis error occurs', async () => {
       mockRedisService.get.mockRejectedValue(new Error('Redis connection failed'));
-      mockQuestRepository.findByIdWithDetails.mockResolvedValue(mockQuest);
+      mockQuestRepository.findByIdWithDetailsDirectly.mockResolvedValue(mockQuest);
       mockContributerRepository.getConfirmedContributersCount.mockResolvedValue(0);
       mockStepVolunteerRepository.getSumContributeValue.mockResolvedValue(0);
       mockQuestRepository.update.mockResolvedValue(mockQuest);
@@ -200,7 +200,7 @@ describe('QuestCacheService', () => {
 
       const result = await service.getQuest(questId);
 
-      expect(mockQuestRepository.findByIdWithDetails).toHaveBeenCalledWith(questId);
+      expect(mockQuestRepository.findByIdWithDetailsDirectly).toHaveBeenCalledWith(questId);
       expect(result).toBeDefined();
     });
   });
@@ -275,7 +275,7 @@ describe('QuestCacheService', () => {
 
       // Next getQuest should go to DB (cache miss)
       mockRedisService.get.mockResolvedValueOnce(null);
-      mockQuestRepository.findByIdWithDetails.mockResolvedValue(mockQuest);
+      mockQuestRepository.findByIdWithDetailsDirectly.mockResolvedValue(mockQuest);
       mockContributerRepository.getConfirmedContributersCount.mockResolvedValue(0);
       mockStepVolunteerRepository.getSumContributeValue.mockResolvedValue(0);
       mockQuestRepository.update.mockResolvedValue(mockQuest);
@@ -284,7 +284,7 @@ describe('QuestCacheService', () => {
       await service.getQuest(questId);
 
       // Should call DB because cache was invalidated
-      expect(mockQuestRepository.findByIdWithDetails).toHaveBeenCalledWith(questId);
+      expect(mockQuestRepository.findByIdWithDetailsDirectly).toHaveBeenCalledWith(questId);
     });
   });
 
