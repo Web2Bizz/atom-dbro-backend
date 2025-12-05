@@ -178,32 +178,9 @@ export class OrganizationService {
       const allHelpTypes = await this.repository.findHelpTypesByOrganizationIds(orgIds);
       const allOwners = await this.repository.findOwnersByOrganizationIds(orgIds);
 
-      // Группируем helpTypes по organizationId
-      const helpTypesByOrgId = new Map<number, Array<{ id: number; name: string }>>();
-      for (const helpType of allHelpTypes) {
-        if (!helpTypesByOrgId.has(helpType.organizationId)) {
-          helpTypesByOrgId.set(helpType.organizationId, []);
-        }
-        helpTypesByOrgId.get(helpType.organizationId)!.push({
-          id: helpType.id,
-          name: helpType.name,
-        });
-      }
-
-      // Группируем владельцев по organizationId
-      const ownersByOrgId = new Map<number, OwnerRelation[]>();
-      for (const owner of allOwners) {
-        if (!ownersByOrgId.has(owner.organizationId)) {
-          ownersByOrgId.set(owner.organizationId, []);
-        }
-        ownersByOrgId.get(owner.organizationId)!.push({
-          id: owner.id,
-          firstName: owner.firstName,
-          lastName: owner.lastName,
-          middleName: owner.middleName,
-          email: owner.email,
-        });
-      }
+      // Группируем helpTypes и владельцев по organizationId
+      const helpTypesByOrgId = this.groupHelpTypesByOrgId(allHelpTypes);
+      const ownersByOrgId = this.groupOwnersByOrgId(allOwners);
 
       return orgs.map(org => ({
         id: org.id,
@@ -257,32 +234,9 @@ export class OrganizationService {
       const allHelpTypes = await this.repository.findHelpTypesByOrganizationIds(orgIds);
       const allOwners = await this.repository.findOwnersByOrganizationIds(orgIds);
 
-      // Группируем helpTypes по organizationId
-      const helpTypesByOrgId = new Map<number, Array<{ id: number; name: string }>>();
-      for (const helpType of allHelpTypes) {
-        if (!helpTypesByOrgId.has(helpType.organizationId)) {
-          helpTypesByOrgId.set(helpType.organizationId, []);
-        }
-        helpTypesByOrgId.get(helpType.organizationId)!.push({
-          id: helpType.id,
-          name: helpType.name,
-        });
-      }
-
-      // Группируем владельцев по organizationId
-      const ownersByOrgId = new Map<number, OwnerRelation[]>();
-      for (const owner of allOwners) {
-        if (!ownersByOrgId.has(owner.organizationId)) {
-          ownersByOrgId.set(owner.organizationId, []);
-        }
-        ownersByOrgId.get(owner.organizationId)!.push({
-          id: owner.id,
-          firstName: owner.firstName,
-          lastName: owner.lastName,
-          middleName: owner.middleName,
-          email: owner.email,
-        });
-      }
+      // Группируем helpTypes и владельцев по organizationId
+      const helpTypesByOrgId = this.groupHelpTypesByOrgId(allHelpTypes);
+      const ownersByOrgId = this.groupOwnersByOrgId(allOwners);
 
       return orgs.map(org => ({
         id: org.id,
