@@ -393,6 +393,36 @@ describe('OrganizationService', () => {
       await expect(service.addOwner(orgId, userId, currentOwnerUserId)).rejects.toThrow(ConflictException);
     });
 
+    it('should throw ConflictException when database throws unique constraint violation (race condition)', async () => {
+      const currentOwnerUserId = 1;
+      const userId = 2;
+      
+      mockRepository.findById.mockResolvedValue(mockOrganization);
+      mockDb.select = vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([mockUser]),
+        }),
+      });
+      
+      // Симулируем ситуацию race condition: findOwner возвращает undefined
+      // (проверка в сервисе проходит), но при вставке БД выбрасывает ошибку уникальности
+      mockRepository.findOwner
+        .mockResolvedValueOnce({ organizationId: orgId, userId: currentOwnerUserId } as any) // текущий пользователь - владелец
+        .mockResolvedValueOnce(undefined); // новый пользователь еще не владелец (по результату проверки)
+      
+      // Симулируем, что репозиторий выбрасывает ConflictException после обработки ошибки БД
+      // (в реальном коде репозиторий преобразует ошибку 23505 в ConflictException)
+      mockRepository.addOwner.mockRejectedValue(
+        new ConflictException('Пользователь уже является владельцем организации')
+      );
+      
+      await expect(service.addOwner(orgId, userId, currentOwnerUserId)).rejects.toThrow(ConflictException);
+      expect(mockRepository.findById).toHaveBeenCalledWith(orgId);
+      expect(mockRepository.findOwner).toHaveBeenCalledWith(orgId, currentOwnerUserId);
+      expect(mockRepository.findOwner).toHaveBeenCalledWith(orgId, userId);
+      expect(mockRepository.addOwner).toHaveBeenCalledWith(orgId, userId);
+    });
+
     it('should throw ForbiddenException when current user is not owner', async () => {
       const nonOwnerCurrentUserId = 999;
       const newOwnerUserId = 2;
