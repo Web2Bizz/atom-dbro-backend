@@ -6,6 +6,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
+import { MAX_FILE_SIZE_BYTES } from '../../common/constants';
 
 /**
  * Интерцептор для валидации загружаемых файлов
@@ -18,7 +19,7 @@ export class FileValidationInterceptor implements NestInterceptor {
 
   constructor() {
     // Максимальный размер файла: 10MB (можно настроить через env)
-    this.maxFileSize = 10 * 1024 * 1024; // 10MB в байтах
+    this.maxFileSize = MAX_FILE_SIZE_BYTES;
     // Разрешенные типы изображений
     this.allowedMimeTypes = [
       'image/jpeg',
