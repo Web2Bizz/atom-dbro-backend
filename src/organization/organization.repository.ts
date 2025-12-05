@@ -62,6 +62,26 @@ export class OrganizationRepository {
   ) {}
 
   /**
+   * Логирует ошибку с детальной информацией
+   * @param method Название метода, в котором произошла ошибка
+   * @param context Дополнительный контекст ошибки
+   * @param error Объект ошибки
+   */
+  private logError(method: string, context: Record<string, any>, error: any): void {
+    this.logger.error(`Ошибка в ${method}:`, error);
+    this.logger.error('Детали ошибки:', {
+      method,
+      ...context,
+      message: error?.message,
+      code: error?.code,
+      detail: error?.detail,
+      hint: error?.hint,
+      where: error?.where,
+      stack: error?.stack,
+    });
+  }
+
+  /**
    * Получить все организации с связанными данными (города, типы организаций)
    * @param includeAll - если true, возвращает все организации, иначе только подтверждённые
    */
@@ -111,15 +131,7 @@ export class OrganizationRepository {
         ))
         .where(and(...whereConditions));
     } catch (error: any) {
-      this.logger.error('Ошибка в findAll:', error);
-      this.logger.error('Детали ошибки:', {
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('findAll', {}, error);
       throw error;
     }
   }
@@ -171,17 +183,7 @@ export class OrganizationRepository {
       
       return org;
     } catch (error: any) {
-      this.logger.error(`Ошибка в findOne для организации ID ${id}:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'findOne',
-        organizationId: id,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('findOne', { organizationId: id }, error);
       throw error;
     }
   }
@@ -201,17 +203,7 @@ export class OrganizationRepository {
       
       return org;
     } catch (error: any) {
-      this.logger.error(`Ошибка в findById для организации ID ${id}:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'findById',
-        organizationId: id,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('findById', { organizationId: id }, error);
       throw error;
     }
   }
@@ -231,18 +223,7 @@ export class OrganizationRepository {
           ne(organizations.recordStatus, 'DELETED')
         ));
     } catch (error: any) {
-      this.logger.error(`Ошибка в findManyByIds для организаций:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'findManyByIds',
-        organizationIds: ids,
-        count: ids.length,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('findManyByIds', { organizationIds: ids, count: ids.length }, error);
       throw error;
     }
   }
@@ -273,19 +254,11 @@ export class OrganizationRepository {
       
       return organization;
     } catch (error: any) {
-      this.logger.error('Ошибка в create при создании организации:', error);
-      this.logger.error('Детали ошибки:', {
-        method: 'create',
+      this.logError('create', {
         organizationName: data.name,
         cityId: data.cityId,
         organizationTypeId: data.organizationTypeId,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      }, error);
       throw error;
     }
   }
@@ -316,17 +289,7 @@ export class OrganizationRepository {
         .values(data)
         .returning();
     } catch (error: any) {
-      this.logger.error('Ошибка в createMany при создании организаций:', error);
-      this.logger.error('Детали ошибки:', {
-        method: 'createMany',
-        count: data.length,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('createMany', { count: data.length }, error);
       throw error;
     }
   }
@@ -350,18 +313,10 @@ export class OrganizationRepository {
       
       return organization;
     } catch (error: any) {
-      this.logger.error(`Ошибка в update для организации ID ${id}:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'update',
+      this.logError('update', {
         organizationId: id,
         updateFields: Object.keys(data),
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      }, error);
       throw error;
     }
   }
@@ -382,17 +337,7 @@ export class OrganizationRepository {
       
       return organization;
     } catch (error: any) {
-      this.logger.error(`Ошибка в softDelete для организации ID ${id}:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'softDelete',
-        organizationId: id,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('softDelete', { organizationId: id }, error);
       throw error;
     }
   }
@@ -417,18 +362,7 @@ export class OrganizationRepository {
           ne(helpTypes.recordStatus, 'DELETED')
         ));
     } catch (error: any) {
-      this.logger.error('Ошибка в findHelpTypesByOrganizationIds:', error);
-      this.logger.error('Детали ошибки:', {
-        method: 'findHelpTypesByOrganizationIds',
-        organizationIds: orgIds,
-        count: orgIds.length,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('findHelpTypesByOrganizationIds', { organizationIds: orgIds, count: orgIds.length }, error);
       throw error;
     }
   }
@@ -450,17 +384,7 @@ export class OrganizationRepository {
           ne(helpTypes.recordStatus, 'DELETED')
         ));
     } catch (error: any) {
-      this.logger.error(`Ошибка в findHelpTypesByOrganizationId для организации ID ${orgId}:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'findHelpTypesByOrganizationId',
-        organizationId: orgId,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('findHelpTypesByOrganizationId', { organizationId: orgId }, error);
       throw error;
     }
   }
@@ -485,17 +409,7 @@ export class OrganizationRepository {
           ne(users.recordStatus, 'DELETED')
         ));
     } catch (error: any) {
-      this.logger.error(`Ошибка в findOwnersByOrganizationId для организации ID ${orgId}:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'findOwnersByOrganizationId',
-        organizationId: orgId,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('findOwnersByOrganizationId', { organizationId: orgId }, error);
       throw error;
     }
   }
@@ -523,18 +437,7 @@ export class OrganizationRepository {
           ne(users.recordStatus, 'DELETED')
         ));
     } catch (error: any) {
-      this.logger.error('Ошибка в findOwnersByOrganizationIds:', error);
-      this.logger.error('Детали ошибки:', {
-        method: 'findOwnersByOrganizationIds',
-        organizationIds: orgIds,
-        count: orgIds.length,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('findOwnersByOrganizationIds', { organizationIds: orgIds, count: orgIds.length }, error);
       throw error;
     }
   }
@@ -594,18 +497,7 @@ export class OrganizationRepository {
         ))
         .where(and(...whereConditions));
     } catch (error: any) {
-      this.logger.error(`Ошибка в findByUserId для пользователя ID ${userId}:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'findByUserId',
-        userId,
-        includeAll,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('findByUserId', { userId, includeAll }, error);
       throw error;
     }
   }
@@ -620,18 +512,7 @@ export class OrganizationRepository {
         userId,
       });
     } catch (error: any) {
-      this.logger.error(`Ошибка в addOwner для организации ID ${organizationId} и пользователя ID ${userId}:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'addOwner',
-        organizationId,
-        userId,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('addOwner', { organizationId, userId }, error);
       throw error;
     }
   }
@@ -651,18 +532,7 @@ export class OrganizationRepository {
       
       return !!deleted;
     } catch (error: any) {
-      this.logger.error(`Ошибка в removeOwner для организации ID ${organizationId} и пользователя ID ${userId}:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'removeOwner',
-        organizationId,
-        userId,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('removeOwner', { organizationId, userId }, error);
       throw error;
     }
   }
@@ -682,18 +552,7 @@ export class OrganizationRepository {
       
       return owner;
     } catch (error: any) {
-      this.logger.error(`Ошибка в findOwner для организации ID ${organizationId} и пользователя ID ${userId}:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'findOwner',
-        organizationId,
-        userId,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('findOwner', { organizationId, userId }, error);
       throw error;
     }
   }
@@ -708,18 +567,7 @@ export class OrganizationRepository {
         helpTypeId,
       });
     } catch (error: any) {
-      this.logger.error(`Ошибка в addHelpType для организации ID ${organizationId} и вида помощи ID ${helpTypeId}:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'addHelpType',
-        organizationId,
-        helpTypeId,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('addHelpType', { organizationId, helpTypeId }, error);
       throw error;
     }
   }
@@ -739,18 +587,7 @@ export class OrganizationRepository {
       
       return !!deleted;
     } catch (error: any) {
-      this.logger.error(`Ошибка в removeHelpType для организации ID ${organizationId} и вида помощи ID ${helpTypeId}:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'removeHelpType',
-        organizationId,
-        helpTypeId,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('removeHelpType', { organizationId, helpTypeId }, error);
       throw error;
     }
   }
@@ -770,18 +607,7 @@ export class OrganizationRepository {
       
       return helpType;
     } catch (error: any) {
-      this.logger.error(`Ошибка в findHelpType для организации ID ${organizationId} и вида помощи ID ${helpTypeId}:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'findHelpType',
-        organizationId,
-        helpTypeId,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('findHelpType', { organizationId, helpTypeId }, error);
       throw error;
     }
   }
@@ -795,17 +621,7 @@ export class OrganizationRepository {
         .delete(organizationHelpTypes)
         .where(eq(organizationHelpTypes.organizationId, organizationId));
     } catch (error: any) {
-      this.logger.error(`Ошибка в removeAllHelpTypes для организации ID ${organizationId}:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'removeAllHelpTypes',
-        organizationId,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('removeAllHelpTypes', { organizationId }, error);
       throw error;
     }
   }
@@ -824,19 +640,7 @@ export class OrganizationRepository {
         }))
       );
     } catch (error: any) {
-      this.logger.error(`Ошибка в addHelpTypes для организации ID ${organizationId}:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'addHelpTypes',
-        organizationId,
-        helpTypeIds,
-        count: helpTypeIds.length,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('addHelpTypes', { organizationId, helpTypeIds, count: helpTypeIds.length }, error);
       throw error;
     }
   }
@@ -850,17 +654,7 @@ export class OrganizationRepository {
         .delete(organizationOwners)
         .where(eq(organizationOwners.organizationId, organizationId));
     } catch (error: any) {
-      this.logger.error(`Ошибка в removeAllOwners для организации ID ${organizationId}:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'removeAllOwners',
-        organizationId,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('removeAllOwners', { organizationId }, error);
       throw error;
     }
   }
@@ -879,19 +673,7 @@ export class OrganizationRepository {
         }))
       );
     } catch (error: any) {
-      this.logger.error(`Ошибка в addOwnersToOrganizations для пользователя ID ${userId}:`, error);
-      this.logger.error('Детали ошибки:', {
-        method: 'addOwnersToOrganizations',
-        userId,
-        organizationIds,
-        count: organizationIds.length,
-        message: error?.message,
-        code: error?.code,
-        detail: error?.detail,
-        hint: error?.hint,
-        where: error?.where,
-        stack: error?.stack,
-      });
+      this.logError('addOwnersToOrganizations', { userId, organizationIds, count: organizationIds.length }, error);
       throw error;
     }
   }
