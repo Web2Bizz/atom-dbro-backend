@@ -96,7 +96,9 @@ export const organizationOwners = pgTable('organization_owners', {
     .references(() => organizations.id)
     .notNull(),
   userId: integer('user_id').references(() => users.id).notNull(),
-});
+}, (table) => ({
+  uniqueOrganizationUser: unique().on(table.organizationId, table.userId),
+}));
 
 // Связующая таблица: виды помощи организаций
 export const organizationHelpTypes = pgTable('organization_help_types', {
