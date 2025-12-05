@@ -40,6 +40,15 @@ describe('QuestEventsHandler', () => {
     // Устанавливаем мок для QuestCacheService (будет добавлен при реализации)
     (handler as any).questCacheService = mockQuestCacheService;
 
+    // Мокируем logger, чтобы не выводить логи в тестах
+    (handler as any).logger = {
+      log: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      debug: vi.fn(),
+      verbose: vi.fn(),
+    };
+
     // Инициализируем подписку на события
     handler.onModuleInit();
 
@@ -388,9 +397,8 @@ describe('QuestEventsHandler', () => {
       const updatedQuest = { id: questId, title: 'Test Quest', steps: [{ type: 'contributers', requirement: { currentValue: 5, targetValue: 10 } }] };
       mockQuestService.syncRequirementCurrentValue.mockResolvedValue(5);
       mockQuestCacheService.invalidateQuest.mockResolvedValue(undefined);
-      mockQuestCacheService.getQuest
-        .mockResolvedValueOnce(null) // First call after invalidation - cache miss
-        .mockResolvedValueOnce(updatedQuest); // After recalculation
+      // После инвалидации getQuest должен вернуть обновленный квест (после пересчета в БД)
+      mockQuestCacheService.getQuest.mockResolvedValue(updatedQuest);
       mockQuestCacheService.setQuest.mockResolvedValue(undefined);
 
       eventsService.emitContributerAdded(questId, userId);
@@ -401,7 +409,7 @@ describe('QuestEventsHandler', () => {
       expect(mockQuestCacheService.invalidateQuest).toHaveBeenCalledWith(questId);
       // Verify quest was recalculated and saved to cache
       expect(mockQuestCacheService.getQuest).toHaveBeenCalledWith(questId);
-      expect(mockQuestCacheService.setQuest).toHaveBeenCalledWith(questId, expect.any(Object));
+      expect(mockQuestCacheService.setQuest).toHaveBeenCalledWith(questId, updatedQuest);
     });
 
     it('should handle errors gracefully when syncRequirementCurrentValue fails', async () => {

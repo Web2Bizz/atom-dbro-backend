@@ -73,6 +73,9 @@ describe('QuestCacheService', () => {
   };
 
   beforeEach(async () => {
+    // Сбрасываем все моки перед каждым тестом
+    vi.clearAllMocks();
+
     mockRedisService = {
       get: vi.fn(),
       set: vi.fn(),
@@ -81,7 +84,7 @@ describe('QuestCacheService', () => {
     };
 
     mockConfigService = {
-      get: vi.fn((key: string) => {
+      get: vi.fn().mockImplementation((key: string) => {
         if (key === 'DEFAULT_CACHE_TTL_SECONDS') return '300';
         return undefined;
       }),
@@ -132,25 +135,41 @@ describe('QuestCacheService', () => {
     questRepository = module.get<QuestRepository>(QuestRepository);
     contributerRepository = module.get<ContributerRepository>(ContributerRepository);
     stepVolunteerRepository = module.get<StepVolunteerRepository>(StepVolunteerRepository);
+
+    // Вручную присваиваем зависимости, так как forwardRef может вызывать проблемы в тестах
+    (service as any).redisService = mockRedisService;
+    (service as any).configService = mockConfigService;
+    (service as any).questRepository = mockQuestRepository;
+    (service as any).contributerRepository = mockContributerRepository;
+    (service as any).stepVolunteerRepository = mockStepVolunteerRepository;
+    
+    // Мокируем logger, чтобы не выводить логи в тестах
+    (service as any).logger = {
+      log: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      debug: vi.fn(),
+      verbose: vi.fn(),
+    };
   });
 
   describe('getCacheTtl', () => {
     it('should return TTL from DEFAULT_CACHE_TTL_SECONDS config', () => {
       mockConfigService.get.mockReturnValue('600');
-      const ttl = (service as any).getCacheTtl();
+      const ttl = (service as any).getCacheTtl.call(service);
       expect(ttl).toBe(600);
       expect(mockConfigService.get).toHaveBeenCalledWith('DEFAULT_CACHE_TTL_SECONDS');
     });
 
     it('should return default 300 seconds if DEFAULT_CACHE_TTL_SECONDS is not set', () => {
       mockConfigService.get.mockReturnValue(undefined);
-      const ttl = (service as any).getCacheTtl();
+      const ttl = (service as any).getCacheTtl.call(service);
       expect(ttl).toBe(300);
     });
 
     it('should return default 300 seconds if DEFAULT_CACHE_TTL_SECONDS is invalid', () => {
       mockConfigService.get.mockReturnValue('invalid');
-      const ttl = (service as any).getCacheTtl();
+      const ttl = (service as any).getCacheTtl.call(service);
       expect(ttl).toBe(300);
     });
   });
@@ -163,7 +182,11 @@ describe('QuestCacheService', () => {
       const result = await service.getQuest(questId);
 
       expect(mockRedisService.get).toHaveBeenCalledWith(`quest:${questId}`);
-      expect(result).toEqual(mockQuest);
+      // Даты сериализуются в строки при JSON.parse/stringify, поэтому сравниваем структуру без дат
+      expect(result.id).toBe(mockQuest.id);
+      expect(result.title).toBe(mockQuest.title);
+      expect(result.description).toBe(mockQuest.description);
+      expect(result.steps).toEqual(mockQuest.steps);
       expect(mockQuestRepository.findByIdWithDetailsDirectly).not.toHaveBeenCalled();
     });
 
@@ -423,7 +446,30 @@ describe('QuestCacheService', () => {
       expect(mockContributerRepository.getConfirmedContributersCount).toHaveBeenCalledWith(questId);
       expect(mockStepVolunteerRepository.getSumContributeValue).toHaveBeenCalledWith(questId, 'finance');
       expect(mockStepVolunteerRepository.getSumContributeValue).toHaveBeenCalledWith(questId, 'material');
-      expect(mockQuestRepository.update).toHaveBeenCalled();
+      
+      // Проверяем, что update был вызван с правильными аргументами
+      expect(mockQuestRepository.update).toHaveBeenCalledWith(questId, {
+        steps: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'contributers',
+            requirement: expect.objectContaining({
+              currentValue: 5,
+            }),
+          }),
+          expect.objectContaining({
+            type: 'finance',
+            requirement: expect.objectContaining({
+              currentValue: 750,
+            }),
+          }),
+          expect.objectContaining({
+            type: 'material',
+            requirement: expect.objectContaining({
+              currentValue: 300,
+            }),
+          }),
+        ]),
+      });
     });
 
     it('should update quest in DB only if currentValue changed', async () => {
@@ -444,8 +490,8 @@ describe('QuestCacheService', () => {
 
       await (service as any).calculateAndUpdateCurrentValues(questWithUnchangedValue);
 
-      // Should still update to ensure consistency
-      expect(mockQuestRepository.update).toHaveBeenCalled();
+      // Если значение не изменилось, update не должен вызываться (согласно логике сервиса)
+      expect(mockQuestRepository.update).not.toHaveBeenCalled();
     });
   });
 });
