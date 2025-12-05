@@ -55,7 +55,7 @@ export class QuestEventsHandler implements OnModuleInit {
 
   private async handleQuestCompleted(event: QuestEvent): Promise<void> {
     const { questId, data } = event;
-    const { userId, experienceReward, achievementId } = data || {};
+    const { userId, experienceReward, achievementId } = (data as any) || {};
 
     if (!userId) {
       this.logger.warn('Received quest_completed event without userId, skipping');
@@ -121,14 +121,14 @@ export class QuestEventsHandler implements OnModuleInit {
         this.logger.debug(`Synced requirement currentValue for quest ${questId}, type contributers`);
       } else if (type === 'step_volunteer_added') {
         // Синхронизируем currentValue для типа finance или material
-        const stepType = data?.stepType as 'finance' | 'material';
+        const stepType = (data as any)?.stepType as 'finance' | 'material';
         if (stepType) {
           await this.questService.syncRequirementCurrentValue(questId, stepType);
           this.logger.debug(`Synced requirement currentValue for quest ${questId}, type ${stepType}`);
         }
       } else if (type === 'checkin_confirmed') {
         // Синхронизируем currentValue в зависимости от типа этапа
-        const stepType = data?.stepType as 'finance' | 'material' | 'contributers';
+        const stepType = (data as any)?.stepType as 'finance' | 'material' | 'contributers';
         if (stepType) {
           await this.questService.syncRequirementCurrentValue(questId, stepType);
           this.logger.debug(`Synced requirement currentValue for quest ${questId}, type ${stepType}`);

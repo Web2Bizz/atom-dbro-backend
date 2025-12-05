@@ -3,7 +3,7 @@ import { CreateQuestDto } from './dto/create-quest.dto';
 import { UpdateQuestDto } from './dto/update-quest.dto';
 import { UpdateRequirementDto } from './dto/update-requirement.dto';
 import { QuestEventsService } from './quest.events';
-import { QuestRepository } from './quest.repository';
+import { QuestRepository, QuestStep } from './quest.repository';
 import { StepVolunteerRepository } from '../step-volunteer/step-volunteer.repository';
 import { ContributerRepository } from '../contributer/contributer.repository';
 import { MAX_GALLERY_IMAGES, MIN_LEVEL_TO_CREATE_QUEST } from '../common/constants';
@@ -145,7 +145,7 @@ export class QuestService {
       const userData = await this.questRepository.findUserDataForEvent(userId);
 
       // Эмитим событие присоединения пользователя
-      this.questEventsService.emitUserJoined(quest.id, userId, userData || {});
+      this.questEventsService.emitUserJoined(quest.id, userId, { userId, ...(userData || {}) });
     }
 
     // Эмитим событие создания квеста
@@ -353,7 +353,7 @@ export class QuestService {
       }
     }
 
-    const updateData: UpdateQuestData = { updatedAt: new Date() };
+    const updateData: any = { updatedAt: new Date() };
     
     if (updateQuestDto.title !== undefined) {
       updateData.title = updateQuestDto.title;
@@ -476,7 +476,7 @@ export class QuestService {
 
     const userData = await this.questRepository.findUserDataForEvent(userId);
 
-    this.questEventsService.emitUserJoined(questId, userId, userData || {});
+    this.questEventsService.emitUserJoined(questId, userId, { userId, ...(userData || {}) });
 
     return userQuest;
   }
