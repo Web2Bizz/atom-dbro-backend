@@ -11,6 +11,8 @@ import fastifyMultipart from '@fastify/multipart';
 import { MAX_FILE_SIZE_BYTES, MAX_MULTIPART_FILES } from './common/constants';
 
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
+  
   try {
     const app = await NestFactory.create<NestFastifyApplication>(
       AppModule,
@@ -130,16 +132,16 @@ async function bootstrap() {
 
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api', app, document);
-    console.log('Swagger configured');
+    logger.log('Swagger configured');
 
     const port = Number(process.env.PORT) || 3000;
     await app.listen(port, '0.0.0.0');
-    console.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
-    console.log(`📚 Swagger API docs: http://0.0.0.0:${port}/api`);
-    console.log(`🌐 API v1 endpoints: http://0.0.0.0:${port}/api/v1`);
-    console.log(`🌐 API v2 endpoints: http://0.0.0.0:${port}/api/v2`);
+    logger.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
+    logger.log(`📚 Swagger API docs: http://0.0.0.0:${port}/api`);
+    logger.log(`🌐 API v1 endpoints: http://0.0.0.0:${port}/api/v1`);
+    logger.log(`🌐 API v2 endpoints: http://0.0.0.0:${port}/api/v2`);
   } catch (error) {
-    console.error('❌ Error starting application:', error);
+    logger.error('❌ Error starting application:', error);
     process.exit(1);
   }
 }
