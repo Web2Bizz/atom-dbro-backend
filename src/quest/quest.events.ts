@@ -1,11 +1,85 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Subject, Observable } from 'rxjs';
 import { map, filter } from 'rxjs/operators';
+import { QuestStep } from './quest.repository';
+
+/**
+ * Данные события создания квеста
+ */
+export interface QuestCreatedEventData {
+  id: number;
+  title: string;
+  description?: string | null;
+  status: string;
+  [key: string]: any;
+}
+
+/**
+ * Данные события присоединения пользователя
+ */
+export interface UserJoinedEventData {
+  userId: number;
+  id?: number;
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string;
+  [key: string]: any;
+}
+
+/**
+ * Данные события завершения квеста
+ */
+export interface QuestCompletedEventData {
+  userId: number;
+  id?: number;
+  title?: string;
+  status?: string;
+  experienceReward?: number;
+  achievementId?: number | null;
+  [key: string]: any;
+}
+
+/**
+ * Данные события обновления requirements
+ */
+export interface RequirementUpdatedEventData {
+  steps: QuestStep[];
+}
+
+/**
+ * Данные события добавления step volunteer
+ */
+export interface StepVolunteerAddedEventData {
+  stepType: 'finance' | 'material';
+  userId: number;
+  contributeValue: number;
+}
+
+/**
+ * Данные события подтверждения checkin
+ */
+export interface CheckinConfirmedEventData {
+  stepType: 'finance' | 'material' | 'contributers';
+  userId: number;
+}
+
+/**
+ * Объединенный тип данных событий
+ */
+export type QuestEventData =
+  | QuestCreatedEventData
+  | UserJoinedEventData
+  | QuestCompletedEventData
+  | RequirementUpdatedEventData
+  | StepVolunteerAddedEventData
+  | CheckinConfirmedEventData
+  | { userId: number }
+  | Record<string, any>;
 
 export interface QuestEvent {
   type: 'quest_created' | 'user_joined' | 'quest_completed' | 'requirement_updated' | 'contributer_added' | 'contributer_removed' | 'step_volunteer_added' | 'checkin_confirmed';
   questId: number;
-  data: any;
+  data: QuestEventData;
   timestamp: Date;
 }
 
@@ -17,7 +91,7 @@ export class QuestEventsService {
   /**
    * Эмитить событие создания квеста
    */
-  emitQuestCreated(questId: number, questData: any) {
+  emitQuestCreated(questId: number, questData: QuestCreatedEventData) {
     this.logger.log(`Emitting quest_created event for quest ${questId}`);
     this.questEvents$.next({
       type: 'quest_created',
@@ -30,7 +104,7 @@ export class QuestEventsService {
   /**
    * Эмитить событие присоединения пользователя к квесту
    */
-  emitUserJoined(questId: number, userId: number, userData: any) {
+  emitUserJoined(questId: number, userId: number, userData: UserJoinedEventData) {
     this.logger.log(`Emitting user_joined event for quest ${questId}, user ${userId}`);
     this.questEvents$.next({
       type: 'user_joined',
@@ -46,7 +120,7 @@ export class QuestEventsService {
   /**
    * Эмитить событие завершения квеста
    */
-  emitQuestCompleted(questId: number, userId: number, questData: any) {
+  emitQuestCompleted(questId: number, userId: number, questData: QuestCompletedEventData) {
     this.logger.log(`Emitting quest_completed event for quest ${questId}, user ${userId}`);
     this.questEvents$.next({
       type: 'quest_completed',
@@ -62,7 +136,7 @@ export class QuestEventsService {
   /**
    * Эмитить событие обновления требования в этапе квеста
    */
-  emitRequirementUpdated(questId: number, steps: any) {
+  emitRequirementUpdated(questId: number, steps: QuestStep[]) {
     this.logger.log(`Emitting requirement_updated event for quest ${questId}`);
     this.questEvents$.next({
       type: 'requirement_updated',

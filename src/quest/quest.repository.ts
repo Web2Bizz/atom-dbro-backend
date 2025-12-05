@@ -15,6 +15,25 @@ import {
 import { eq, and, ne, inArray, sql } from 'drizzle-orm';
 import { StepVolunteerRepository } from '../step-volunteer/step-volunteer.repository';
 
+/**
+ * Требование этапа квеста
+ */
+export interface QuestRequirement {
+  currentValue?: number;
+  targetValue?: number;
+}
+
+/**
+ * Этап квеста
+ */
+export interface QuestStep {
+  type?: 'finance' | 'material' | 'contributers';
+  title?: string;
+  description?: string;
+  requirement?: QuestRequirement;
+  [key: string]: any;
+}
+
 export interface QuestWithDetails {
   id: number;
   title: string;
@@ -91,7 +110,7 @@ export class QuestRepository {
    * Вычисляет статус этапа в runtime на основе currentValue и targetValue
    * Значения считаются в runtime и не хранятся в базе.
    */
-  private async calculateProgressForSteps(steps: any, questId?: number): Promise<any> {
+  private async calculateProgressForSteps(steps: QuestStep[] | undefined, questId?: number): Promise<QuestStep[]> {
     if (!Array.isArray(steps)) {
       return steps;
     }
@@ -102,7 +121,7 @@ export class QuestRepository {
           return step;
         }
 
-        const requirement = (step as any).requirement as { currentValue?: number; targetValue?: number } | undefined;
+        const requirement = step.requirement as QuestRequirement | undefined;
         if (!requirement || requirement.targetValue === undefined || requirement.targetValue === null) {
           // Если нет требования или targetValue, считаем прогресс 0 и статус pending
           return {
