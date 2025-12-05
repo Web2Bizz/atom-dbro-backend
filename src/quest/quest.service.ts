@@ -25,6 +25,27 @@ export class QuestService {
     private readonly contributerRepository: ContributerRepository,
   ) {}
 
+  /**
+   * Группирует категории по ID квеста
+   * @param categories Массив категорий с questId
+   * @returns Map с ключом questId и значением массива категорий
+   */
+  private groupCategoriesByQuestId(
+    categories: Array<{ questId: number; id: number; name: string }>,
+  ): Map<number, Array<{ id: number; name: string }>> {
+    const categoriesByQuestId = new Map<number, Array<{ id: number; name: string }>>();
+    for (const category of categories) {
+      if (!categoriesByQuestId.has(category.questId)) {
+        categoriesByQuestId.set(category.questId, []);
+      }
+      categoriesByQuestId.get(category.questId)!.push({
+        id: category.id,
+        name: category.name,
+      });
+    }
+    return categoriesByQuestId;
+  }
+
   async create(createQuestDto: CreateQuestDto, userId: number) {
     // Проверяем уровень пользователя
     const user = await this.questRepository.findUserById(userId);
@@ -152,24 +173,15 @@ export class QuestService {
       const allCategories = await this.questRepository.findCategoriesForQuests(questIds);
 
       // Группируем категории по questId
-      const categoriesByQuestId = new Map<number, Array<{ id: number; name: string }>>();
-      for (const category of allCategories) {
-        if (!categoriesByQuestId.has(category.questId)) {
-          categoriesByQuestId.set(category.questId, []);
-        }
-        categoriesByQuestId.get(category.questId)!.push({
-          id: category.id,
-          name: category.name,
-        });
-      }
+      const categoriesByQuestId = this.groupCategoriesByQuestId(allCategories);
 
       return questsList.map(quest => ({
         ...quest,
         categories: categoriesByQuestId.get(quest.id) || [],
       }));
     } catch (error: any) {
-      console.error('Ошибка в findAll:', error);
-      console.error('Детали ошибки:', {
+      this.logger.error('Ошибка в findAll:', error);
+      this.logger.error('Детали ошибки:', {
         message: error?.message,
         code: error?.code,
         detail: error?.detail,
@@ -189,16 +201,7 @@ export class QuestService {
     const allCategories = await this.questRepository.findCategoriesForQuests(questIds);
 
     // Группируем категории по questId
-    const categoriesByQuestId = new Map<number, Array<{ id: number; name: string }>>();
-    for (const category of allCategories) {
-      if (!categoriesByQuestId.has(category.questId)) {
-        categoriesByQuestId.set(category.questId, []);
-      }
-      categoriesByQuestId.get(category.questId)!.push({
-        id: category.id,
-        name: category.name,
-      });
-    }
+    const categoriesByQuestId = this.groupCategoriesByQuestId(allCategories);
 
     return questsList.map(quest => ({
       ...quest,
@@ -561,16 +564,7 @@ export class QuestService {
     const questIds = result.map(r => r.questId);
     const allCategories = await this.questRepository.findCategoriesForQuests(questIds);
 
-    const categoriesByQuestId = new Map<number, Array<{ id: number; name: string }>>();
-    for (const category of allCategories) {
-      if (!categoriesByQuestId.has(category.questId)) {
-        categoriesByQuestId.set(category.questId, []);
-      }
-      categoriesByQuestId.get(category.questId)!.push({
-        id: category.id,
-        name: category.name,
-      });
-    }
+    const categoriesByQuestId = this.groupCategoriesByQuestId(allCategories);
 
     return result.map(item => ({
       ...item,
@@ -602,16 +596,7 @@ export class QuestService {
     const allCategories = await this.questRepository.findCategoriesForQuests(questIds);
 
     // Группируем категории по questId
-    const categoriesByQuestId = new Map<number, Array<{ id: number; name: string }>>();
-    for (const category of allCategories) {
-      if (!categoriesByQuestId.has(category.questId)) {
-        categoriesByQuestId.set(category.questId, []);
-      }
-      categoriesByQuestId.get(category.questId)!.push({
-        id: category.id,
-        name: category.name,
-      });
-    }
+    const categoriesByQuestId = this.groupCategoriesByQuestId(allCategories);
 
     return filteredQuests.map(quest => ({
       ...quest,
