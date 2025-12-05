@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { OrganizationService } from './organization.service';
 import { OrganizationRepository } from './organization.repository';
 import { S3Service } from './s3.service';
+import { EntityValidationService } from '../common/services/entity-validation.service';
 import { NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
@@ -93,6 +94,13 @@ describe('OrganizationService', () => {
     getImageUrls: ReturnType<typeof vi.fn>;
   };
 
+  let mockEntityValidationService: {
+    validateCityExists: ReturnType<typeof vi.fn>;
+    validateOrganizationTypeExists: ReturnType<typeof vi.fn>;
+    validateCategoriesExist: ReturnType<typeof vi.fn>;
+    validateHelpTypesExist: ReturnType<typeof vi.fn>;
+  };
+
   let mockDb: any;
 
   beforeEach(async () => {
@@ -114,6 +122,13 @@ describe('OrganizationService', () => {
 
     mockS3Service = {
       getImageUrls: vi.fn((urls: string[]) => urls.map(url => `https://s3.example.com/${url}`)),
+    };
+
+    mockEntityValidationService = {
+      validateCityExists: vi.fn().mockResolvedValue(undefined),
+      validateOrganizationTypeExists: vi.fn().mockResolvedValue(undefined),
+      validateCategoriesExist: vi.fn().mockResolvedValue(undefined),
+      validateHelpTypesExist: vi.fn().mockResolvedValue(undefined),
     };
 
     // Мок для db.select().from().where()
@@ -140,6 +155,10 @@ describe('OrganizationService', () => {
           provide: DATABASE_CONNECTION,
           useValue: mockDb as any,
         },
+        {
+          provide: EntityValidationService,
+          useValue: mockEntityValidationService,
+        },
       ],
     }).compile();
 
@@ -152,6 +171,7 @@ describe('OrganizationService', () => {
     (service as any).repository = mockRepository;
     (service as any).s3Service = mockS3Service;
     (service as any).db = mockDb;
+    (service as any).entityValidationService = mockEntityValidationService;
   });
 
   describe('findAll', () => {
@@ -258,11 +278,9 @@ describe('OrganizationService', () => {
     });
 
     it('should throw NotFoundException when city does not exist', async () => {
-      mockDb.select = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([]),
-        }),
-      });
+      mockEntityValidationService.validateCityExists.mockRejectedValue(
+        new NotFoundException(`Город с ID ${createDto.cityId} не найден`)
+      );
 
       await expect(service.create(createDto, userId)).rejects.toThrow(NotFoundException);
     });
