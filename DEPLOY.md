@@ -309,18 +309,27 @@ docker compose up -d --build app
 #### Обязательные секреты:
 
 - **`DOCKER_REGISTRY_URL`** - URL Docker Registry
-  - Пример: `registry.example.com` или `docker.io` или `ghcr.io`
-  - ⚠️ **ВАЖНО**: Укажите полный URL без протокола (без `https://` или `http://`)
+  - Пример: `docker-registry.web2bizz.store` или `registry.example.com`
+  - ⚠️ **ВАЖНО**: 
+    - Укажите полный URL без протокола (без `https://` или `http://`)
+    - Не добавляйте путь `/v2/` или `/private/` - он будет добавлен автоматически
+    - Правильно: `docker-registry.web2bizz.store`
+    - Неправильно: `https://docker-registry.web2bizz.store` или `docker-registry.web2bizz.store/v2/`
+    - Registry использует Basic Auth через nginx, поэтому URL должен указывать на домен nginx
   
 - **`DOCKER_REGISTRY_USERNAME`** - Имя пользователя для доступа к Docker Registry
-  - Пример: `myuser` или `ghp_xxxxxxxxxxxx` (для GitHub Container Registry)
-  - ⚠️ **ВАЖНО**: Убедитесь, что пользователь имеет права на push/pull образов
+  - Пример: `myuser` или имя пользователя из htpasswd файла
+  - ⚠️ **ВАЖНО**: 
+    - Убедитесь, что пользователь существует в файле `/etc/nginx/auth/htpasswd` на сервере Registry
+    - Пользователь должен иметь права на push/pull образов
+    - Имя пользователя должно совпадать с тем, что используется в nginx Basic Auth
   
-- **`DOCKER_REGISTRY_PASSWORD`** - Пароль или токен для доступа к Docker Registry
-  - Для Docker Hub: пароль от аккаунта
-  - Для GitHub Container Registry: Personal Access Token (PAT) с правами `write:packages`
-  - Для других Registry: соответствующий токен доступа
-  - ⚠️ **ВАЖНО**: Храните токены в безопасности и регулярно обновляйте их
+- **`DOCKER_REGISTRY_PASSWORD`** - Пароль для доступа к Docker Registry
+  - Пароль из файла `/etc/nginx/auth/htpasswd` на сервере Registry
+  - ⚠️ **ВАЖНО**: 
+    - Пароль должен совпадать с паролем в htpasswd файле
+    - Храните пароли в безопасности и регулярно обновляйте их
+    - Для создания/обновления пользователя используйте: `htpasswd -B /etc/nginx/auth/htpasswd username`
 
 - **`DEPLOY_HOST`** - IP-адрес или домен сервера деплоя
   - Пример: `192.168.1.100` или `deploy.example.com`
@@ -605,13 +614,15 @@ chmod 755 ~/atom-dbro-backend
 
 1. **На сервере войдите в Docker Registry**:
 ```bash
-docker login REGISTRY_URL -u USERNAME -p PASSWORD
+# Замените на ваш реальный Registry URL и credentials
+docker login docker-registry.web2bizz.store -u YOUR_USERNAME -p YOUR_PASSWORD
 ```
 
 2. **Загрузите образ из Registry**:
 ```bash
-docker pull REGISTRY_URL/atom-dbro-backend:latest
-docker tag REGISTRY_URL/atom-dbro-backend:latest atom-dbro-backend:latest
+# Замените на ваш реальный Registry URL
+docker pull docker-registry.web2bizz.store/atom-dbro-backend:latest
+docker tag docker-registry.web2bizz.store/atom-dbro-backend:latest atom-dbro-backend:latest
 ```
 
 3. **Перезапустите контейнер**:
@@ -625,13 +636,15 @@ docker compose up -d --force-recreate --no-deps app
 
 1. **На сервере войдите в Docker Registry**:
 ```bash
-docker login REGISTRY_URL -u USERNAME -p PASSWORD
+# Замените на ваш реальный Registry URL и credentials
+docker login docker-registry.web2bizz.store -u YOUR_USERNAME -p YOUR_PASSWORD
 ```
 
 2. **Загрузите конкретную версию образа** (например, `2024-01-15-143022`):
 ```bash
-docker pull REGISTRY_URL/atom-dbro-backend:2024-01-15-143022
-docker tag REGISTRY_URL/atom-dbro-backend:2024-01-15-143022 atom-dbro-backend:latest
+# Замените на ваш реальный Registry URL и версию
+docker pull docker-registry.web2bizz.store/atom-dbro-backend:2024-01-15-143022
+docker tag docker-registry.web2bizz.store/atom-dbro-backend:2024-01-15-143022 atom-dbro-backend:latest
 ```
 
 3. **Перезапустите контейнер**:
@@ -645,28 +658,33 @@ docker compose up -d --force-recreate --no-deps app
 
 1. **Соберите Docker образ локально**:
 ```bash
-docker build -t REGISTRY_URL/atom-dbro-backend:latest .
+# Замените на ваш реальный Registry URL
+docker build -t docker-registry.web2bizz.store/atom-dbro-backend:latest .
 ```
 
 2. **Войдите в Docker Registry**:
 ```bash
-docker login REGISTRY_URL -u USERNAME -p PASSWORD
+# Замените на ваш реальный Registry URL и credentials
+docker login docker-registry.web2bizz.store -u YOUR_USERNAME -p YOUR_PASSWORD
 ```
 
 3. **Загрузите образ в Registry**:
 ```bash
-docker push REGISTRY_URL/atom-dbro-backend:latest
+# Замените на ваш реальный Registry URL
+docker push docker-registry.web2bizz.store/atom-dbro-backend:latest
 ```
 
 4. **На сервере выполните шаги из Варианта 1**
 
 **Примечание**: Для версионирования используйте формат `YYYY-MM-DD-HHMMSS`:
 ```bash
+# Замените REGISTRY_URL на ваш реальный Registry URL
+REGISTRY_URL="docker-registry.web2bizz.store"
 VERSION=$(date -u +"%Y-%m-%d-%H%M%S")
-docker build -t REGISTRY_URL/atom-dbro-backend:$VERSION .
-docker tag REGISTRY_URL/atom-dbro-backend:$VERSION REGISTRY_URL/atom-dbro-backend:latest
-docker push REGISTRY_URL/atom-dbro-backend:$VERSION
-docker push REGISTRY_URL/atom-dbro-backend:latest
+docker build -t $REGISTRY_URL/atom-dbro-backend:$VERSION .
+docker tag $REGISTRY_URL/atom-dbro-backend:$VERSION $REGISTRY_URL/atom-dbro-backend:latest
+docker push $REGISTRY_URL/atom-dbro-backend:$VERSION
+docker push $REGISTRY_URL/atom-dbro-backend:latest
 ```
 
 Или используйте скрипт `scripts/deploy.sh` (если он существует и настроен).
