@@ -14,6 +14,7 @@ import {
 } from '../database/schema';
 import { eq, and, ne, inArray, sql } from 'drizzle-orm';
 import { StepVolunteerRepository } from '../step-volunteer/step-volunteer.repository';
+import { QuestCacheService } from './quest-cache.service';
 
 /**
  * Требование этапа квеста
@@ -86,6 +87,8 @@ export class QuestRepository {
     private db: NodePgDatabase,
     @Inject(forwardRef(() => StepVolunteerRepository))
     private readonly stepVolunteerRepository: StepVolunteerRepository,
+    @Inject(forwardRef(() => QuestCacheService))
+    private readonly questCacheService: QuestCacheService,
   ) {}
 
   /**
@@ -161,6 +164,18 @@ export class QuestRepository {
    */
   async findById(id: number): Promise<typeof quests.$inferSelect | undefined> {
     try {
+      // Пытаемся получить из кеша
+      const cachedQuest = await this.questCacheService.getQuest(id);
+      if (cachedQuest) {
+        // Вычисляем прогресс на основе актуальных currentValue из кеша
+        const stepsWithProgress = await this.calculateProgressForSteps((cachedQuest as any).steps, id);
+        return {
+          ...cachedQuest,
+          steps: stepsWithProgress,
+        } as typeof quests.$inferSelect;
+      }
+
+      // Fallback на БД, если кеш не вернул результат
       const [quest] = await this.db
         .select()
         .from(quests)
@@ -191,6 +206,18 @@ export class QuestRepository {
    */
   async findByIdWithDetails(id: number): Promise<QuestWithDetails | undefined> {
     try {
+      // Пытаемся получить из кеша
+      const cachedQuest = await this.questCacheService.getQuest(id);
+      if (cachedQuest) {
+        // Вычисляем прогресс на основе актуальных currentValue из кеша
+        const stepsWithProgress = await this.calculateProgressForSteps((cachedQuest as any).steps, id);
+        return {
+          ...cachedQuest,
+          steps: stepsWithProgress,
+        } as QuestWithDetails;
+      }
+
+      // Fallback на БД, если кеш не вернул результат
       const [quest] = await this.db
         .select({
           id: quests.id,
@@ -267,6 +294,89 @@ export class QuestRepository {
       };
     } catch (error: any) {
       this.logger.error(`Ошибка в findByIdWithDetails для квеста ID ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Найти квест по ID с полной информацией БЕЗ использования кеша (для внутреннего использования)
+   * @param id ID квеста
+   * @returns Квест с подробностями или undefined
+   */
+  async findByIdWithDetailsDirectly(id: number): Promise<QuestWithDetails | undefined> {
+    try {
+      const [quest] = await this.db
+        .select({
+          id: quests.id,
+          title: quests.title,
+          description: quests.description,
+          status: quests.status,
+          experienceReward: quests.experienceReward,
+          achievementId: quests.achievementId,
+          ownerId: quests.ownerId,
+          cityId: quests.cityId,
+          organizationTypeId: quests.organizationTypeId,
+          latitude: quests.latitude,
+          longitude: quests.longitude,
+          address: quests.address,
+          contacts: quests.contacts,
+          coverImage: quests.coverImage,
+          gallery: quests.gallery,
+          steps: quests.steps,
+          createdAt: quests.createdAt,
+          updatedAt: quests.updatedAt,
+          achievement: {
+            id: achievements.id,
+            title: achievements.title,
+            description: achievements.description,
+            icon: achievements.icon,
+            rarity: achievements.rarity,
+            questId: achievements.questId,
+          },
+          owner: {
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            email: users.email,
+          },
+          city: {
+            id: cities.id,
+            name: cities.name,
+          },
+          organizationType: {
+            id: organizationTypes.id,
+            name: organizationTypes.name,
+          },
+        })
+        .from(quests)
+        .leftJoin(achievements, and(
+          eq(quests.achievementId, achievements.id),
+          ne(achievements.recordStatus, 'DELETED')
+        ))
+        .innerJoin(users, and(
+          eq(quests.ownerId, users.id),
+          ne(users.recordStatus, 'DELETED')
+        ))
+        .leftJoin(cities, and(
+          eq(quests.cityId, cities.id),
+          ne(cities.recordStatus, 'DELETED')
+        ))
+        .leftJoin(organizationTypes, and(
+          eq(quests.organizationTypeId, organizationTypes.id),
+          ne(organizationTypes.recordStatus, 'DELETED')
+        ))
+        .where(and(
+          eq(quests.id, id),
+          ne(quests.recordStatus, 'DELETED')
+        ));
+
+      if (!quest) {
+        return undefined;
+      }
+
+      return quest as QuestWithDetails;
+    } catch (error: any) {
+      this.logger.error(`Ошибка в findByIdWithDetailsDirectly для квеста ID ${id}:`, error);
       throw error;
     }
   }

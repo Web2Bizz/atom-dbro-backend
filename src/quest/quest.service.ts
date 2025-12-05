@@ -4,6 +4,7 @@ import { UpdateQuestDto } from './dto/update-quest.dto';
 import { UpdateRequirementDto } from './dto/update-requirement.dto';
 import { QuestEventsService } from './quest.events';
 import { QuestRepository, QuestStep } from './quest.repository';
+import { QuestCacheService } from './quest-cache.service';
 import { StepVolunteerRepository } from '../step-volunteer/step-volunteer.repository';
 import { ContributerRepository } from '../contributer/contributer.repository';
 import { MAX_GALLERY_IMAGES, MIN_LEVEL_TO_CREATE_QUEST } from '../common/constants';
@@ -17,6 +18,7 @@ export class QuestService {
   constructor(
     private readonly questRepository: QuestRepository,
     private readonly questEventsService: QuestEventsService,
+    private readonly questCacheService: QuestCacheService,
     @Inject(forwardRef(() => StepVolunteerRepository))
     private readonly stepVolunteerRepository: StepVolunteerRepository,
     @Inject(forwardRef(() => ContributerRepository))
@@ -150,6 +152,9 @@ export class QuestService {
 
     // Эмитим событие создания квеста
     this.questEventsService.emitQuestCreated(quest.id, questWithAllData);
+
+    // Сохраняем квест в кеш с TTL
+    await this.questCacheService.setQuest(quest.id, questWithAllData);
 
     return questWithAllData;
   }
@@ -429,6 +434,9 @@ export class QuestService {
     // Обновляем категории, если указаны
     await this.updateQuestCategories(id, updateQuestDto.categoryIds);
 
+    // Инвалидируем кеш квеста
+    await this.questCacheService.invalidateQuest(id);
+
     // Возвращаем обновленный квест с полной информацией
     return this.findOne(id);
   }
@@ -449,6 +457,10 @@ export class QuestService {
     if (!deletedQuest) {
       throw new NotFoundException(`Квест с ID ${id} не найден`);
     }
+
+    // Инвалидируем кеш квеста
+    await this.questCacheService.invalidateQuest(id);
+
     return deletedQuest;
   }
 
@@ -477,6 +489,9 @@ export class QuestService {
     const userData = await this.questRepository.findUserDataForEvent(userId);
 
     this.questEventsService.emitUserJoined(questId, userId, { userId, ...(userData || {}) });
+
+    // Инвалидируем кеш квеста (может влиять на список участников)
+    await this.questCacheService.invalidateQuest(questId);
 
     return userQuest;
   }
@@ -510,6 +525,9 @@ export class QuestService {
     if (!deletedUserQuest) {
       throw new Error('Не удалось покинуть квест');
     }
+
+    // Инвалидируем кеш квеста (может влиять на список участников)
+    await this.questCacheService.invalidateQuest(questId);
 
     return deletedUserQuest;
   }
@@ -569,6 +587,9 @@ export class QuestService {
         achievementId: quest.achievementId,
       });
     }
+
+    // Инвалидируем кеш квеста
+    await this.questCacheService.invalidateQuest(questId);
 
     return completedQuest;
   }
@@ -734,6 +755,9 @@ export class QuestService {
     );
     this.questEventsService.emitRequirementUpdated(questId, updatedQuest.steps);
 
+    // Инвалидируем кеш квеста
+    await this.questCacheService.invalidateQuest(questId);
+
     // Возвращаем обновленный квест с полной информацией
     return this.findOne(questId);
   }
@@ -845,6 +869,9 @@ export class QuestService {
     }
 
     this.logger.log(`Quest ${questId} archived successfully`);
+
+    // Инвалидируем кеш квеста
+    await this.questCacheService.invalidateQuest(questId);
 
     // Возвращаем обновленный квест с полной информацией
     return this.findOne(questId);
