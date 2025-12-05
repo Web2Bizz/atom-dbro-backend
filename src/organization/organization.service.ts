@@ -36,6 +36,51 @@ export class OrganizationService {
     return isNaN(parsed) ? null : parsed;
   }
 
+  /**
+   * Группирует виды помощи по ID организации
+   * @param helpTypes Массив видов помощи с organizationId
+   * @returns Map с ключом organizationId и значением массива видов помощи
+   */
+  private groupHelpTypesByOrgId(
+    helpTypes: Array<{ organizationId: number; id: number; name: string }>,
+  ): Map<number, Array<{ id: number; name: string }>> {
+    const helpTypesByOrgId = new Map<number, Array<{ id: number; name: string }>>();
+    for (const helpType of helpTypes) {
+      if (!helpTypesByOrgId.has(helpType.organizationId)) {
+        helpTypesByOrgId.set(helpType.organizationId, []);
+      }
+      helpTypesByOrgId.get(helpType.organizationId)!.push({
+        id: helpType.id,
+        name: helpType.name,
+      });
+    }
+    return helpTypesByOrgId;
+  }
+
+  /**
+   * Группирует владельцев по ID организации
+   * @param owners Массив владельцев с organizationId
+   * @returns Map с ключом organizationId и значением массива владельцев
+   */
+  private groupOwnersByOrgId(
+    owners: Array<OwnerRelation & { organizationId: number }>,
+  ): Map<number, OwnerRelation[]> {
+    const ownersByOrgId = new Map<number, OwnerRelation[]>();
+    for (const owner of owners) {
+      if (!ownersByOrgId.has(owner.organizationId)) {
+        ownersByOrgId.set(owner.organizationId, []);
+      }
+      ownersByOrgId.get(owner.organizationId)!.push({
+        id: owner.id,
+        firstName: owner.firstName,
+        lastName: owner.lastName,
+        middleName: owner.middleName,
+        email: owner.email,
+      });
+    }
+    return ownersByOrgId;
+  }
+
   async create(createOrganizationDto: CreateOrganizationDto, userId: number) {
     // Проверяем существование города (исключая удаленные)
     const [city] = await this.db
