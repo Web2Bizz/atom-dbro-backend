@@ -224,7 +224,7 @@ export class OrganizationController {
     }
 
     // Валидация файлов
-    const maxFileSize = MAX_FILE_SIZE_BYTES;
+    const maxFileSize = 10 * 1024 * 1024; // 10MB
     const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
     const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
