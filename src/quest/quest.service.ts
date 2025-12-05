@@ -263,7 +263,7 @@ export class QuestService {
    * @param newSteps Новые этапы квеста
    * @returns true если requirements изменились, false иначе
    */
-  private checkRequirementsChanged(oldSteps: any[] | undefined, newSteps: any[] | undefined): boolean {
+  private checkRequirementsChanged(oldSteps: QuestStep[] | undefined, newSteps: QuestStep[] | undefined): boolean {
     if (!oldSteps && !newSteps) {
       return false;
     }
@@ -358,7 +358,7 @@ export class QuestService {
       }
     }
 
-    const updateData: any = { updatedAt: new Date() };
+    const updateData: UpdateQuestData = { updatedAt: new Date() };
     
     if (updateQuestDto.title !== undefined) {
       updateData.title = updateQuestDto.title;
