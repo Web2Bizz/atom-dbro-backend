@@ -147,17 +147,19 @@ export class QuestCacheService {
       }
 
       const oldCurrentValue = step.requirement.currentValue ?? 0;
+      const newCurrentValueNumber = Number(newCurrentValue) || 0;
 
       // Обновляем currentValue
       updatedSteps.push({
         ...step,
         requirement: {
           ...step.requirement,
-          currentValue: newCurrentValue,
+          currentValue: newCurrentValueNumber,
         },
       });
 
-      if (oldCurrentValue !== newCurrentValue) {
+      // Сравниваем как числа для корректного сравнения
+      if (Number(oldCurrentValue) !== Number(newCurrentValueNumber)) {
         hasChanges = true;
       }
     }
