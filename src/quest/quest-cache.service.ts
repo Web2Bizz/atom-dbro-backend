@@ -12,6 +12,7 @@ export class QuestCacheService {
   constructor(
     private readonly redisService: RedisService,
     private readonly configService: ConfigService,
+    @Inject(forwardRef(() => QuestRepository))
     private readonly questRepository: QuestRepository,
     @Inject(forwardRef(() => ContributerRepository))
     private readonly contributerRepository: ContributerRepository,
