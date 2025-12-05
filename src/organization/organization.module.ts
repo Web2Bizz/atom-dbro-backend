@@ -6,9 +6,10 @@ import { S3Service } from './s3.service';
 import { FileValidationInterceptor } from './interceptors/file-validation.interceptor';
 import { DatabaseModule } from '../database/database.module';
 import { AuthModule } from '../auth/auth.module';
+import { EntityValidationModule } from '../common/services/entity-validation.module';
 
 @Module({
-  imports: [DatabaseModule, AuthModule],
+  imports: [DatabaseModule, AuthModule, EntityValidationModule],
   controllers: [OrganizationController],
   providers: [OrganizationService, OrganizationRepository, S3Service, FileValidationInterceptor],
   exports: [OrganizationService],

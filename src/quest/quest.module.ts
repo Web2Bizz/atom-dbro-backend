@@ -8,6 +8,7 @@ import { DatabaseModule } from '../database/database.module';
 import { StepVolunteerModule } from '../step-volunteer/step-volunteer.module';
 import { ContributerModule } from '../contributer/contributer.module';
 import { AchievementModule } from '../achievement/achievement.module';
+import { EntityValidationModule } from '../common/services/entity-validation.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { AchievementModule } from '../achievement/achievement.module';
     forwardRef(() => StepVolunteerModule),
     forwardRef(() => ContributerModule),
     AchievementModule,
+    EntityValidationModule,
   ],
   controllers: [QuestController],
   providers: [QuestService, QuestEventsService, QuestEventsHandler, QuestRepository],
