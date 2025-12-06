@@ -21,7 +21,6 @@ describe('UserRepository', () => {
     role: 'USER',
     level: 1,
     experience: 0,
-    organisationId: null,
     recordStatus: 'CREATED',
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -133,7 +132,6 @@ describe('UserRepository', () => {
       role: 'USER',
       level: 1,
       experience: 0,
-      organisationId: null,
     };
 
     it('should successfully create user with unique email', async () => {
