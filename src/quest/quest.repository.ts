@@ -480,9 +480,10 @@ export class QuestRepository {
    * @param status Статус квеста
    * @param cityId ID города (опционально)
    * @param categoryId ID категории (опционально)
+   * @param ownerId ID владельца квеста (опционально)
    * @returns Массив квестов
    */
-  async findByStatus(status?: 'active' | 'archived' | 'completed', cityId?: number, categoryId?: number) {
+  async findByStatus(status?: 'active' | 'archived' | 'completed', cityId?: number, categoryId?: number, ownerId?: number) {
     try {
       let baseQuery = this.db
         .select({
@@ -534,6 +535,9 @@ export class QuestRepository {
       if (categoryId) {
         baseQuery = baseQuery.innerJoin(questCategories, eq(quests.id, questCategories.questId)) as any;
         conditions.push(eq(questCategories.categoryId, categoryId));
+      }
+      if (ownerId) {
+        conditions.push(eq(quests.ownerId, ownerId));
       }
       if (conditions.length > 0) {
         baseQuery = baseQuery.where(conditions.length === 1 ? conditions[0] : and(...conditions)) as any;

@@ -71,7 +71,7 @@ export class QuestController {
   }
 
   @Get('filter')
-  @ApiOperation({ summary: 'Получить квесты с фильтрацией по статусу, городу и категории' })
+  @ApiOperation({ summary: 'Получить квесты с фильтрацией по статусу, городу, категории и владельцу' })
   @ApiQuery({ 
     name: 'status', 
     required: false, 
@@ -90,16 +90,23 @@ export class QuestController {
     type: Number,
     description: 'ID категории для фильтрации' 
   })
+  @ApiQuery({ 
+    name: 'ownerId', 
+    required: false, 
+    type: Number,
+    description: 'ID владельца квеста для фильтрации' 
+  })
   @ApiResponse({ status: 200, description: 'Список квестов с примененными фильтрами' })
   filter(
     @Query('status') status?: 'active' | 'archived' | 'completed',
     @Query('cityId', new ParseIntPipe({ optional: true })) cityId?: number,
     @Query('categoryId', new ParseIntPipe({ optional: true })) categoryId?: number,
+    @Query('ownerId', new ParseIntPipe({ optional: true })) ownerId?: number,
   ) {
     if (status && !['active', 'archived', 'completed'].includes(status)) {
       throw new BadRequestException('Недопустимый статус. Допустимые значения: active, archived, completed');
     }
-    return this.questService.findByStatus(status, cityId, categoryId);
+    return this.questService.findByStatus(status, cityId, categoryId, ownerId);
   }
 
   @Get(':id')

@@ -188,8 +188,8 @@ export class QuestService {
     }
   }
 
-  async findByStatus(status?: 'active' | 'archived' | 'completed', cityId?: number, categoryId?: number) {
-    const questsList = await this.questRepository.findByStatus(status, cityId, categoryId);
+  async findByStatus(status?: 'active' | 'archived' | 'completed', cityId?: number, categoryId?: number, ownerId?: number) {
+    const questsList = await this.questRepository.findByStatus(status, cityId, categoryId, ownerId);
 
     // Получаем категории для всех квестов
     const questIds = questsList.map(q => q.id);
