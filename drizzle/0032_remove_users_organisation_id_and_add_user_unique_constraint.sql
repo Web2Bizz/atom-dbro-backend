@@ -36,14 +36,14 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 
--- Удаление внешнего ключа users_organisation_id_fkey
+-- Удаление внешнего ключа users_organisation_id_organizations_id_fk
 DO $$ BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.table_constraints 
-    WHERE constraint_name = 'users_organisation_id_fkey'
+    WHERE constraint_name = 'users_organisation_id_organizations_id_fk'
   ) THEN
     ALTER TABLE "users" 
-    DROP CONSTRAINT "users_organisation_id_fkey";
+    DROP CONSTRAINT "users_organisation_id_organizations_id_fk";
   END IF;
 EXCEPTION
   WHEN undefined_object THEN NULL;
