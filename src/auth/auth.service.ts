@@ -70,7 +70,6 @@ export class AuthService {
       role: 'USER', // По умолчанию при регистрации пользователь получает роль USER
       level: 1,
       experience: 0,
-      organisationId: null, // При регистрации организация не указывается
     });
   }
 
