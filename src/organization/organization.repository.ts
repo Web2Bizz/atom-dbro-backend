@@ -503,6 +503,23 @@ export class OrganizationRepository {
   }
 
   /**
+   * Проверить, является ли пользователь владельцем какой-либо организации
+   */
+  async findOrganizationByUserId(userId: number): Promise<typeof organizationOwners.$inferSelect | undefined> {
+    try {
+      const [owner] = await this.db
+        .select()
+        .from(organizationOwners)
+        .where(eq(organizationOwners.userId, userId));
+      
+      return owner;
+    } catch (error: any) {
+      this.logError('findOrganizationByUserId', { userId }, error);
+      throw error;
+    }
+  }
+
+  /**
    * Добавить владельца организации
    */
   async addOwner(organizationId: number, userId: number): Promise<void> {
@@ -514,6 +531,10 @@ export class OrganizationRepository {
     } catch (error: any) {
       // 23505 - unique_violation (PostgreSQL)
       if (error.code === '23505') {
+        // Проверяем, какое ограничение нарушено
+        if (error.detail?.includes('user_id')) {
+          throw new ConflictException('Пользователь уже является владельцем другой организации. Один пользователь может иметь только одну организацию.');
+        }
         throw new ConflictException('Пользователь уже является владельцем организации');
       }
       this.logError('addOwner', { organizationId, userId }, error);

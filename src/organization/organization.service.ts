@@ -426,10 +426,19 @@ export class OrganizationService {
       throw new NotFoundException(`Пользователь с ID ${userId} не найден`);
     }
 
-    // Проверяем, не является ли уже владельцем
+    // Проверяем, не является ли уже владельцем этой организации
     const existing = await this.repository.findOwner(organizationId, userId);
     if (existing) {
       throw new ConflictException('Пользователь уже является владельцем организации');
+    }
+
+    // Проверяем, не является ли пользователь владельцем другой организации
+    // (ограничение: один пользователь может иметь только одну организацию)
+    const existingOrganization = await this.repository.findOrganizationByUserId(userId);
+    if (existingOrganization) {
+      throw new ConflictException(
+        `Пользователь уже является владельцем организации с ID ${existingOrganization.organizationId}. Один пользователь может иметь только одну организацию.`
+      );
     }
 
     await this.repository.addOwner(organizationId, userId);
