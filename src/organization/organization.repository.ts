@@ -520,6 +520,23 @@ export class OrganizationRepository {
   }
 
   /**
+   * Проверить, есть ли у организации уже владелец
+   */
+  async findOwnerByOrganizationId(organizationId: number): Promise<typeof organizationOwners.$inferSelect | undefined> {
+    try {
+      const [owner] = await this.db
+        .select()
+        .from(organizationOwners)
+        .where(eq(organizationOwners.organizationId, organizationId));
+      
+      return owner;
+    } catch (error: any) {
+      this.logError('findOwnerByOrganizationId', { organizationId }, error);
+      throw error;
+    }
+  }
+
+  /**
    * Добавить владельца организации
    */
   async addOwner(organizationId: number, userId: number): Promise<void> {
@@ -534,6 +551,9 @@ export class OrganizationRepository {
         // Проверяем, какое ограничение нарушено
         if (error.detail?.includes('user_id')) {
           throw new ConflictException('Пользователь уже является владельцем другой организации. Один пользователь может иметь только одну организацию.');
+        }
+        if (error.detail?.includes('organization_id')) {
+          throw new ConflictException('Организация уже имеет владельца. Одна организация может быть указана только один раз.');
         }
         throw new ConflictException('Пользователь уже является владельцем организации');
       }

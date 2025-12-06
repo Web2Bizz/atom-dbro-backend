@@ -98,6 +98,7 @@ export const organizationOwners = pgTable('organization_owners', {
 }, (table) => ({
   uniqueOrganizationUser: unique().on(table.organizationId, table.userId),
   uniqueUser: unique().on(table.userId), // Один пользователь может иметь только одну организацию
+  uniqueOrganization: unique().on(table.organizationId), // Одна организация может быть указана только один раз
 }));
 
 // Связующая таблица: виды помощи организаций
