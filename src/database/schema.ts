@@ -35,7 +35,6 @@ export const users = pgTable('users', {
   role: varchar('role', { length: 20 }).default('USER').notNull(),
   level: integer('level').default(1).notNull(),
   experience: integer('experience').default(0).notNull(),
-  organisationId: integer('organisation_id').references(() => organizations.id, { onDelete: 'set null' }),
   recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
@@ -98,6 +97,7 @@ export const organizationOwners = pgTable('organization_owners', {
   userId: integer('user_id').references(() => users.id).notNull(),
 }, (table) => ({
   uniqueOrganizationUser: unique().on(table.organizationId, table.userId),
+  uniqueUser: unique().on(table.userId), // Один пользователь может иметь только одну организацию
 }));
 
 // Связующая таблица: виды помощи организаций
@@ -276,10 +276,6 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   ownedQuests: many(quests),
   stepVolunteers: many(questStepVolunteers),
   contributers: many(questContributers),
-  organisation: one(organizations, {
-    fields: [users.organisationId],
-    references: [organizations.id],
-  }),
 }));
 
 export const helpTypesRelations = relations(helpTypes, ({ many }) => ({
