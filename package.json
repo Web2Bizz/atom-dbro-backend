@@ -17,7 +17,6 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:fix-quest-id": "ts-node src/scripts/fix-quest-id-array.ts",
     "db:studio": "drizzle-kit studio"
   },
   "repository": {
@@ -44,7 +43,6 @@
     "@nestjs/passport": "^10.0.0",
     "@nestjs/platform-fastify": "^10.0.0",
     "@nestjs/swagger": "^7.0.0",
-    "@types/uuid": "^10.0.0",
     "@willsoto/nestjs-prometheus": "^6.0.2",
     "amqp-connection-manager": "^5.0.0",
     "amqplib": "^0.10.9",
@@ -63,7 +61,6 @@
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.0",
     "swagger-ui-express": "^5.0.0",
-    "ts-node": "^10.9.1",
     "typescript": "^5.0.0",
     "uuid": "^13.0.0",
     "zod": "^4.1.12"
@@ -72,6 +69,7 @@
     "@nestjs/cli": "^10.0.0",
     "@nestjs/microservices": "^10.4.20",
     "@nestjs/testing": "^10.4.20",
+    "@types/uuid": "^10.0.0",
     "@types/amqplib": "^0.10.8",
     "@types/bcrypt": "^5.0.0",
     "@types/iconv-lite": "^0.0.1",
