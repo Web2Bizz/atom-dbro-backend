@@ -24,6 +24,7 @@ export class StepVolunteerService {
     stepType: 'finance' | 'material',
     userId: number,
     contributeValue: number,
+    isInkognito: boolean = false,
   ) {
     // Проверяем существование квеста
     const quest = await this.repository.findQuestById(questId);
@@ -89,6 +90,7 @@ export class StepVolunteerService {
       stepType,
       userId,
       contributeValue,
+      isInkognito,
     );
 
     // Эмитим событие добавления вклада (обработчик синхронизирует currentValue)

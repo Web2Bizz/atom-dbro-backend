@@ -43,6 +43,7 @@ export class StepVolunteerController {
 
 **Тело запроса:**
 - \`contributeValue\` (number) - Значение вклада пользователя в этап (например, сумма денег, количество материалов и т.д.)
+- \`isInkognito\` (boolean, опционально) - Флаг инкогнито (скрыть имя пользователя). По умолчанию \`false\`
 
 **Что делает endpoint:**
 Создаёт новую запись о вкладе пользователя в этап квеста. 
@@ -84,7 +85,13 @@ export class StepVolunteerController {
     @Param('userId', ParseIntPipe) userId: number,
     @Body() addStepVolunteerDto: AddStepVolunteerDto,
   ) {
-    return this.stepVolunteerService.addContribution(questId, type, userId, addStepVolunteerDto.contributeValue);
+    return this.stepVolunteerService.addContribution(
+      questId,
+      type,
+      userId,
+      addStepVolunteerDto.contributeValue,
+      addStepVolunteerDto.isInkognito ?? false,
+    );
   }
 }
 

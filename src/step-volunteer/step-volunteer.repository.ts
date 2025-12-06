@@ -84,6 +84,7 @@ export class StepVolunteerRepository {
 
   /**
    * Получить всех волонтёров этапа по типу шага (только действующих)
+   * Если isInkognito = true, то user будет null
    */
   async findVolunteersByQuestAndStep(
     questId: number,
@@ -91,10 +92,13 @@ export class StepVolunteerRepository {
   ): Promise<Array<{
     id: number;
     userId: number;
-    firstName: string;
-    lastName: string;
-    middleName: string | null;
-    email: string;
+    user: {
+      id: number;
+      firstName: string;
+      lastName: string;
+      middleName: string | null;
+      email: string;
+    } | null;
     createdAt: Date;
   }>> {
     try {
@@ -102,8 +106,7 @@ export class StepVolunteerRepository {
         .select({
           id: questStepVolunteers.id,
           userId: questStepVolunteers.userId,
-          // type: questStepVolunteers.type,
-          // contributeValue: questStepVolunteers.contributeValue,
+          isInkognito: questStepVolunteers.isInkognito,
           firstName: users.firstName,
           lastName: users.lastName,
           middleName: users.middleName,
@@ -119,7 +122,19 @@ export class StepVolunteerRepository {
           ne(users.recordStatus, 'DELETED')
         ));
       
-      return volunteers;
+      // Если isInkognito = true, то user = null, иначе возвращаем данные пользователя
+      return volunteers.map(volunteer => ({
+        id: volunteer.id,
+        userId: volunteer.userId,
+        user: volunteer.isInkognito ? null : {
+          id: volunteer.userId,
+          firstName: volunteer.firstName,
+          lastName: volunteer.lastName,
+          middleName: volunteer.middleName,
+          email: volunteer.email,
+        },
+        createdAt: volunteer.createdAt,
+      }));
     } catch (error: any) {
       this.logger.error(
         `Ошибка в findVolunteersByQuestAndStep для квеста ${questId}, type ${type}:`,
@@ -165,6 +180,7 @@ export class StepVolunteerRepository {
     type: string,
     userId: number,
     contributeValue: number = 0,
+    isInkognito: boolean = false,
   ): Promise<typeof questStepVolunteers.$inferSelect> {
     try {
       const result = await this.db
@@ -174,6 +190,7 @@ export class StepVolunteerRepository {
           type,
           userId,
           contributeValue,
+          isInkognito,
           recordStatus: 'CREATED',
         })
         .returning();
@@ -200,6 +217,7 @@ export class StepVolunteerRepository {
    * @param type Тип этапа
    * @param userId ID пользователя
    * @param contributeValue Значение вклада
+   * @param isInkognito Флаг инкогнито (по умолчанию false)
    * @returns Созданная запись
    */
   async createStepVolunteer(
@@ -207,6 +225,7 @@ export class StepVolunteerRepository {
     type: string,
     userId: number,
     contributeValue: number,
+    isInkognito: boolean = false,
   ): Promise<typeof questStepVolunteers.$inferSelect> {
     try {
       // Всегда создаём новую запись
@@ -217,6 +236,7 @@ export class StepVolunteerRepository {
           type,
           userId,
           contributeValue,
+          isInkognito,
         })
         .returning();
       
