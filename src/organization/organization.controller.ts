@@ -10,8 +10,6 @@ import {
   UseGuards,
   BadRequestException,
   NotFoundException,
-  Version,
-  HttpCode,
   StreamableFile,
   Header,
   Req,
@@ -25,7 +23,6 @@ import { CreateOrganizationDto, createOrganizationSchema, CreateOrganizationDtoC
 import { UpdateOrganizationDto, updateOrganizationSchema, UpdateOrganizationDtoClass } from './dto/update-organization.dto';
 import { AddOwnerDto, addOwnerSchema, AddOwnerDtoClass } from './dto/add-owner.dto';
 import { AddHelpTypeDto, addHelpTypeSchema, AddHelpTypeDtoClass } from './dto/add-help-type.dto';
-import { CreateOrganizationsBulkDto, createOrganizationsBulkSchema } from './dto/create-organizations-bulk.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
@@ -287,52 +284,5 @@ export class OrganizationController {
     }
   }
 
-  @Post()
-  @Version('2')
-  @HttpCode(201)
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @ZodValidation(createOrganizationsBulkSchema)
-  @ApiOperation({ summary: 'Массовое добавление организаций (v2)' })
-  @ApiBody({ 
-    type: [CreateOrganizationDtoClass],
-    description: 'Массив организаций для добавления. Если cityId = 0, город будет найден по адресу',
-    examples: {
-      example1: {
-        value: [
-          {
-            name: 'ОО ТОС АГО "12а микрорайон"',
-            cityId: 0,
-            typeId: 2,
-            helpTypeIds: [5, 8, 10],
-            latitude: 52.5444,
-            longitude: 103.8883,
-            summary: 'Повышение качества жизни жителей',
-            mission: 'Благоустройство территории',
-            description: 'Описание организации',
-            goals: ['Цель 1', 'Цель 2'],
-            needs: ['Нужда 1'],
-            address: 'г. Ангарск',
-            contacts: [{ name: 'ВКонтакте', value: 'https://vk.com/example' }],
-            gallery: ['https://example.com/image.jpg']
-          }
-        ]
-      }
-    }
-  })
-  @ApiResponse({ 
-    status: 201, 
-    description: 'Организации успешно созданы',
-    type: [CreateOrganizationDtoClass]
-  })
-  @ApiResponse({ status: 400, description: 'Неверные данные' })
-  @ApiResponse({ status: 404, description: 'Один или несколько городов, типов организаций или видов помощи не найдены' })
-  @ApiResponse({ status: 401, description: 'Не авторизован' })
-  createMany(
-    @Body() createOrganizationsDto: CreateOrganizationsBulkDto,
-    @CurrentUser() user: { userId: number; email: string },
-  ) {
-    return this.organizationService.createMany(createOrganizationsDto, user.userId);
-  }
 }
 
