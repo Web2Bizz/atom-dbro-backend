@@ -441,6 +441,15 @@ export class OrganizationService {
       );
     }
 
+    // Проверяем, не имеет ли организация уже владельца
+    // (ограничение: одна организация может быть указана только один раз)
+    const existingOwner = await this.repository.findOwnerByOrganizationId(organizationId);
+    if (existingOwner) {
+      throw new ConflictException(
+        `Организация уже имеет владельца (ID пользователя: ${existingOwner.userId}). Одна организация может быть указана только один раз.`
+      );
+    }
+
     await this.repository.addOwner(organizationId, userId);
 
     return { message: 'Владелец успешно добавлен' };
