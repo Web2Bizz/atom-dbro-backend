@@ -237,6 +237,7 @@ export const questStepVolunteers = pgTable('quest_step_volunteers', {
   userId: integer('user_id')
     .references(() => users.id)
     .notNull(),
+  isInkognito: boolean('is_inkognito').default(false).notNull(),
   recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
