@@ -336,5 +336,58 @@ describe('QuestController', () => {
       await expect(promise).rejects.toThrow(ForbiddenException);
     });
   });
+
+  describe('filter', () => {
+    it('should successfully return filtered quests without ownerId (200)', async () => {
+      mockService.findByStatus.mockResolvedValue([mockQuest]);
+
+      const result = await controller.filter();
+
+      expect(result).toEqual([mockQuest]);
+      expect(mockService.findByStatus).toHaveBeenCalledWith(undefined, undefined, undefined, undefined);
+    });
+
+    it('should filter by ownerId when provided', async () => {
+      const ownerId = 1;
+      mockService.findByStatus.mockResolvedValue([mockQuest]);
+
+      const result = await controller.filter(undefined, undefined, undefined, ownerId);
+
+      expect(result).toEqual([mockQuest]);
+      expect(mockService.findByStatus).toHaveBeenCalledWith(undefined, undefined, undefined, ownerId);
+    });
+
+    it('should filter by ownerId with status when both provided', async () => {
+      const status = 'active';
+      const ownerId = 1;
+      mockService.findByStatus.mockResolvedValue([mockQuest]);
+
+      const result = await controller.filter(status, undefined, undefined, ownerId);
+
+      expect(result).toEqual([mockQuest]);
+      expect(mockService.findByStatus).toHaveBeenCalledWith(status, undefined, undefined, ownerId);
+    });
+
+    it('should filter by ownerId with cityId and categoryId when all provided', async () => {
+      const status = 'active';
+      const cityId = 1;
+      const categoryId = 2;
+      const ownerId = 1;
+      mockService.findByStatus.mockResolvedValue([mockQuest]);
+
+      const result = await controller.filter(status, cityId, categoryId, ownerId);
+
+      expect(result).toEqual([mockQuest]);
+      expect(mockService.findByStatus).toHaveBeenCalledWith(status, cityId, categoryId, ownerId);
+    });
+
+    it('should throw BadRequestException when invalid status is provided', () => {
+      const invalidStatus = 'invalid' as any;
+
+      expect(() => controller.filter(invalidStatus)).toThrow(BadRequestException);
+      expect(() => controller.filter(invalidStatus)).toThrow('Недопустимый статус. Допустимые значения: active, archived, completed');
+      expect(mockService.findByStatus).not.toHaveBeenCalled();
+    });
+  });
 });
 
