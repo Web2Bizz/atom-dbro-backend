@@ -58,7 +58,6 @@ describe('AuthService', () => {
     role: 'USER',
     level: 1,
     experience: 0,
-    organisationId: null,
     recordStatus: 'CREATED',
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -74,7 +73,6 @@ describe('AuthService', () => {
     role: 'пользователь',
     level: 1,
     experience: 0,
-    organisationId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -247,7 +245,6 @@ describe('AuthService', () => {
         role: 'USER',
         level: 1,
         experience: 0,
-        organisationId: null,
       });
     });
 

@@ -83,6 +83,7 @@ describe('OrganizationService', () => {
     findByUserId: ReturnType<typeof vi.fn>;
     addOwner: ReturnType<typeof vi.fn>;
     findOwner: ReturnType<typeof vi.fn>;
+    findOrganizationByUserId: ReturnType<typeof vi.fn>;
     findHelpTypesByOrganizationIds: ReturnType<typeof vi.fn>;
     findOwnersByOrganizationIds: ReturnType<typeof vi.fn>;
     findHelpTypesByOrganizationId: ReturnType<typeof vi.fn>;
@@ -113,6 +114,7 @@ describe('OrganizationService', () => {
       findByUserId: vi.fn(),
       addOwner: vi.fn(),
       findOwner: vi.fn(),
+      findOrganizationByUserId: vi.fn(),
       findHelpTypesByOrganizationIds: vi.fn(),
       findOwnersByOrganizationIds: vi.fn(),
       findHelpTypesByOrganizationId: vi.fn(),
@@ -362,6 +364,7 @@ describe('OrganizationService', () => {
       mockRepository.findOwner
         .mockResolvedValueOnce({ organizationId: orgId, userId: currentOwnerUserId } as any) // текущий пользователь - владелец
         .mockResolvedValueOnce(undefined); // новый пользователь еще не владелец
+      mockRepository.findOrganizationByUserId.mockResolvedValue(undefined); // пользователь не является владельцем другой организации
 
       const result = await service.addOwner(orgId, userId, currentOwnerUserId);
 
@@ -409,6 +412,7 @@ describe('OrganizationService', () => {
       mockRepository.findOwner
         .mockResolvedValueOnce({ organizationId: orgId, userId: currentOwnerUserId } as any) // текущий пользователь - владелец
         .mockResolvedValueOnce(undefined); // новый пользователь еще не владелец (по результату проверки)
+      mockRepository.findOrganizationByUserId.mockResolvedValue(undefined); // пользователь не является владельцем другой организации
       
       // Симулируем, что репозиторий выбрасывает ConflictException после обработки ошибки БД
       // (в реальном коде репозиторий преобразует ошибку 23505 в ConflictException)
@@ -437,6 +441,50 @@ describe('OrganizationService', () => {
       await expect(service.addOwner(orgId, newOwnerUserId, nonOwnerCurrentUserId)).rejects.toThrow(ForbiddenException);
       expect(mockRepository.findById).toHaveBeenCalledWith(orgId);
       expect(mockRepository.findOwner).toHaveBeenCalledWith(orgId, nonOwnerCurrentUserId);
+    });
+
+    it('should throw ConflictException when user is already owner of another organization', async () => {
+      const currentOwnerUserId = 1;
+      const userId = 2;
+      const anotherOrgId = 99; // другая организация, владельцем которой уже является пользователь
+      
+      mockRepository.findById.mockResolvedValue(mockOrganization);
+      mockDb.select = vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([mockUser]),
+        }),
+      });
+      
+      // Текущий пользователь является владельцем организации
+      // findOwner вызывается дважды: для currentOwnerUserId и для userId
+      mockRepository.findOwner
+        .mockResolvedValueOnce({ organizationId: orgId, userId: currentOwnerUserId } as any)
+        .mockResolvedValueOnce(undefined); // новый пользователь еще не владелец ЭТОЙ организации
+      
+      // Ключевая проверка: пользователь уже владелец ДРУГОЙ организации
+      mockRepository.findOrganizationByUserId.mockResolvedValue({
+        organizationId: anotherOrgId,
+        userId: userId,
+      } as any);
+      
+      // Проверяем, что выбрасывается ConflictException
+      let thrownError: any;
+      try {
+        await service.addOwner(orgId, userId, currentOwnerUserId);
+      } catch (error: any) {
+        thrownError = error;
+      }
+      
+      // Проверяем тип ошибки
+      expect(thrownError).toBeInstanceOf(ConflictException);
+      expect(thrownError.message).toContain('уже является владельцем организации');
+      expect(thrownError.message).toContain('Один пользователь может иметь только одну организацию');
+      expect(thrownError.message).toContain(anotherOrgId.toString());
+      
+      // Проверяем, что метод findOrganizationByUserId был вызван
+      expect(mockRepository.findOrganizationByUserId).toHaveBeenCalledWith(userId);
+      // Проверяем, что addOwner не был вызван (добавление не должно произойти)
+      expect(mockRepository.addOwner).not.toHaveBeenCalled();
     });
   });
 

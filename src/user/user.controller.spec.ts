@@ -21,7 +21,6 @@ describe('UserController', () => {
     role: 'пользователь',
     level: 1,
     experience: 0,
-    organisationId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -38,7 +37,6 @@ describe('UserController', () => {
       role: 'пользователь',
       level: 1,
       experience: 0,
-      organisationId: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     },
