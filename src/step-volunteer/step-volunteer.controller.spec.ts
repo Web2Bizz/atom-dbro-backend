@@ -102,9 +102,9 @@ describe('StepVolunteerController', () => {
     });
 
     it('should successfully add contribution with isInkognito undefined (defaults to false)', async () => {
-      const dtoWithoutInkognito: AddStepVolunteerDto = {
+      const dtoWithoutInkognito = {
         contributeValue: 1000,
-      };
+      } as AddStepVolunteerDto;
       mockService.addContribution.mockResolvedValue(mockQuest);
 
       const result = await controller.addContribution(questId, stepType, userId, dtoWithoutInkognito);

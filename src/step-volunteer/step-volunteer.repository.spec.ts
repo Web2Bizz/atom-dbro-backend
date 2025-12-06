@@ -171,6 +171,86 @@ describe('StepVolunteerRepository', () => {
     });
   });
 
+  describe('create', () => {
+    const questId = 1;
+    const type = 'finance';
+    const userId = 2;
+    const contributeValue = 0;
+    const isInkognito = false;
+
+    it('should successfully create volunteer', async () => {
+      const mockInsert = {
+        values: vi.fn().mockReturnThis(),
+        returning: vi.fn().mockResolvedValue([mockStepVolunteer]),
+      };
+      mockDb.insert = vi.fn().mockReturnValue(mockInsert);
+
+      const result = await repository.create(questId, type, userId, contributeValue, isInkognito);
+
+      expect(result).toEqual(mockStepVolunteer);
+      expect(mockDb.insert).toHaveBeenCalled();
+    });
+
+    it('should successfully create volunteer with isInkognito = true', async () => {
+      const inkognitoVolunteer = {
+        ...mockStepVolunteer,
+        isInkognito: true,
+      };
+      const mockInsert = {
+        values: vi.fn().mockReturnThis(),
+        returning: vi.fn().mockResolvedValue([inkognitoVolunteer]),
+      };
+      mockDb.insert = vi.fn().mockReturnValue(mockInsert);
+
+      const result = await repository.create(questId, type, userId, contributeValue, true);
+
+      expect(result).toEqual(inkognitoVolunteer);
+      expect(result.isInkognito).toBe(true);
+    });
+
+    it('should use default values when parameters are not provided', async () => {
+      const defaultVolunteer = {
+        ...mockStepVolunteer,
+        contributeValue: 0,
+        isInkognito: false,
+      };
+      const mockInsert = {
+        values: vi.fn().mockReturnThis(),
+        returning: vi.fn().mockResolvedValue([defaultVolunteer]),
+      };
+      mockDb.insert = vi.fn().mockReturnValue(mockInsert);
+
+      const result = await repository.create(questId, type, userId);
+
+      expect(result).toEqual(defaultVolunteer);
+    });
+
+    it('should handle database errors', async () => {
+      const error = new Error('Database error');
+      const mockInsert = {
+        values: vi.fn().mockReturnThis(),
+        returning: vi.fn().mockRejectedValue(error),
+      };
+      mockDb.insert = vi.fn().mockReturnValue(mockInsert);
+
+      await expect(repository.create(questId, type, userId, contributeValue, isInkognito)).rejects.toThrow(
+        'Database error',
+      );
+    });
+
+    it('should throw error when creation returns empty result', async () => {
+      const mockInsert = {
+        values: vi.fn().mockReturnThis(),
+        returning: vi.fn().mockResolvedValue([]),
+      };
+      mockDb.insert = vi.fn().mockReturnValue(mockInsert);
+
+      await expect(repository.create(questId, type, userId, contributeValue, isInkognito)).rejects.toThrow(
+        'Не удалось создать запись волонтёра',
+      );
+    });
+  });
+
   describe('createStepVolunteer', () => {
     const questId = 1;
     const type = 'finance';
@@ -256,6 +336,7 @@ describe('StepVolunteerRepository', () => {
     const type = 'finance';
 
     it('should successfully find volunteers with user data when not inkognito', async () => {
+      const createdAt = new Date();
       const mockVolunteers = [
         {
           id: 1,
@@ -265,7 +346,7 @@ describe('StepVolunteerRepository', () => {
           lastName: 'Иванов',
           middleName: null,
           email: 'ivan@example.com',
-          createdAt: new Date(),
+          createdAt,
         },
       ];
 
@@ -279,11 +360,26 @@ describe('StepVolunteerRepository', () => {
       const result = await repository.findVolunteersByQuestAndStep(questId, type);
 
       expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        id: 1,
+        userId: 2,
+        user: {
+          id: 2,
+          firstName: 'Иван',
+          lastName: 'Иванов',
+          middleName: null,
+          email: 'ivan@example.com',
+        },
+        createdAt,
+      });
       expect(result[0].user).not.toBeNull();
       expect(result[0].user?.firstName).toBe('Иван');
+      expect(result[0].user?.lastName).toBe('Иванов');
+      expect(result[0].user?.email).toBe('ivan@example.com');
     });
 
     it('should return null user when isInkognito = true', async () => {
+      const createdAt = new Date();
       const mockVolunteers = [
         {
           id: 1,
@@ -293,7 +389,7 @@ describe('StepVolunteerRepository', () => {
           lastName: 'Иванов',
           middleName: null,
           email: 'ivan@example.com',
-          createdAt: new Date(),
+          createdAt,
         },
       ];
 
@@ -307,7 +403,83 @@ describe('StepVolunteerRepository', () => {
       const result = await repository.findVolunteersByQuestAndStep(questId, type);
 
       expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        id: 1,
+        userId: 2,
+        user: null,
+        createdAt,
+      });
       expect(result[0].user).toBeNull();
+    });
+
+    it('should handle multiple volunteers with mixed inkognito status', async () => {
+      const createdAt1 = new Date();
+      const createdAt2 = new Date();
+      const mockVolunteers = [
+        {
+          id: 1,
+          userId: 2,
+          isInkognito: false,
+          firstName: 'Иван',
+          lastName: 'Иванов',
+          middleName: null,
+          email: 'ivan@example.com',
+          createdAt: createdAt1,
+        },
+        {
+          id: 2,
+          userId: 3,
+          isInkognito: true,
+          firstName: 'Петр',
+          lastName: 'Петров',
+          middleName: 'Петрович',
+          email: 'petr@example.com',
+          createdAt: createdAt2,
+        },
+      ];
+
+      const mockSelect = {
+        from: vi.fn().mockReturnThis(),
+        innerJoin: vi.fn().mockReturnThis(),
+        where: vi.fn().mockResolvedValue(mockVolunteers),
+      };
+      mockDb.select = vi.fn().mockReturnValue(mockSelect);
+
+      const result = await repository.findVolunteersByQuestAndStep(questId, type);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].user).not.toBeNull();
+      expect(result[0].user?.firstName).toBe('Иван');
+      expect(result[1].user).toBeNull();
+      expect(result[1].userId).toBe(3);
+    });
+
+    it('should handle volunteer with middleName', async () => {
+      const createdAt = new Date();
+      const mockVolunteers = [
+        {
+          id: 1,
+          userId: 2,
+          isInkognito: false,
+          firstName: 'Иван',
+          lastName: 'Иванов',
+          middleName: 'Иванович',
+          email: 'ivan@example.com',
+          createdAt,
+        },
+      ];
+
+      const mockSelect = {
+        from: vi.fn().mockReturnThis(),
+        innerJoin: vi.fn().mockReturnThis(),
+        where: vi.fn().mockResolvedValue(mockVolunteers),
+      };
+      mockDb.select = vi.fn().mockReturnValue(mockSelect);
+
+      const result = await repository.findVolunteersByQuestAndStep(questId, type);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].user?.middleName).toBe('Иванович');
     });
 
     it('should return empty array when no volunteers found', async () => {
@@ -321,6 +493,18 @@ describe('StepVolunteerRepository', () => {
       const result = await repository.findVolunteersByQuestAndStep(questId, type);
 
       expect(result).toEqual([]);
+    });
+
+    it('should handle database errors', async () => {
+      const error = new Error('Database error');
+      const mockSelect = {
+        from: vi.fn().mockReturnThis(),
+        innerJoin: vi.fn().mockReturnThis(),
+        where: vi.fn().mockRejectedValue(error),
+      };
+      mockDb.select = vi.fn().mockReturnValue(mockSelect);
+
+      await expect(repository.findVolunteersByQuestAndStep(questId, type)).rejects.toThrow('Database error');
     });
   });
 
