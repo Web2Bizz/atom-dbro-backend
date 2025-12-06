@@ -225,6 +225,57 @@ describe('QuestService', () => {
     });
   });
 
+  describe('findByStatus', () => {
+    it('should successfully return quests filtered by ownerId', async () => {
+      const ownerId = 1;
+      mockRepository.findByStatus.mockResolvedValue([mockQuest]);
+      mockRepository.findCategoriesForQuests.mockResolvedValue([]);
+
+      const result = await service.findByStatus(undefined, undefined, undefined, ownerId);
+
+      expect(result).toBeDefined();
+      expect(Array.isArray(result)).toBe(true);
+      expect(mockRepository.findByStatus).toHaveBeenCalledWith(undefined, undefined, undefined, ownerId);
+    });
+
+    it('should filter by ownerId with status when both provided', async () => {
+      const status = 'active';
+      const ownerId = 1;
+      mockRepository.findByStatus.mockResolvedValue([mockQuest]);
+      mockRepository.findCategoriesForQuests.mockResolvedValue([]);
+
+      const result = await service.findByStatus(status, undefined, undefined, ownerId);
+
+      expect(result).toBeDefined();
+      expect(mockRepository.findByStatus).toHaveBeenCalledWith(status, undefined, undefined, ownerId);
+    });
+
+    it('should filter by ownerId with cityId and categoryId when all provided', async () => {
+      const status = 'active';
+      const cityId = 1;
+      const categoryId = 2;
+      const ownerId = 1;
+      mockRepository.findByStatus.mockResolvedValue([mockQuest]);
+      mockRepository.findCategoriesForQuests.mockResolvedValue([]);
+
+      const result = await service.findByStatus(status, cityId, categoryId, ownerId);
+
+      expect(result).toBeDefined();
+      expect(mockRepository.findByStatus).toHaveBeenCalledWith(status, cityId, categoryId, ownerId);
+    });
+
+    it('should return quests without ownerId filter when ownerId is not provided', async () => {
+      mockRepository.findByStatus.mockResolvedValue([mockQuest]);
+      mockRepository.findCategoriesForQuests.mockResolvedValue([]);
+
+      const result = await service.findByStatus('active', undefined, undefined);
+
+      expect(result).toBeDefined();
+      expect(Array.isArray(result)).toBe(true);
+      expect(mockRepository.findByStatus).toHaveBeenCalledWith('active', undefined, undefined, undefined);
+    });
+  });
+
   describe('findOne', () => {
     it('should successfully return quest by id', async () => {
       const questId = 1;
