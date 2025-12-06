@@ -44,7 +44,6 @@ export const updateUserSchema = z.object({
       }
       return Object.keys(result).length > 0 ? result : undefined;
     }),
-  organisationId: z.number().int().positive('ID организации должен быть положительным числом').nullable().optional(),
 });
 
 export type UpdateUserDto = z.infer<typeof updateUserSchema>;
@@ -69,7 +68,5 @@ export class UpdateUserDtoClass {
   })
   avatarUrls?: Record<string, string>;
 
-  @ApiProperty({ description: 'ID организации', example: 1, required: false, nullable: true })
-  organisationId?: number | null;
 }
 

@@ -115,7 +115,7 @@ export class UserService {
     }
 
     // Исключаем experience и level из обновления (они обновляются только через ExperienceService)
-    const { firstName, lastName, middleName, email, organisationId, avatarUrls } = updateUserDto;
+    const { firstName, lastName, middleName, email, avatarUrls } = updateUserDto;
 
     // Фильтруем только те поля, которые реально переданы (не undefined)
     const filteredUpdateData: any = {};
@@ -131,9 +131,6 @@ export class UserService {
     }
     if (email !== undefined) {
       filteredUpdateData.email = email;
-    }
-    if (organisationId !== undefined) {
-      filteredUpdateData.organisationId = organisationId;
     }
 
     // Если avatarUrls передан в DTO, сохраняем его как есть

@@ -1,7 +1,7 @@
 import { Injectable, Inject, Logger, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { users, organizations } from '../database/schema';
+import { users } from '../database/schema';
 import { eq, ne, and } from 'drizzle-orm';
 
 @Injectable()
@@ -63,7 +63,6 @@ export class UserRepository {
           role: users.role,
           level: users.level,
           experience: users.experience,
-          organisationId: users.organisationId,
           recordStatus: users.recordStatus,
           createdAt: users.createdAt,
           updatedAt: users.updatedAt,
@@ -140,7 +139,6 @@ export class UserRepository {
           role: users.role,
           level: users.level,
           experience: users.experience,
-          organisationId: users.organisationId,
           recordStatus: users.recordStatus,
           createdAt: users.createdAt,
           updatedAt: users.updatedAt,
@@ -210,7 +208,6 @@ export class UserRepository {
     role?: string;
     level?: number;
     experience?: number;
-    organisationId?: number | null;
   }): Promise<typeof users.$inferSelect> {
     try {
       // Проверяем уникальность email (включая удаленных пользователей)
@@ -237,20 +234,6 @@ export class UserRepository {
         );
       }
 
-      // Если указана organisationId, проверяем существование организации
-      if (data.organisationId !== undefined && data.organisationId !== null) {
-        const [organization] = await this.db
-          .select({ id: organizations.id })
-          .from(organizations)
-          .where(and(
-            eq(organizations.id, data.organisationId),
-            ne(organizations.recordStatus, 'DELETED')
-          ));
-        
-        if (!organization) {
-          throw new BadRequestException(`Организация с ID ${data.organisationId} не найдена`);
-        }
-      }
 
       const [user] = await this.db
         .insert(users)
@@ -264,7 +247,6 @@ export class UserRepository {
           role: data.role ?? 'USER',
           level: data.level ?? 1,
           experience: data.experience ?? 0,
-          organisationId: data.organisationId ?? null,
         })
         .returning();
       
@@ -285,11 +267,6 @@ export class UserRepository {
         if (error.code === '23503') {
           this.logger.warn(`Foreign key violation при создании пользователя:`, error.detail);
           
-          if (error.detail?.includes('organisation_id')) {
-            throw new BadRequestException(
-              `Организация с ID ${data.organisationId} не найдена. Невозможно создать пользователя с несуществующей организацией.`
-            );
-          }
           
           throw new BadRequestException('Невозможно создать пользователя: указана несуществующая связанная сущность');
         }
@@ -335,7 +312,6 @@ export class UserRepository {
       email: string;
       avatarUrls: Record<number, string>;
       role: string;
-      organisationId: number | null;
     }>,
   ): Promise<typeof users.$inferSelect> {
     try {
@@ -372,20 +348,6 @@ export class UserRepository {
         }
       }
 
-      // Если обновляется organisationId, проверяем существование организации
-      if (data.organisationId !== undefined && data.organisationId !== null) {
-        const [organization] = await this.db
-          .select({ id: organizations.id })
-          .from(organizations)
-          .where(and(
-            eq(organizations.id, data.organisationId),
-            ne(organizations.recordStatus, 'DELETED')
-          ));
-        
-        if (!organization) {
-          throw new BadRequestException(`Организация с ID ${data.organisationId} не найдена`);
-        }
-      }
 
       // Фильтруем только определенные поля (исключаем undefined)
       const updateData: any = {
@@ -406,9 +368,6 @@ export class UserRepository {
       }
       if (data.avatarUrls !== undefined) {
         updateData.avatarUrls = data.avatarUrls;
-      }
-      if (data.organisationId !== undefined) {
-        updateData.organisationId = data.organisationId;
       }
 
       const [user] = await this.db
@@ -439,11 +398,6 @@ export class UserRepository {
           this.logger.warn(`Foreign key violation при обновлении пользователя ID ${id}:`, error.detail);
           
           // Проверяем, какое поле вызвало ошибку
-          if (error.detail?.includes('organisation_id')) {
-            throw new BadRequestException(
-              `Организация с ID ${data.organisationId} не найдена. Невозможно установить связь с несуществующей организацией.`
-            );
-          }
           
           throw new BadRequestException('Невозможно обновить пользователя: указана несуществующая связанная сущность');
         }
