@@ -223,7 +223,9 @@ describe('OrganizationService', () => {
 
       expect(result).toHaveProperty('id', 1);
       expect(result).toHaveProperty('name', 'Тестовая организация');
-      expect(result).toHaveProperty('owners');
+      expect(result).toHaveProperty('ownerId', mockOwner.id);
+      expect(result).toHaveProperty('owner');
+      expect(result.owner).toEqual(mockOwner);
       expect(mockRepository.findOne).toHaveBeenCalledWith(orgId);
     });
 
@@ -273,12 +275,30 @@ describe('OrganizationService', () => {
       mockRepository.create.mockResolvedValue(mockOrganization);
       mockRepository.addOwner.mockResolvedValue(undefined);
       mockRepository.addHelpTypes.mockResolvedValue(undefined);
+      mockRepository.findOne.mockResolvedValue({
+        ...mockOrganization,
+        cityName: 'Москва',
+        cityLatitude: '55.7558',
+        cityLongitude: '37.6173',
+        cityRecordStatus: 'CREATED',
+        organizationTypeName: 'Благотворительный фонд',
+        organizationTypeRecordStatus: 'CREATED',
+      });
+      mockRepository.findHelpTypesByOrganizationId.mockResolvedValue([
+        { id: 1, name: 'Финансовая помощь' },
+      ]);
+      mockRepository.findOwnersByOrganizationId.mockResolvedValue([mockOwner]);
+      mockS3Service.getImageUrls.mockReturnValue(['http://example.com/image1.jpg', 'http://example.com/image2.jpg']);
 
       const result = await service.create(createDto, userId);
 
       expect(result).toBeDefined();
+      expect(result).toHaveProperty('ownerId', mockOwner.id);
+      expect(result).toHaveProperty('owner');
+      expect(result.owner).toEqual(mockOwner);
       expect(mockRepository.create).toHaveBeenCalled();
       expect(mockRepository.addOwner).toHaveBeenCalledWith(mockOrganization.id, userId);
+      expect(mockRepository.findOne).toHaveBeenCalledWith(mockOrganization.id);
     });
 
     it('should throw NotFoundException when city does not exist', async () => {
@@ -305,13 +325,31 @@ describe('OrganizationService', () => {
       mockRepository.findById.mockResolvedValue(mockOrganization);
       mockRepository.findOwner.mockResolvedValue({ organizationId: orgId, userId: ownerUserId } as any);
       mockRepository.update.mockResolvedValue(updatedOrg);
+      mockRepository.findOne.mockResolvedValue({
+        ...updatedOrg,
+        cityName: 'Москва',
+        cityLatitude: '55.7558',
+        cityLongitude: '37.6173',
+        cityRecordStatus: 'CREATED',
+        organizationTypeName: 'Благотворительный фонд',
+        organizationTypeRecordStatus: 'CREATED',
+      });
+      mockRepository.findHelpTypesByOrganizationId.mockResolvedValue([
+        { id: 1, name: 'Финансовая помощь' },
+      ]);
+      mockRepository.findOwnersByOrganizationId.mockResolvedValue([mockOwner]);
+      mockS3Service.getImageUrls.mockReturnValue(['http://example.com/image1.jpg', 'http://example.com/image2.jpg']);
 
       const result = await service.update(orgId, updateDto, ownerUserId);
 
       expect(result).toBeDefined();
+      expect(result).toHaveProperty('ownerId', mockOwner.id);
+      expect(result).toHaveProperty('owner');
+      expect(result.owner).toEqual(mockOwner);
       expect(mockRepository.findById).toHaveBeenCalledWith(orgId);
       expect(mockRepository.findOwner).toHaveBeenCalledWith(orgId, ownerUserId);
       expect(mockRepository.update).toHaveBeenCalled();
+      expect(mockRepository.findOne).toHaveBeenCalledWith(orgId);
     });
 
     it('should throw NotFoundException when organization does not exist', async () => {
