@@ -51,25 +51,24 @@ export class OrganizationService {
   }
 
   /**
-   * Группирует владельцев по ID организации
+   * Группирует владельцев по ID организации и возвращает первого владельца
    * @param owners Массив владельцев с organizationId
-   * @returns Map с ключом organizationId и значением массива владельцев
+   * @returns Map с ключом organizationId и значением первого владельца (или null)
    */
   private groupOwnersByOrgId(
     owners: Array<OwnerRelation & { organizationId: number }>,
-  ): Map<number, OwnerRelation[]> {
-    const ownersByOrgId = new Map<number, OwnerRelation[]>();
+  ): Map<number, OwnerRelation | null> {
+    const ownersByOrgId = new Map<number, OwnerRelation | null>();
     for (const owner of owners) {
       if (!ownersByOrgId.has(owner.organizationId)) {
-        ownersByOrgId.set(owner.organizationId, []);
+        ownersByOrgId.set(owner.organizationId, {
+          id: owner.id,
+          firstName: owner.firstName,
+          lastName: owner.lastName,
+          middleName: owner.middleName,
+          email: owner.email,
+        });
       }
-      ownersByOrgId.get(owner.organizationId)!.push({
-        id: owner.id,
-        firstName: owner.firstName,
-        lastName: owner.lastName,
-        middleName: owner.middleName,
-        email: owner.email,
-      });
     }
     return ownersByOrgId;
   }
@@ -140,7 +139,52 @@ export class OrganizationService {
       await this.repository.addHelpTypes(organization.id, helpTypeIds);
     }
 
-    return organization;
+    // Получаем полные данные организации с владельцем и связанными данными
+    const orgData = await this.repository.findOne(organization.id);
+    if (!orgData) {
+      throw new NotFoundException(`Организация с ID ${organization.id} не найдена`);
+    }
+
+    const orgHelpTypes = await this.repository.findHelpTypesByOrganizationId(organization.id);
+    const owners = await this.repository.findOwnersByOrganizationId(organization.id);
+    const owner = owners.length > 0 ? owners[0] : null;
+
+    return {
+      id: orgData.id,
+      name: orgData.name,
+      latitude: parseCoordinate(orgData.latitude),
+      longitude: parseCoordinate(orgData.longitude),
+      summary: orgData.summary,
+      mission: orgData.mission,
+      description: orgData.description,
+      goals: orgData.goals,
+      needs: orgData.needs,
+      address: orgData.address,
+      contacts: orgData.contacts,
+      gallery: orgData.gallery ? this.s3Service.getImageUrls(orgData.gallery) : [],
+      isApproved: orgData.isApproved,
+      createdAt: orgData.createdAt,
+      updatedAt: orgData.updatedAt,
+      city: orgData.cityName ? {
+        id: orgData.cityId,
+        name: orgData.cityName,
+        latitude: parseCoordinate(orgData.cityLatitude),
+        longitude: parseCoordinate(orgData.cityLongitude),
+      } : null,
+      type: orgData.organizationTypeName ? {
+        id: orgData.organizationTypeId,
+        name: orgData.organizationTypeName,
+      } : null,
+      helpTypes: orgHelpTypes,
+      ownerId: owner?.id ?? null,
+      owner: owner ? {
+        id: owner.id,
+        firstName: owner.firstName,
+        lastName: owner.lastName,
+        middleName: owner.middleName,
+        email: owner.email,
+      } : null,
+    };
   }
 
   async findAll(includeAll: boolean = false) {
@@ -156,35 +200,45 @@ export class OrganizationService {
       const helpTypesByOrgId = this.groupHelpTypesByOrgId(allHelpTypes);
       const ownersByOrgId = this.groupOwnersByOrgId(allOwners);
 
-      return orgs.map(org => ({
-        id: org.id,
-        name: org.name,
-        latitude: parseCoordinate(org.latitude),
-        longitude: parseCoordinate(org.longitude),
-        summary: org.summary,
-        mission: org.mission,
-        description: org.description,
-        goals: org.goals,
-        needs: org.needs,
-        address: org.address,
-        contacts: org.contacts,
-        gallery: org.gallery ? this.s3Service.getImageUrls(org.gallery) : [],
-        isApproved: org.isApproved,
-        createdAt: org.createdAt,
-        updatedAt: org.updatedAt,
-        city: org.cityName && org.cityRecordStatus && org.cityRecordStatus !== 'DELETED' ? {
-          id: org.cityId,
-          name: org.cityName,
-          latitude: parseCoordinate(org.cityLatitude),
-          longitude: parseCoordinate(org.cityLongitude),
-        } : null,
-        type: org.organizationTypeName && org.organizationTypeRecordStatus && org.organizationTypeRecordStatus !== 'DELETED' ? {
-          id: org.organizationTypeId,
-          name: org.organizationTypeName,
-        } : null,
-        helpTypes: helpTypesByOrgId.get(org.id) || [],
-        owners: ownersByOrgId.get(org.id) || [],
-      }));
+      return orgs.map(org => {
+        const owner = ownersByOrgId.get(org.id) || null;
+        return {
+          id: org.id,
+          name: org.name,
+          latitude: parseCoordinate(org.latitude),
+          longitude: parseCoordinate(org.longitude),
+          summary: org.summary,
+          mission: org.mission,
+          description: org.description,
+          goals: org.goals,
+          needs: org.needs,
+          address: org.address,
+          contacts: org.contacts,
+          gallery: org.gallery ? this.s3Service.getImageUrls(org.gallery) : [],
+          isApproved: org.isApproved,
+          createdAt: org.createdAt,
+          updatedAt: org.updatedAt,
+          city: org.cityName && org.cityRecordStatus && org.cityRecordStatus !== 'DELETED' ? {
+            id: org.cityId,
+            name: org.cityName,
+            latitude: parseCoordinate(org.cityLatitude),
+            longitude: parseCoordinate(org.cityLongitude),
+          } : null,
+          type: org.organizationTypeName && org.organizationTypeRecordStatus && org.organizationTypeRecordStatus !== 'DELETED' ? {
+            id: org.organizationTypeId,
+            name: org.organizationTypeName,
+          } : null,
+          helpTypes: helpTypesByOrgId.get(org.id) || [],
+          ownerId: owner?.id ?? null,
+          owner: owner ? {
+            id: owner.id,
+            firstName: owner.firstName,
+            lastName: owner.lastName,
+            middleName: owner.middleName,
+            email: owner.email,
+          } : null,
+        };
+      });
     } catch (error: any) {
       this.logger.error('Ошибка в findAll:', error);
       this.logger.error('Детали ошибки:', {
@@ -212,35 +266,45 @@ export class OrganizationService {
       const helpTypesByOrgId = this.groupHelpTypesByOrgId(allHelpTypes);
       const ownersByOrgId = this.groupOwnersByOrgId(allOwners);
 
-      return orgs.map(org => ({
-        id: org.id,
-        name: org.name,
-        latitude: parseCoordinate(org.latitude),
-        longitude: parseCoordinate(org.longitude),
-        summary: org.summary,
-        mission: org.mission,
-        description: org.description,
-        goals: org.goals,
-        needs: org.needs,
-        address: org.address,
-        contacts: org.contacts,
-        gallery: org.gallery ? this.s3Service.getImageUrls(org.gallery) : [],
-        isApproved: org.isApproved,
-        createdAt: org.createdAt,
-        updatedAt: org.updatedAt,
-        city: org.cityName && org.cityRecordStatus && org.cityRecordStatus !== 'DELETED' ? {
-          id: org.cityId,
-          name: org.cityName,
-          latitude: parseCoordinate(org.cityLatitude),
-          longitude: parseCoordinate(org.cityLongitude),
-        } : null,
-        type: org.organizationTypeName && org.organizationTypeRecordStatus && org.organizationTypeRecordStatus !== 'DELETED' ? {
-          id: org.organizationTypeId,
-          name: org.organizationTypeName,
-        } : null,
-        helpTypes: helpTypesByOrgId.get(org.id) || [],
-        owners: ownersByOrgId.get(org.id) || [],
-      }));
+      return orgs.map(org => {
+        const owner = ownersByOrgId.get(org.id) || null;
+        return {
+          id: org.id,
+          name: org.name,
+          latitude: parseCoordinate(org.latitude),
+          longitude: parseCoordinate(org.longitude),
+          summary: org.summary,
+          mission: org.mission,
+          description: org.description,
+          goals: org.goals,
+          needs: org.needs,
+          address: org.address,
+          contacts: org.contacts,
+          gallery: org.gallery ? this.s3Service.getImageUrls(org.gallery) : [],
+          isApproved: org.isApproved,
+          createdAt: org.createdAt,
+          updatedAt: org.updatedAt,
+          city: org.cityName && org.cityRecordStatus && org.cityRecordStatus !== 'DELETED' ? {
+            id: org.cityId,
+            name: org.cityName,
+            latitude: parseCoordinate(org.cityLatitude),
+            longitude: parseCoordinate(org.cityLongitude),
+          } : null,
+          type: org.organizationTypeName && org.organizationTypeRecordStatus && org.organizationTypeRecordStatus !== 'DELETED' ? {
+            id: org.organizationTypeId,
+            name: org.organizationTypeName,
+          } : null,
+          helpTypes: helpTypesByOrgId.get(org.id) || [],
+          ownerId: owner?.id ?? null,
+          owner: owner ? {
+            id: owner.id,
+            firstName: owner.firstName,
+            lastName: owner.lastName,
+            middleName: owner.middleName,
+            email: owner.email,
+          } : null,
+        };
+      });
     } catch (error: any) {
       this.logger.error(`Ошибка в findByUserId для пользователя ID ${userId}:`, error);
       this.logger.error('Детали ошибки:', {
@@ -264,7 +328,11 @@ export class OrganizationService {
     // Получаем виды помощи
     const orgHelpTypes = await this.repository.findHelpTypesByOrganizationId(id);
 
-    const organization = {
+    // Получаем владельца
+    const owners = await this.repository.findOwnersByOrganizationId(id);
+    const owner = owners.length > 0 ? owners[0] : null;
+
+    return {
       id: orgData.id,
       name: orgData.name,
       latitude: parseCoordinate(orgData.latitude),
@@ -283,22 +351,22 @@ export class OrganizationService {
       city: orgData.cityName ? {
         id: orgData.cityId,
         name: orgData.cityName,
-          latitude: parseCoordinate(orgData.cityLatitude),
-          longitude: parseCoordinate(orgData.cityLongitude),
+        latitude: parseCoordinate(orgData.cityLatitude),
+        longitude: parseCoordinate(orgData.cityLongitude),
       } : null,
       type: orgData.organizationTypeName ? {
         id: orgData.organizationTypeId,
         name: orgData.organizationTypeName,
       } : null,
       helpTypes: orgHelpTypes,
-    };
-
-    // Получаем владельцев
-    const owners = await this.repository.findOwnersByOrganizationId(id);
-
-    return {
-      ...organization,
-      owners,
+      ownerId: owner?.id ?? null,
+      owner: owner ? {
+        id: owner.id,
+        firstName: owner.firstName,
+        lastName: owner.lastName,
+        middleName: owner.middleName,
+        email: owner.email,
+      } : null,
     };
   }
 
@@ -310,8 +378,8 @@ export class OrganizationService {
     }
 
     // Проверяем, что пользователь является владельцем организации
-    const owner = await this.repository.findOwner(id, userId);
-    if (!owner) {
+    const existingOwner = await this.repository.findOwner(id, userId);
+    if (!existingOwner) {
       throw new ForbiddenException('Только владелец организации может её обновить');
     }
 
@@ -398,7 +466,53 @@ export class OrganizationService {
     if (!organization) {
       throw new NotFoundException(`Организация с ID ${id} не найдена`);
     }
-    return organization;
+
+    // Получаем полные данные организации с владельцем и связанными данными
+    const orgData = await this.repository.findOne(id);
+    if (!orgData) {
+      throw new NotFoundException(`Организация с ID ${id} не найдена`);
+    }
+
+    const orgHelpTypes = await this.repository.findHelpTypesByOrganizationId(id);
+    const owners = await this.repository.findOwnersByOrganizationId(id);
+    const owner = owners.length > 0 ? owners[0] : null;
+
+    return {
+      id: orgData.id,
+      name: orgData.name,
+      latitude: parseCoordinate(orgData.latitude),
+      longitude: parseCoordinate(orgData.longitude),
+      summary: orgData.summary,
+      mission: orgData.mission,
+      description: orgData.description,
+      goals: orgData.goals,
+      needs: orgData.needs,
+      address: orgData.address,
+      contacts: orgData.contacts,
+      gallery: orgData.gallery ? this.s3Service.getImageUrls(orgData.gallery) : [],
+      isApproved: orgData.isApproved,
+      createdAt: orgData.createdAt,
+      updatedAt: orgData.updatedAt,
+      city: orgData.cityName ? {
+        id: orgData.cityId,
+        name: orgData.cityName,
+        latitude: parseCoordinate(orgData.cityLatitude),
+        longitude: parseCoordinate(orgData.cityLongitude),
+      } : null,
+      type: orgData.organizationTypeName ? {
+        id: orgData.organizationTypeId,
+        name: orgData.organizationTypeName,
+      } : null,
+      helpTypes: orgHelpTypes,
+      ownerId: owner?.id ?? null,
+      owner: owner ? {
+        id: owner.id,
+        firstName: owner.firstName,
+        lastName: owner.lastName,
+        middleName: owner.middleName,
+        email: owner.email,
+      } : null,
+    };
   }
 
   async addOwner(organizationId: number, userId: number, currentUserId: number) {
