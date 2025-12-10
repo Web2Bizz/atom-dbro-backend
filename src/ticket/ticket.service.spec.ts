@@ -125,12 +125,12 @@ describe('TicketService', () => {
 
       expect(result).toEqual(newTicket);
       expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:3001/api/v1/rooms',
+        'http://localhost:3001/chatty/api/v1/rooms',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
             'Content-Type': 'application/json',
-            'x-api-key': 'test-api-key',
+            'X-API-Key': 'test-api-key',
           }),
           body: JSON.stringify({
             name,

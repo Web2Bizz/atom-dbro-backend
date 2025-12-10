@@ -38,11 +38,11 @@ export class TicketService {
     }
 
     try {
-      const response = await fetch(`${chattyUrl}/api/v1/rooms`, {
+      const response = await fetch(`${chattyUrl}/chatty/api/v1/rooms`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': chattyApiKey,
+          'X-API-Key': chattyApiKey,
         },
         body: JSON.stringify({
           name,
