@@ -5,6 +5,7 @@ import { TicketService } from './ticket.service';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { tickets } from '../database/schema';
+import { ConfigService } from '@nestjs/config';
 
 describe('TicketService', () => {
   let service: TicketService;
@@ -50,6 +51,10 @@ describe('TicketService', () => {
     updatedAt: new Date(),
   };
 
+  let mockConfigService: {
+    get: ReturnType<typeof vi.fn>;
+  };
+
   beforeEach(async () => {
     // Инициализируем базовые моки
     mockDb = {
@@ -64,12 +69,27 @@ describe('TicketService', () => {
       ne: vi.fn(),
     };
 
+    mockConfigService = {
+      get: vi.fn((key: string) => {
+        if (key === 'CHATTY_URL') return 'http://localhost:3001';
+        if (key === 'CHATTY_API_KEY') return 'test-api-key';
+        return undefined;
+      }),
+    };
+
+    // Мокируем глобальный fetch
+    global.fetch = vi.fn();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TicketService,
         {
           provide: DATABASE_CONNECTION,
           useValue: mockDb as unknown as NodePgDatabase,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
       ],
     }).compile();
@@ -78,22 +98,52 @@ describe('TicketService', () => {
   });
 
   describe('create', () => {
-    it('should successfully create a ticket with correct userId and chatId', async () => {
+    it('should successfully create a ticket with correct userId and name', async () => {
       const userId = 1;
-      const chatId = 'chat-123';
+      const name = 'Test Ticket';
+      const chattyRoomId = '8db20bf6-0dff-42f1-bbfb-a6f4bca25d8f';
       
+      // Мокируем ответ от CHATTY API
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: chattyRoomId,
+          name: name,
+          isPrivate: true,
+          createdBy: 'ac60d8d8-2c2b-44f0-ad0c-e9ed6a176f3e',
+          createdAt: '2025-12-10T17:51:00.281Z',
+          updatedAt: '2025-12-10T17:51:00.281Z',
+          type: 'normal',
+        }),
+      });
+
       // Настраиваем мок для цепочки insert().values().returning()
-      const mockReturning = vi.fn().mockResolvedValue([mockTicket]);
+      const newTicket = { ...mockTicket, chatId: chattyRoomId };
+      const mockReturning = vi.fn().mockResolvedValue([newTicket]);
       const mockValues = vi.fn().mockReturnValue({ returning: mockReturning });
       mockDb.insert.mockReturnValue({ values: mockValues });
 
-      const result = await service.create(userId, chatId);
+      const result = await service.create(userId, name);
 
-      expect(result).toEqual(mockTicket);
+      expect(result).toEqual(newTicket);
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://localhost:3001/api/v1/rooms',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            'x-api-key': 'test-api-key',
+          }),
+          body: JSON.stringify({
+            name,
+            isPrivate: true,
+          }),
+        }),
+      );
       expect(mockDb.insert).toHaveBeenCalledWith(tickets);
       expect(mockValues).toHaveBeenCalledWith({
         userId,
-        chatId,
+        chatId: chattyRoomId,
         isResolved: false,
         recordStatus: 'CREATED',
       });
@@ -102,14 +152,28 @@ describe('TicketService', () => {
 
     it('should create ticket with isResolved set to false by default', async () => {
       const userId = 1;
-      const chatId = 'chat-new';
+      const name = 'New Ticket';
+      const chattyRoomId = 'new-room-id';
       
-      const newTicket = { ...mockTicket, chatId: 'chat-new' };
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: chattyRoomId,
+          name: name,
+          isPrivate: true,
+          createdBy: 'ac60d8d8-2c2b-44f0-ad0c-e9ed6a176f3e',
+          createdAt: '2025-12-10T17:51:00.281Z',
+          updatedAt: '2025-12-10T17:51:00.281Z',
+          type: 'normal',
+        }),
+      });
+      
+      const newTicket = { ...mockTicket, chatId: chattyRoomId };
       const mockReturning = vi.fn().mockResolvedValue([newTicket]);
       const mockValues = vi.fn().mockReturnValue({ returning: mockReturning });
       mockDb.insert.mockReturnValue({ values: mockValues });
 
-      const result = await service.create(userId, chatId);
+      const result = await service.create(userId, name);
 
       expect(result.isResolved).toBe(false);
       expect(mockValues).toHaveBeenCalledWith(

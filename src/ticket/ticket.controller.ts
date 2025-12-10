@@ -36,17 +36,20 @@ export class TicketController {
   @ApiResponse({
     status: 201,
     description: 'Тикет успешно создан',
-    type: CreateTicketDtoClass,
   })
   @ApiResponse({
     status: 401,
     description: 'Требуется авторизация',
   })
+  @ApiResponse({
+    status: 400,
+    description: 'Ошибка при создании комнаты в CHATTY или неверные данные',
+  })
   create(
     @CurrentUser() user: { userId: number; email: string },
     @Body() createTicketDto: CreateTicketDto,
   ) {
-    return this.ticketService.create(user.userId, createTicketDto.chatId);
+    return this.ticketService.create(user.userId, createTicketDto.name);
   }
 
   @Get()

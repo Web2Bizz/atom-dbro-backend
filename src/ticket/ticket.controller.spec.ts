@@ -65,7 +65,7 @@ describe('TicketController', () => {
   describe('create', () => {
     it('should successfully create a ticket with authentication', async () => {
       const createTicketDto: CreateTicketDto = {
-        chatId: 'chat-123',
+        name: 'Test Ticket',
       };
       
       mockService.create.mockResolvedValue(mockTicket);
@@ -75,20 +75,19 @@ describe('TicketController', () => {
       expect(result).toEqual(mockTicket);
       expect(mockService.create).toHaveBeenCalledWith(
         mockCurrentUser.userId,
-        createTicketDto.chatId
+        createTicketDto.name
       );
     });
 
     it('should use userId from authenticated user', async () => {
       const createTicketDto: CreateTicketDto = {
-        chatId: 'chat-456',
+        name: 'Another Ticket',
       };
       const differentUser = { userId: 2, email: 'other@example.com' };
       
       mockService.create.mockResolvedValue({
         ...mockTicket,
         userId: differentUser.userId,
-        chatId: 'chat-456',
       });
 
       const result = await controller.create(differentUser, createTicketDto);
@@ -96,12 +95,12 @@ describe('TicketController', () => {
       expect(result.userId).toBe(differentUser.userId);
       expect(mockService.create).toHaveBeenCalledWith(
         differentUser.userId,
-        createTicketDto.chatId
+        createTicketDto.name
       );
       // Проверяем, что используется userId из сессии, а не из других источников
       expect(mockService.create).not.toHaveBeenCalledWith(
         mockCurrentUser.userId,
-        createTicketDto.chatId
+        createTicketDto.name
       );
     });
   });
