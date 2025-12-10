@@ -19,32 +19,30 @@ interface ChattyRoomResponse {
 @Injectable()
 export class TicketService {
   private readonly logger = new Logger(TicketService.name);
-  private readonly chattyUrl: string;
-  private readonly chattyApiKey: string;
 
   constructor(
     @Inject(DATABASE_CONNECTION)
     private db: NodePgDatabase,
     private configService: ConfigService,
-  ) {
-    this.chattyUrl = this.configService.get<string>('CHATTY_URL') || '';
-    this.chattyApiKey = this.configService.get<string>('CHATTY_API_KEY') || '';
-  }
+  ) {}
 
   /**
    * Создать комнату в сервисе CHATTY
    */
   private async createRoom(name: string): Promise<string> {
-    if (!this.chattyUrl || !this.chattyApiKey) {
+    const chattyUrl = this.configService.get<string>('CHATTY_URL') || '';
+    const chattyApiKey = this.configService.get<string>('CHATTY_API_KEY') || '';
+
+    if (!chattyUrl || !chattyApiKey) {
       throw new BadRequestException('Конфигурация CHATTY не настроена');
     }
 
     try {
-      const response = await fetch(`${this.chattyUrl}/api/v1/rooms`, {
+      const response = await fetch(`${chattyUrl}/api/v1/rooms`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': this.chattyApiKey,
+          'x-api-key': chattyApiKey,
         },
         body: JSON.stringify({
           name,

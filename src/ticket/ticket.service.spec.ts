@@ -51,10 +51,6 @@ describe('TicketService', () => {
     updatedAt: new Date(),
   };
 
-  let mockConfigService: {
-    get: ReturnType<typeof vi.fn>;
-  };
-
   beforeEach(async () => {
     // Инициализируем базовые моки
     mockDb = {
@@ -69,7 +65,7 @@ describe('TicketService', () => {
       ne: vi.fn(),
     };
 
-    mockConfigService = {
+    const mockConfigService = {
       get: vi.fn((key: string) => {
         if (key === 'CHATTY_URL') return 'http://localhost:3001';
         if (key === 'CHATTY_API_KEY') return 'test-api-key';
@@ -95,6 +91,8 @@ describe('TicketService', () => {
     }).compile();
 
     service = module.get<TicketService>(TicketService);
+    // Устанавливаем configService напрямую, так как он используется в методах
+    (service as any).configService = mockConfigService;
   });
 
   describe('create', () => {
