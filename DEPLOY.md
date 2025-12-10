@@ -77,6 +77,10 @@ S3_REGION=us-east-1
 # Avatar API (опционально)
 # AVAGEN_BASE_URL=http://82.202.140.37:12745  # Базовый URL API для запросов (генерация аватарок, получение палитры)
 # AVAGEN_SOURCE_URL=https://it-hackathon-team05.mephi.ru/files  # Базовый URL для формирования URL аватарок при сохранении в БД (опционально, по умолчанию используется AVAGEN_BASE_URL)
+
+# CHATTY Service Configuration (ОБЯЗАТЕЛЬНО для модуля tickets)
+CHATTY_URL=http://localhost:3001  # Базовый URL сервиса CHATTY для создания комнат
+CHATTY_API_KEY=your-chatty-api-key  # API ключ для аутентификации в CHATTY (заголовок x-api-key)
 ```
 
 **⚠️ ВАЖНО**: 
@@ -85,6 +89,9 @@ S3_REGION=us-east-1
   - `S3_BUCKET_NAME`
   - `S3_ACCESS_KEY_ID` (или `AWS_ACCESS_KEY_ID`)
   - `S3_SECRET_ACCESS_KEY` (или `AWS_SECRET_ACCESS_KEY`)
+- **CHATTY переменные обязательны** для работы модуля tickets - приложение не запустится без них. Укажите:
+  - `CHATTY_URL` - базовый URL сервиса CHATTY (например, `http://chatty:3001` для docker-compose или `https://chatty.example.com` для внешнего сервиса)
+  - `CHATTY_API_KEY` - API ключ для аутентификации в CHATTY
 
 ### 3. Сборка и запуск контейнеров
 
@@ -477,6 +484,10 @@ S3_REGION=us-east-1
 # Avatar API (опционально)
 # AVAGEN_BASE_URL=http://82.202.140.37:12745  # Базовый URL API для запросов (генерация аватарок, получение палитры)
 # AVAGEN_SOURCE_URL=https://it-hackathon-team05.mephi.ru/files  # Базовый URL для формирования URL аватарок при сохранении в БД (опционально, по умолчанию используется AVAGEN_BASE_URL)
+
+# CHATTY Service Configuration (ОБЯЗАТЕЛЬНО для модуля tickets)
+CHATTY_URL=http://chatty:3001  # Базовый URL сервиса CHATTY для создания комнат (используйте имя сервиса в docker-compose или внешний URL)
+CHATTY_API_KEY=your-secure-chatty-api-key  # API ключ для аутентификации в CHATTY (заголовок x-api-key)
 
 # Docker Image (для docker-compose.yml)
 # Переменная DOCKER_IMAGE будет установлена автоматически при деплое
