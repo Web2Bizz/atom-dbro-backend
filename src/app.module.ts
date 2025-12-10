@@ -24,6 +24,7 @@ import { ContributerModule } from './contributer/contributer.module';
 import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
 import { RedisModule } from './redis/redis.module';
 import { CheckinModule } from './checkin/checkin.module';
+import { TicketModule } from './ticket/ticket.module';
 import { AppController } from './app.controller';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { HttpMetricsInterceptor } from './common/interceptors/http-metrics.interceptor';
@@ -62,6 +63,7 @@ import { HttpMetricsInterceptor } from './common/interceptors/http-metrics.inter
     ContributerModule,
     RabbitMQModule,
     CheckinModule,
+    TicketModule,
   ],
   controllers: [AppController],
   providers: [
