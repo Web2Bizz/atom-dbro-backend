@@ -257,6 +257,17 @@ export const questContributers = pgTable('quest_contributers', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+// Тикеты
+export const tickets = pgTable('tickets', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  isResolved: boolean('is_resolved').default(false).notNull(),
+  chatId: varchar('chat_id', { length: 255 }).notNull(),
+  recordStatus: varchar('record_status', { length: 20 }).default('CREATED').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 // Relations
 export const regionsRelations = relations(regions, ({ many }) => ({
   cities: many(cities),
@@ -278,6 +289,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   ownedQuests: many(quests),
   stepVolunteers: many(questStepVolunteers),
   contributers: many(questContributers),
+  tickets: many(tickets),
 }));
 
 export const helpTypesRelations = relations(helpTypes, ({ many }) => ({
@@ -427,6 +439,13 @@ export const questContributersRelations = relations(questContributers, ({ one })
   quest: one(quests, {
     fields: [questContributers.questId],
     references: [quests.id],
+  }),
+}));
+
+export const ticketsRelations = relations(tickets, ({ one }) => ({
+  user: one(users, {
+    fields: [tickets.userId],
+    references: [users.id],
   }),
 }));
 
