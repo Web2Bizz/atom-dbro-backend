@@ -6,6 +6,7 @@ import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { tickets } from '../database/schema';
 import { ConfigService } from '@nestjs/config';
+import { BadRequestException } from '@nestjs/common';
 
 describe('TicketService', () => {
   let service: TicketService;
@@ -178,6 +179,139 @@ describe('TicketService', () => {
         expect.objectContaining({
           isResolved: false,
         })
+      );
+    });
+
+    it('should throw BadRequestException when CHATTY returns error status', async () => {
+      const userId = 1;
+      const name = 'Test Ticket';
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        text: async () => 'Server error',
+      });
+
+      await expect(service.create(userId, name)).rejects.toThrow(BadRequestException);
+      await expect(service.create(userId, name)).rejects.toThrow(
+        'Не удалось создать комнату в CHATTY: 500 Internal Server Error',
+      );
+    });
+
+    it('should throw BadRequestException when CHATTY response is missing id', async () => {
+      const userId = 1;
+      const name = 'Test Ticket';
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          name: name,
+          isPrivate: true,
+          // id отсутствует
+        }),
+      });
+
+      await expect(service.create(userId, name)).rejects.toThrow(BadRequestException);
+      await expect(service.create(userId, name)).rejects.toThrow(
+        'Неверный ответ от сервиса CHATTY: отсутствует идентификатор комнаты',
+      );
+    });
+
+    it('should throw BadRequestException when CHATTY response is null or empty', async () => {
+      const userId = 1;
+      const name = 'Test Ticket';
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: async () => null,
+      });
+
+      await expect(service.create(userId, name)).rejects.toThrow(BadRequestException);
+      await expect(service.create(userId, name)).rejects.toThrow(
+        'Неверный ответ от сервиса CHATTY: отсутствует идентификатор комнаты',
+      );
+    });
+
+    it('should throw BadRequestException when network error occurs', async () => {
+      const userId = 1;
+      const name = 'Test Ticket';
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('Network error: Failed to fetch'),
+      );
+
+      await expect(service.create(userId, name)).rejects.toThrow(BadRequestException);
+      await expect(service.create(userId, name)).rejects.toThrow('Ошибка при создании комнаты в CHATTY');
+    });
+
+    it('should throw BadRequestException when CHATTY_URL is not configured', async () => {
+      const userId = 1;
+      const name = 'Test Ticket';
+
+      const mockConfigServiceWithoutUrl = {
+        get: vi.fn((key: string) => {
+          if (key === 'CHATTY_URL') return '';
+          if (key === 'CHATTY_API_KEY') return 'test-api-key';
+          return undefined;
+        }),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          TicketService,
+          {
+            provide: DATABASE_CONNECTION,
+            useValue: mockDb as unknown as NodePgDatabase,
+          },
+          {
+            provide: ConfigService,
+            useValue: mockConfigServiceWithoutUrl,
+          },
+        ],
+      }).compile();
+
+      const serviceWithoutConfig = module.get<TicketService>(TicketService);
+      (serviceWithoutConfig as any).configService = mockConfigServiceWithoutUrl;
+
+      await expect(serviceWithoutConfig.create(userId, name)).rejects.toThrow(BadRequestException);
+      await expect(serviceWithoutConfig.create(userId, name)).rejects.toThrow(
+        'Конфигурация CHATTY не настроена',
+      );
+    });
+
+    it('should throw BadRequestException when CHATTY_API_KEY is not configured', async () => {
+      const userId = 1;
+      const name = 'Test Ticket';
+
+      const mockConfigServiceWithoutKey = {
+        get: vi.fn((key: string) => {
+          if (key === 'CHATTY_URL') return 'http://localhost:3001';
+          if (key === 'CHATTY_API_KEY') return '';
+          return undefined;
+        }),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          TicketService,
+          {
+            provide: DATABASE_CONNECTION,
+            useValue: mockDb as unknown as NodePgDatabase,
+          },
+          {
+            provide: ConfigService,
+            useValue: mockConfigServiceWithoutKey,
+          },
+        ],
+      }).compile();
+
+      const serviceWithoutConfig = module.get<TicketService>(TicketService);
+      (serviceWithoutConfig as any).configService = mockConfigServiceWithoutKey;
+
+      await expect(serviceWithoutConfig.create(userId, name)).rejects.toThrow(BadRequestException);
+      await expect(serviceWithoutConfig.create(userId, name)).rejects.toThrow(
+        'Конфигурация CHATTY не настроена',
       );
     });
   });

@@ -34,11 +34,15 @@ export class TicketService {
     const chattyApiKey = this.configService.get<string>('CHATTY_API_KEY') || '';
 
     if (!chattyUrl || !chattyApiKey) {
+      this.logger.error('CHATTY configuration is missing: CHATTY_URL or CHATTY_API_KEY is not set');
       throw new BadRequestException('Конфигурация CHATTY не настроена');
     }
 
+    const requestUrl = `${chattyUrl}/chatty/api/v1/rooms`;
+    this.logger.log(`Attempting to create room in CHATTY. Name: "${name}", URL: ${requestUrl}`);
+
     try {
-      const response = await fetch(`${chattyUrl}/chatty/api/v1/rooms`, {
+      const response = await fetch(requestUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -53,7 +57,8 @@ export class TicketService {
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
         this.logger.error(
-          `Failed to create room in CHATTY: ${response.status} ${response.statusText}. Response: ${errorText}`,
+          `Failed to create room in CHATTY. Status: ${response.status} ${response.statusText}, ` +
+            `Name: "${name}", URL: ${requestUrl}, Response: ${errorText}`,
         );
         throw new BadRequestException(
           `Не удалось создать комнату в CHATTY: ${response.status} ${response.statusText}`,
@@ -63,17 +68,23 @@ export class TicketService {
       const data: ChattyRoomResponse = await response.json();
 
       if (!data || !data.id) {
-        this.logger.error('Invalid response from CHATTY: missing id');
-        throw new BadRequestException('Неверный ответ от сервиса CHATTY');
+        this.logger.error(
+          `Invalid response from CHATTY: missing id. Name: "${name}", Response: ${JSON.stringify(data)}`,
+        );
+        throw new BadRequestException('Неверный ответ от сервиса CHATTY: отсутствует идентификатор комнаты');
       }
 
-      this.logger.log(`Room created in CHATTY with id: ${data.id}`);
+      this.logger.log(`Room created successfully in CHATTY. Name: "${name}", Room ID: ${data.id}`);
       return data.id;
     } catch (error) {
       if (error instanceof BadRequestException) {
         throw error;
       }
-      this.logger.error(`Error creating room in CHATTY: ${error instanceof Error ? error.message : error}`);
+      this.logger.error(
+        `Error creating room in CHATTY. Name: "${name}", URL: ${requestUrl}, ` +
+          `Error: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
       throw new BadRequestException('Ошибка при создании комнаты в CHATTY');
     }
   }
@@ -82,21 +93,37 @@ export class TicketService {
    * Создать тикет
    */
   async create(userId: number, name: string) {
-    // Создаем комнату в CHATTY
-    const chatId = await this.createRoom(name);
+    this.logger.log(`Creating ticket for user ${userId} with name: "${name}"`);
 
-    // Сохраняем тикет в БД
-    const [ticket] = await this.db
-      .insert(tickets)
-      .values({
-        userId,
-        chatId,
-        isResolved: false,
-        recordStatus: 'CREATED',
-      })
-      .returning();
+    try {
+      // Создаем комнату в CHATTY
+      const chatId = await this.createRoom(name);
+      this.logger.log(`Room created in CHATTY with ID: ${chatId} for user ${userId}`);
 
-    return ticket;
+      // Сохраняем тикет в БД
+      const [ticket] = await this.db
+        .insert(tickets)
+        .values({
+          userId,
+          chatId,
+          isResolved: false,
+          recordStatus: 'CREATED',
+        })
+        .returning();
+
+      this.logger.log(
+        `Ticket created successfully. Ticket ID: ${ticket.id}, User ID: ${userId}, Chat ID: ${chatId}`,
+      );
+
+      return ticket;
+    } catch (error) {
+      this.logger.error(
+        `Failed to create ticket for user ${userId} with name: "${name}". ` +
+          `Error: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
   }
 
   /**
