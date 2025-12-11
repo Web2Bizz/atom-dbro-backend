@@ -6,7 +6,7 @@ import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { tickets } from '../database/schema';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 describe('TicketService', () => {
   let service: TicketService;
@@ -17,6 +17,8 @@ describe('TicketService', () => {
     where: ReturnType<typeof vi.fn>;
     values: ReturnType<typeof vi.fn>;
     returning: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+    set: ReturnType<typeof vi.fn>;
     eq: ReturnType<typeof vi.fn>;
     and: ReturnType<typeof vi.fn>;
     ne: ReturnType<typeof vi.fn>;
@@ -61,6 +63,8 @@ describe('TicketService', () => {
       where: vi.fn(),
       values: vi.fn(),
       returning: vi.fn(),
+      update: vi.fn(),
+      set: vi.fn(),
       eq: vi.fn(),
       and: vi.fn(),
       ne: vi.fn(),
@@ -461,6 +465,135 @@ describe('TicketService', () => {
       expect(result2).toHaveLength(1);
       expect(result1.every(t => t.userId === userId1)).toBe(true);
       expect(result2.every(t => t.userId === userId2)).toBe(true);
+    });
+  });
+
+  describe('close', () => {
+    it('should successfully close a ticket belonging to the user', async () => {
+      const userId = 1;
+      const ticketId = 1;
+      const closedTicket = { ...mockTicket, isResolved: true };
+
+      // Мокируем проверку существования тикета: select().from().where().limit(1)
+      const mockSelectLimit = vi.fn().mockResolvedValue([mockTicket]);
+      const mockSelectWhere = vi.fn().mockReturnValue({ limit: mockSelectLimit });
+      const mockSelectFrom = vi.fn().mockReturnValue({ where: mockSelectWhere });
+      mockDb.select = vi.fn().mockReturnValue({ from: mockSelectFrom });
+
+      // Мокируем update операцию: update().set().where().returning()
+      const mockUpdateReturning = vi.fn().mockResolvedValue([closedTicket]);
+      const mockUpdateWhere = vi.fn().mockReturnValue({ returning: mockUpdateReturning });
+      const mockUpdateSet = vi.fn().mockReturnValue({ where: mockUpdateWhere });
+      mockDb.update = vi.fn().mockReturnValue({ set: mockUpdateSet });
+
+      const result = await service.close(userId, ticketId);
+
+      expect(result).toEqual(closedTicket);
+      expect(result.isResolved).toBe(true);
+      expect(mockDb.select).toHaveBeenCalled();
+      expect(mockDb.update).toHaveBeenCalledWith(tickets);
+      expect(mockUpdateSet).toHaveBeenCalledWith({
+        isResolved: true,
+        updatedAt: expect.any(Date),
+      });
+      expect(mockUpdateWhere).toHaveBeenCalledWith(expect.anything());
+      expect(mockUpdateReturning).toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException when ticket does not exist', async () => {
+      const userId = 1;
+      const ticketId = 999;
+
+      // Мокируем пустой результат при проверке существования
+      const mockSelectLimit = vi.fn().mockResolvedValue([]);
+      const mockSelectWhere = vi.fn().mockReturnValue({ limit: mockSelectLimit });
+      const mockSelectFrom = vi.fn().mockReturnValue({ where: mockSelectWhere });
+      mockDb.select = vi.fn().mockReturnValue({ from: mockSelectFrom });
+
+      const error = await service.close(userId, ticketId).catch(e => e);
+
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect(error.message).toBe(`Тикет с ID ${ticketId} не найден или не принадлежит текущему пользователю`);
+      expect(mockDb.select).toHaveBeenCalled();
+      expect(mockDb.update).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException when ticket belongs to another user', async () => {
+      const userId = 1;
+      const ticketId = 3; // mockTicketOtherUser принадлежит пользователю 2
+
+      // Мокируем пустой результат, так как тикет принадлежит другому пользователю
+      const mockSelectLimit = vi.fn().mockResolvedValue([]);
+      const mockSelectWhere = vi.fn().mockReturnValue({ limit: mockSelectLimit });
+      const mockSelectFrom = vi.fn().mockReturnValue({ where: mockSelectWhere });
+      mockDb.select = vi.fn().mockReturnValue({ from: mockSelectFrom });
+
+      const error = await service.close(userId, ticketId).catch(e => e);
+
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect(error.message).toBe(`Тикет с ID ${ticketId} не найден или не принадлежит текущему пользователю`);
+      expect(mockDb.update).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException when ticket is deleted (recordStatus = DELETED)', async () => {
+      const userId = 1;
+      const ticketId = 1;
+
+      // Мокируем пустой результат, так как тикет удален (не проходит фильтр ne(recordStatus, 'DELETED'))
+      const mockSelectLimit = vi.fn().mockResolvedValue([]);
+      const mockSelectWhere = vi.fn().mockReturnValue({ limit: mockSelectLimit });
+      const mockSelectFrom = vi.fn().mockReturnValue({ where: mockSelectWhere });
+      mockDb.select = vi.fn().mockReturnValue({ from: mockSelectFrom });
+
+      const error = await service.close(userId, ticketId).catch(e => e);
+
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect(error.message).toBe(`Тикет с ID ${ticketId} не найден или не принадлежит текущему пользователю`);
+      expect(mockDb.update).not.toHaveBeenCalled();
+    });
+
+    it('should update ticket with isResolved set to true', async () => {
+      const userId = 1;
+      const ticketId = 1;
+      const closedTicket = { ...mockTicket, isResolved: true };
+
+      const mockSelectLimit = vi.fn().mockResolvedValue([mockTicket]);
+      const mockSelectWhere = vi.fn().mockReturnValue({ limit: mockSelectLimit });
+      const mockSelectFrom = vi.fn().mockReturnValue({ where: mockSelectWhere });
+      mockDb.select = vi.fn().mockReturnValue({ from: mockSelectFrom });
+
+      const mockUpdateReturning = vi.fn().mockResolvedValue([closedTicket]);
+      const mockUpdateWhere = vi.fn().mockReturnValue({ returning: mockUpdateReturning });
+      const mockUpdateSet = vi.fn().mockReturnValue({ where: mockUpdateWhere });
+      mockDb.update = vi.fn().mockReturnValue({ set: mockUpdateSet });
+
+      const result = await service.close(userId, ticketId);
+
+      expect(result.isResolved).toBe(true);
+      expect(mockUpdateSet).toHaveBeenCalledWith({
+        isResolved: true,
+        updatedAt: expect.any(Date),
+      });
+    });
+
+    it('should propagate database errors', async () => {
+      const userId = 1;
+      const ticketId = 1;
+      const dbError = new Error('Database connection failed');
+
+      const mockSelectLimit = vi.fn().mockResolvedValue([mockTicket]);
+      const mockSelectWhere = vi.fn().mockReturnValue({ limit: mockSelectLimit });
+      const mockSelectFrom = vi.fn().mockReturnValue({ where: mockSelectWhere });
+      mockDb.select = vi.fn().mockReturnValue({ from: mockSelectFrom });
+
+      const mockUpdateReturning = vi.fn().mockRejectedValue(dbError);
+      const mockUpdateWhere = vi.fn().mockReturnValue({ returning: mockUpdateReturning });
+      const mockUpdateSet = vi.fn().mockReturnValue({ where: mockUpdateWhere });
+      mockDb.update = vi.fn().mockReturnValue({ set: mockUpdateSet });
+
+      const error = await service.close(userId, ticketId).catch(e => e);
+
+      expect(error).toBe(dbError);
     });
   });
 });

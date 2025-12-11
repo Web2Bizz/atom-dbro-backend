@@ -4,6 +4,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TicketController } from './ticket.controller';
 import { TicketService } from './ticket.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
+import { CloseTicketDto } from './dto/close-ticket.dto';
+import { NotFoundException } from '@nestjs/common';
 
 describe('TicketController', () => {
   let controller: TicketController;
@@ -37,12 +39,14 @@ describe('TicketController', () => {
   let mockService: {
     create: ReturnType<typeof vi.fn>;
     findAll: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
     mockService = {
       create: vi.fn(),
       findAll: vi.fn(),
+      close: vi.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -147,6 +151,86 @@ describe('TicketController', () => {
       expect(mockService.findAll).toHaveBeenCalledWith(differentUser.userId);
       // Проверяем, что использовался userId из сессии
       expect(mockService.findAll).not.toHaveBeenCalledWith(mockCurrentUser.userId);
+    });
+  });
+
+  describe('close', () => {
+    it('should successfully close a ticket with authentication', async () => {
+      const closeTicketDto: CloseTicketDto = {
+        id: 1,
+      };
+      const closedTicket = { ...mockTicket, isResolved: true };
+      
+      mockService.close.mockResolvedValue(closedTicket);
+
+      const result = await controller.close(mockCurrentUser, closeTicketDto);
+
+      expect(result).toEqual(closedTicket);
+      expect(result.isResolved).toBe(true);
+      expect(mockService.close).toHaveBeenCalledWith(
+        mockCurrentUser.userId,
+        closeTicketDto.id
+      );
+    });
+
+    it('should use userId from authenticated user', async () => {
+      const closeTicketDto: CloseTicketDto = {
+        id: 1,
+      };
+      const differentUser = { userId: 2, email: 'other@example.com' };
+      const closedTicket = { ...mockTicket, userId: differentUser.userId, isResolved: true };
+      
+      mockService.close.mockResolvedValue(closedTicket);
+
+      const result = await controller.close(differentUser, closeTicketDto);
+
+      expect(result.userId).toBe(differentUser.userId);
+      expect(mockService.close).toHaveBeenCalledWith(
+        differentUser.userId,
+        closeTicketDto.id
+      );
+      expect(mockService.close).not.toHaveBeenCalledWith(
+        mockCurrentUser.userId,
+        closeTicketDto.id
+      );
+    });
+
+    it('should throw NotFoundException when ticket is not found', async () => {
+      const closeTicketDto: CloseTicketDto = {
+        id: 999,
+      };
+      
+      mockService.close.mockRejectedValue(
+        new NotFoundException(`Тикет с ID ${closeTicketDto.id} не найден или не принадлежит текущему пользователю`)
+      );
+
+      await expect(
+        controller.close(mockCurrentUser, closeTicketDto)
+      ).rejects.toThrow(NotFoundException);
+      
+      expect(mockService.close).toHaveBeenCalledWith(
+        mockCurrentUser.userId,
+        closeTicketDto.id
+      );
+    });
+
+    it('should throw NotFoundException when ticket belongs to another user', async () => {
+      const closeTicketDto: CloseTicketDto = {
+        id: 3,
+      };
+      
+      mockService.close.mockRejectedValue(
+        new NotFoundException(`Тикет с ID ${closeTicketDto.id} не найден или не принадлежит текущему пользователю`)
+      );
+
+      await expect(
+        controller.close(mockCurrentUser, closeTicketDto)
+      ).rejects.toThrow(NotFoundException);
+      
+      expect(mockService.close).toHaveBeenCalledWith(
+        mockCurrentUser.userId,
+        closeTicketDto.id
+      );
     });
   });
 });
