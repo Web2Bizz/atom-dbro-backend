@@ -20,6 +20,11 @@ import {
   createTicketSchema,
   CreateTicketDtoClass,
 } from './dto/create-ticket.dto';
+import {
+  CloseTicketDto,
+  closeTicketSchema,
+  CloseTicketDtoClass,
+} from './dto/close-ticket.dto';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 
 @ApiTags('Тикеты')
@@ -66,6 +71,31 @@ export class TicketController {
   })
   findAll(@CurrentUser() user: { userId: number; email: string }) {
     return this.ticketService.findAll(user.userId);
+  }
+
+  @Post('close')
+  @UseGuards(JwtAuthGuard)
+  @ZodValidation(closeTicketSchema)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Закрыть тикет' })
+  @ApiBody({ type: CloseTicketDtoClass })
+  @ApiResponse({
+    status: 200,
+    description: 'Тикет успешно закрыт',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Требуется авторизация',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Тикет не найден или не принадлежит текущему пользователю',
+  })
+  close(
+    @CurrentUser() user: { userId: number; email: string },
+    @Body() closeTicketDto: CloseTicketDto,
+  ) {
+    return this.ticketService.close(user.userId, closeTicketDto.id);
   }
 }
 

@@ -1,4 +1,4 @@
-import { Injectable, Inject, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Inject, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -134,5 +134,53 @@ export class TicketService {
       .select()
       .from(tickets)
       .where(and(eq(tickets.userId, userId), ne(tickets.recordStatus, 'DELETED')));
+  }
+
+  /**
+   * Закрыть тикет
+   */
+  async close(userId: number, ticketId: number) {
+    this.logger.log(`Closing ticket ${ticketId} for user ${userId}`);
+
+    try {
+      // Проверяем, что тикет существует и принадлежит пользователю
+      const [ticket] = await this.db
+        .select()
+        .from(tickets)
+        .where(
+          and(
+            eq(tickets.id, ticketId),
+            eq(tickets.userId, userId),
+            ne(tickets.recordStatus, 'DELETED'),
+          ),
+        )
+        .limit(1);
+
+      if (!ticket) {
+        this.logger.warn(`Ticket ${ticketId} not found or does not belong to user ${userId}`);
+        throw new NotFoundException(`Тикет с ID ${ticketId} не найден или не принадлежит текущему пользователю`);
+      }
+
+      // Обновляем статус тикета
+      const [updatedTicket] = await this.db
+        .update(tickets)
+        .set({ isResolved: true, updatedAt: new Date() })
+        .where(eq(tickets.id, ticketId))
+        .returning();
+
+      this.logger.log(`Ticket ${ticketId} closed successfully for user ${userId}`);
+
+      return updatedTicket;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to close ticket ${ticketId} for user ${userId}. ` +
+          `Error: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
   }
 }
