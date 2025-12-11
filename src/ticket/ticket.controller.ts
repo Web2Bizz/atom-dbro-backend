@@ -3,6 +3,8 @@ import {
   Get,
   Post,
   Body,
+  Param,
+  ParseIntPipe,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -10,6 +12,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBody,
+  ApiParam,
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -20,11 +23,6 @@ import {
   createTicketSchema,
   CreateTicketDtoClass,
 } from './dto/create-ticket.dto';
-import {
-  CloseTicketDto,
-  closeTicketSchema,
-  CloseTicketDtoClass,
-} from './dto/close-ticket.dto';
 import { ZodValidation } from '../common/decorators/zod-validation.decorator';
 
 @ApiTags('Тикеты')
@@ -73,12 +71,11 @@ export class TicketController {
     return this.ticketService.findAll(user.userId);
   }
 
-  @Post('close')
+  @Post(':id/close')
   @UseGuards(JwtAuthGuard)
-  @ZodValidation(closeTicketSchema)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Закрыть тикет' })
-  @ApiBody({ type: CloseTicketDtoClass })
+  @ApiParam({ name: 'id', type: Number, description: 'ID тикета' })
   @ApiResponse({
     status: 200,
     description: 'Тикет успешно закрыт',
@@ -93,9 +90,9 @@ export class TicketController {
   })
   close(
     @CurrentUser() user: { userId: number; email: string },
-    @Body() closeTicketDto: CloseTicketDto,
+    @Param('id', ParseIntPipe) id: number,
   ) {
-    return this.ticketService.close(user.userId, closeTicketDto.id);
+    return this.ticketService.close(user.userId, id);
   }
 }
 
