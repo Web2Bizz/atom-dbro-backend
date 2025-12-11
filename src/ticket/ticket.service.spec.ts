@@ -193,10 +193,9 @@ describe('TicketService', () => {
         text: async () => 'Server error',
       });
 
-      await expect(service.create(userId, name)).rejects.toThrow(BadRequestException);
-      await expect(service.create(userId, name)).rejects.toThrow(
-        'Не удалось создать комнату в CHATTY: 500 Internal Server Error',
-      );
+      const error = await service.create(userId, name).catch(e => e);
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error.message).toBe('Не удалось создать комнату в CHATTY: 500 Internal Server Error');
     });
 
     it('should throw BadRequestException when CHATTY response is missing id', async () => {
@@ -212,10 +211,9 @@ describe('TicketService', () => {
         }),
       });
 
-      await expect(service.create(userId, name)).rejects.toThrow(BadRequestException);
-      await expect(service.create(userId, name)).rejects.toThrow(
-        'Неверный ответ от сервиса CHATTY: отсутствует идентификатор комнаты',
-      );
+      const error = await service.create(userId, name).catch(e => e);
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error.message).toBe('Неверный ответ от сервиса CHATTY: отсутствует идентификатор комнаты');
     });
 
     it('should throw BadRequestException when CHATTY response is null or empty', async () => {
@@ -227,10 +225,9 @@ describe('TicketService', () => {
         json: async () => null,
       });
 
-      await expect(service.create(userId, name)).rejects.toThrow(BadRequestException);
-      await expect(service.create(userId, name)).rejects.toThrow(
-        'Неверный ответ от сервиса CHATTY: отсутствует идентификатор комнаты',
-      );
+      const error = await service.create(userId, name).catch(e => e);
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error.message).toBe('Неверный ответ от сервиса CHATTY: отсутствует идентификатор комнаты');
     });
 
     it('should throw BadRequestException when network error occurs', async () => {
@@ -241,8 +238,9 @@ describe('TicketService', () => {
         new Error('Network error: Failed to fetch'),
       );
 
-      await expect(service.create(userId, name)).rejects.toThrow(BadRequestException);
-      await expect(service.create(userId, name)).rejects.toThrow('Ошибка при создании комнаты в CHATTY');
+      const error = await service.create(userId, name).catch(e => e);
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error.message).toBe('Ошибка при создании комнаты в CHATTY');
     });
 
     it('should throw BadRequestException when CHATTY_URL is not configured', async () => {
@@ -274,10 +272,9 @@ describe('TicketService', () => {
       const serviceWithoutConfig = module.get<TicketService>(TicketService);
       (serviceWithoutConfig as any).configService = mockConfigServiceWithoutUrl;
 
-      await expect(serviceWithoutConfig.create(userId, name)).rejects.toThrow(BadRequestException);
-      await expect(serviceWithoutConfig.create(userId, name)).rejects.toThrow(
-        'Конфигурация CHATTY не настроена',
-      );
+      const error = await serviceWithoutConfig.create(userId, name).catch(e => e);
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error.message).toBe('Конфигурация CHATTY не настроена');
     });
 
     it('should throw BadRequestException when CHATTY_API_KEY is not configured', async () => {
@@ -309,10 +306,68 @@ describe('TicketService', () => {
       const serviceWithoutConfig = module.get<TicketService>(TicketService);
       (serviceWithoutConfig as any).configService = mockConfigServiceWithoutKey;
 
-      await expect(serviceWithoutConfig.create(userId, name)).rejects.toThrow(BadRequestException);
-      await expect(serviceWithoutConfig.create(userId, name)).rejects.toThrow(
-        'Конфигурация CHATTY не настроена',
-      );
+      const error = await serviceWithoutConfig.create(userId, name).catch(e => e);
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error.message).toBe('Конфигурация CHATTY не настроена');
+    });
+
+    it('should propagate database error when saving ticket fails after successful room creation', async () => {
+      const userId = 1;
+      const name = 'Test Ticket';
+      const chattyRoomId = '8db20bf6-0dff-42f1-bbfb-a6f4bca25d8f';
+
+      // Мокируем успешный ответ от CHATTY API
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: chattyRoomId,
+          name: name,
+          isPrivate: true,
+          createdBy: 'ac60d8d8-2c2b-44f0-ad0c-e9ed6a176f3e',
+          createdAt: '2025-12-10T17:51:00.281Z',
+          updatedAt: '2025-12-10T17:51:00.281Z',
+          type: 'normal',
+        }),
+      });
+
+      // Мокируем ошибку при сохранении в БД
+      const dbError = new Error('Database connection failed');
+      const mockReturning = vi.fn().mockRejectedValue(dbError);
+      const mockValues = vi.fn().mockReturnValue({ returning: mockReturning });
+      mockDb.insert.mockReturnValue({ values: mockValues });
+
+      const error = await service.create(userId, name).catch(e => e);
+      expect(error).toBe(dbError);
+      expect(global.fetch).toHaveBeenCalled();
+      expect(mockDb.insert).toHaveBeenCalledWith(tickets);
+    });
+
+    it('should handle different HTTP error statuses from CHATTY', async () => {
+      const userId = 1;
+      const name = 'Test Ticket';
+
+      const testCases = [
+        { status: 400, statusText: 'Bad Request' },
+        { status: 401, statusText: 'Unauthorized' },
+        { status: 403, statusText: 'Forbidden' },
+        { status: 404, statusText: 'Not Found' },
+        { status: 500, statusText: 'Internal Server Error' },
+      ];
+
+      for (const testCase of testCases) {
+        (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+          ok: false,
+          status: testCase.status,
+          statusText: testCase.statusText,
+          text: async () => `Error ${testCase.status}`,
+        });
+
+        const error = await service.create(userId, name).catch(e => e);
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect(error.message).toBe(
+          `Не удалось создать комнату в CHATTY: ${testCase.status} ${testCase.statusText}`,
+        );
+      }
     });
   });
 
